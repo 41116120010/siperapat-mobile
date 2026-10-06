@@ -1,0 +1,87 @@
+/**
+ * Domain Entities for SIPERAPAT LLDIKTI X
+ * Strict TypeScript types representing official Civil Servant & Meeting Presensi entities.
+ */
+
+export interface ASN {
+  id: string;
+  nip: string; // 18 Digits
+  name: string;
+  pangkatGolongan: string;
+  jabatan: string;
+  unitKerja: string;
+  email: string;
+  phone: string;
+  avatarUrl?: string;
+  username?: string;
+  biometricEnabled: boolean;
+}
+
+export type MeetingStatus = 'ongoing' | 'upcoming' | 'completed' | 'cancelled';
+export type MeetingType = 'hybrid' | 'offline' | 'online';
+
+export interface Meeting {
+  id: string;
+  code: string;
+  title: string;
+  type: MeetingType;
+  leader: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  venue: string;
+  status: MeetingStatus;
+  geofenceRadiusMeters: number;
+  latitude: number;
+  longitude: number;
+  agendaDescription: string;
+  targetAudience: string;
+  zoomUrl?: string;
+  invitationPdfUrl?: string;
+  totalInvited: number;
+  totalAttended: number;
+}
+
+export type AttendanceStatus = 'sah' | 'terlambat' | 'izin' | 'ditolak';
+
+export interface Attendance {
+  id: string;
+  meetingId: string;
+  meetingTitle: string;
+  asnNip: string;
+  asnName: string;
+  asnJabatan: string;
+  asnUnitKerja: string;
+  timestamp: string;
+  selfieUri?: string;
+  signatureSvg?: string;
+  verificationToken: string;
+  ipAddress: string;
+  deviceInfo: string;
+  latitude: number;
+  longitude: number;
+  distanceMeters: number;
+  status: AttendanceStatus;
+  isSynced: boolean; // Durability: false when submitted offline, true when synced to central server
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  nip: string;
+  userName: string;
+  action: string;
+  status: 'SUCCESS' | 'WARNING' | 'FAILED';
+  ipAddress: string;
+  details: string;
+}
+
+export interface ASNUnitMember {
+  id: string;
+  nip: string;
+  name: string;
+  jabatan: string;
+  unitKerja: string;
+  pangkatGolongan: string;
+  statusPresensiTerakhir: 'Hadir' | 'Tugas Luar' | 'Belum Presensi';
+}

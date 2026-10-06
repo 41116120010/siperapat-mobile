@@ -1,0 +1,114 @@
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { colors } from '../../../core/theme/colors';
+import { typography } from '../../../core/theme/typography';
+import { rounded, spacing, elevations } from '../../../core/theme/tokens';
+
+export interface BentoStatItem {
+  label: string;
+  value: string | number;
+  subValue: string;
+  isPrimary?: boolean;
+  valueColor?: string;
+  subValueColor?: string;
+}
+
+interface BentoStatCardProps extends BentoStatItem {}
+
+export const BentoStatCard: React.FC<BentoStatCardProps> = ({
+  label,
+  value,
+  subValue,
+  isPrimary = false,
+  valueColor,
+  subValueColor,
+}) => {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.label} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={styles.valueRow}>
+        <Text
+          style={[
+            styles.value,
+            isPrimary && { color: colors.primary },
+            valueColor ? { color: valueColor } : null,
+          ]}
+        >
+          {value}
+        </Text>
+        <Text
+          style={[
+            styles.subValue,
+            subValueColor ? { color: subValueColor } : null,
+          ]}
+        >
+          {subValue}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
+export const BentoGrid: React.FC<{
+  stats: BentoStatItem[];
+}> = ({ stats }) => {
+  return (
+    <View style={styles.grid}>
+      {stats.map((stat, idx) => (
+        <BentoStatCard
+          key={idx}
+          label={stat.label}
+          value={stat.value}
+          subValue={stat.subValue}
+          isPrimary={stat.isPrimary}
+          valueColor={stat.valueColor}
+          subValueColor={stat.subValueColor}
+        />
+      ))}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  grid: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginVertical: spacing.sm,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: rounded.md,
+    padding: spacing.sm + 2,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
+    justifyContent: 'space-between',
+    minHeight: 74,
+    ...elevations.level1,
+  },
+  label: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    fontSize: 11,
+  },
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: spacing.xs,
+  },
+  value: {
+    ...typography.headlineMd,
+    color: colors.onSurface,
+    fontWeight: '700',
+    fontSize: 20,
+  },
+  subValue: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    marginLeft: 4,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+});
