@@ -9,6 +9,7 @@ import {
   Pressable,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
 import { rounded, spacing, elevations } from '../../core/theme/tokens';
@@ -33,9 +34,22 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         source={require('../../../assets/images/rumah-gadang-bg.jpg')}
         style={styles.backgroundImage}
         resizeMode="cover"
+        blurRadius={2}
       >
-        {/* Deep Navy Scrim Overlay */}
-        <View style={styles.overlay} />
+        {/* Neutral Optical Scrim Gradient (Preserves Minangkabau Architecture & eliminates blue mud) */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Svg width="100%" height="100%">
+            <Defs>
+              <SvgLinearGradient id="neutralScrim" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0%" stopColor="#0A0F1A" stopOpacity="0.60" />
+                <Stop offset="32%" stopColor="#0B1222" stopOpacity="0.40" />
+                <Stop offset="65%" stopColor="#070D1A" stopOpacity="0.66" />
+                <Stop offset="100%" stopColor="#03060E" stopOpacity="0.88" />
+              </SvgLinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#neutralScrim)" />
+          </Svg>
+        </View>
 
         {/* Content Container */}
         <View style={styles.content}>
@@ -79,7 +93,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
               accessibilityLabel="Masuk ke Sistem"
             >
               <Text style={styles.enterButtonText}>
-                {user ? 'Buka Dashboard' : 'Masuk ke Sistem'}
+                Masuk ke Sistem
               </Text>
               <MaterialIcons
                 name="arrow-forward"
@@ -104,19 +118,11 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#051026',
+    backgroundColor: '#070D1A',
   },
   backgroundImage: {
     width,
     height,
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(5, 16, 38, 0.92)',
   },
   content: {
     flex: 1,
@@ -165,7 +171,7 @@ const styles = StyleSheet.create({
   tagline: {
     ...typography.headlineSm,
     fontSize: 15,
-    color: colors.secondaryFixedDim,
+    color: colors.textSplashMuted,
     fontWeight: '500',
     textAlign: 'center',
     letterSpacing: 0.5,
@@ -173,7 +179,7 @@ const styles = StyleSheet.create({
   },
   institutionContainer: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+    borderTopColor: 'rgba(255, 255, 255, 0.18)',
     paddingTop: spacing.md,
     maxWidth: 280,
     alignItems: 'center',
@@ -183,15 +189,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FFFFFF',
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     textAlign: 'center',
     marginBottom: 4,
   },
   ministrySubtitle: {
     ...typography.bodySm,
     fontSize: 12,
-    color: 'rgba(203, 213, 225, 0.9)',
-    fontWeight: '500',
+    color: colors.textSplashMinistry,
+    fontWeight: '400',
     textAlign: 'center',
     lineHeight: 18,
   },

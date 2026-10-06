@@ -42,6 +42,13 @@ export const colors = {
   textMuted: '#64748B',
   inverseSurface: '#213145',
   inverseOnSurface: '#EAF1FF',
+  textSplashMuted: '#E2E8F0',
+  textSplashMinistry: 'rgba(226, 232, 240, 0.85)',
+
+  // Neutral Scrim & Atmospheric Layers
+  scrimNeutralTop: 'rgba(10, 15, 26, 0.60)',
+  scrimNeutralMid: 'rgba(10, 15, 26, 0.42)',
+  scrimNeutralBottom: 'rgba(4, 7, 14, 0.88)',
 
   // Borders & Outlines
   outline: '#757682',

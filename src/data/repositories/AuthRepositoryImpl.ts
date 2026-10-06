@@ -7,12 +7,20 @@ import { isValidNIP } from '../../core/utils/nipValidator';
 const AUTH_STORAGE_KEY = '@siperapat_auth_session';
 
 export class AuthRepositoryImpl implements IAuthRepository {
-  async loginWithNIP(nip: string, password?: string): Promise<ASN> {
-    const cleanNip = nip.replace(/\s+/g, '');
-    
-    // Validate NIP length or username
-    if (!isValidNIP(cleanNip) && cleanNip.toLowerCase() !== 'admin') {
-      throw new Error('NIP harus terdiri dari 18 digit angka resmi ASN yang sah.');
+  async loginWithNIP(identifier: string, password?: string): Promise<ASN> {
+    const trimmed = identifier.trim();
+    const cleanDigits = trimmed.replace(/\s+/g, '');
+    const isNumeric = /^\d+$/.test(cleanDigits);
+
+    // Validate NIP length (18 digit) or username (min 3 chars)
+    if (isNumeric) {
+      if (!isValidNIP(cleanDigits)) {
+        throw new Error('NIP harus terdiri dari 18 digit angka resmi ASN yang sah.');
+      }
+    } else {
+      if (trimmed.length < 3) {
+        throw new Error('Username ASN terdaftar minimal 3 karakter.');
+      }
     }
 
     if (!password || password.length < 4) {
@@ -22,7 +30,8 @@ export class AuthRepositoryImpl implements IAuthRepository {
     // Match or create valid session
     const user: ASN = {
       ...MOCK_ASN_USER,
-      nip: cleanNip === 'admin' ? MOCK_ASN_USER.nip : cleanNip,
+      nip: isNumeric ? cleanDigits : MOCK_ASN_USER.nip,
+      username: !isNumeric ? trimmed : 'afdalisma',
     };
 
     await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));

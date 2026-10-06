@@ -114,7 +114,7 @@ export const AppNavigator: React.FC = () => {
     >
       <Stack.Screen name="Splash">
         {({ navigation }) => (
-          <SplashScreen onFinish={() => navigation.replace('MainTabs')} />
+          <SplashScreen onFinish={() => navigation.replace('Login')} />
         )}
       </Stack.Screen>
 

@@ -23,36 +23,29 @@ interface LoginScreenProps {
   onLoginSuccess: () => void;
 }
 
-type AuthMode = 'nip' | 'username';
-
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-  const [authMode, setAuthMode] = useState<AuthMode>('nip');
   const [identifier, setIdentifier] = useState('19701205 199203 2 002');
   const [password, setPassword] = useState('lldikti2026');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(true);
 
-  const { login, loginBiometric, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, clearError } = useAuthStore();
 
   const rawDigits = useMemo(() => cleanNIP(identifier), [identifier]);
+  const isNumericInput = useMemo(() => {
+    const trimmed = identifier.trim();
+    return trimmed.length > 0 && /^[0-9\s]+$/.test(trimmed);
+  }, [identifier]);
+
   const isNipComplete = rawDigits.length === 18;
   const nipValidation = useMemo(() => {
-    if (authMode !== 'nip') return null;
+    if (!isNumericInput) return null;
     return validateNIP(identifier);
-  }, [authMode, identifier]);
-
-  const handleModeChange = (mode: AuthMode) => {
-    setAuthMode(mode);
-    if (mode === 'nip') {
-      setIdentifier('19701205 199203 2 002');
-    } else {
-      setIdentifier('afdalisma');
-    }
-    if (error) clearError();
-  };
+  }, [isNumericInput, identifier]);
 
   const handleIdentifierChange = (val: string) => {
-    if (authMode === 'nip') {
+    // Jika input berupa angka/spasi, terapkan pemformatan NIP cerdas
+    if (/^[0-9\s]*$/.test(val)) {
       setIdentifier(formatNIP(val));
     } else {
       setIdentifier(val);
@@ -62,13 +55,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   const handleLogin = async () => {
     const success = await login(identifier, password);
-    if (success) {
-      onLoginSuccess();
-    }
-  };
-
-  const handleBiometricLogin = async () => {
-    const success = await loginBiometric();
     if (success) {
       onLoginSuccess();
     }
@@ -103,68 +89,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           </View>
           <Text style={styles.welcomeTitle}>Masuk ke Akun Kedinasan</Text>
           <Text style={styles.welcomeSubtitle}>
-            Gunakan NIP (18 Digit) atau Username terdaftar untuk memulai pencatatan presensi.
+            Gunakan NIP (18 Digit) atau Username ASN terdaftar untuk memulai pencatatan presensi.
           </Text>
         </View>
 
         {/* Main Authentication Bento Card */}
         <View style={styles.card}>
-          {/* Smart Mode Tab Selector */}
-          <View style={styles.tabContainer}>
-            <Pressable
-              onPress={() => handleModeChange('nip')}
-              style={[
-                styles.tabButton,
-                authMode === 'nip' && styles.tabButtonActive,
-              ]}
-            >
-              <MaterialIcons
-                name="badge"
-                size={16}
-                color={authMode === 'nip' ? colors.primary : colors.onSurfaceVariant}
-              />
-              <Text
-                style={[
-                  styles.tabText,
-                  authMode === 'nip' && styles.tabTextActive,
-                ]}
-              >
-                NIP (18 Digit)
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleModeChange('username')}
-              style={[
-                styles.tabButton,
-                authMode === 'username' && styles.tabButtonActive,
-              ]}
-            >
-              <MaterialIcons
-                name="person"
-                size={16}
-                color={authMode === 'username' ? colors.primary : colors.onSurfaceVariant}
-              />
-              <Text
-                style={[
-                  styles.tabText,
-                  authMode === 'username' && styles.tabTextActive,
-                ]}
-              >
-                Username ASN
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Identifier Input with Counter Badge */}
+          {/* Unified NIP / Username Input with Counter Badge */}
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>
-                {authMode === 'nip'
-                  ? 'Nomor Induk Pegawai (NIP)'
-                  : 'Username ASN Terdaftar'}
-              </Text>
-              {authMode === 'nip' ? (
+              <Text style={styles.inputLabel}>NIP (18 Digit) atau Username ASN</Text>
+              {isNumericInput && rawDigits.length > 0 ? (
                 <View
                   style={[
                     styles.counterBadge,
@@ -185,19 +120,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
             <Input
               label=""
-              placeholder={
-                authMode === 'nip'
-                  ? 'Contoh: 19701205 199203 2 002'
-                  : 'Masukkan username dinas'
-              }
+              placeholder="Contoh: 19701205 199203 2 002 atau afdalisma"
               value={identifier}
               onChangeText={handleIdentifierChange}
-              keyboardType={authMode === 'nip' ? 'number-pad' : 'default'}
-              maxLength={authMode === 'nip' ? 23 : 32}
-              isMono={authMode === 'nip'}
+              keyboardType="default"
+              maxLength={32}
+              isMono={isNumericInput}
               leftIcon={
                 <MaterialIcons
-                  name={authMode === 'nip' ? 'badge' : 'person'}
+                  name={isNumericInput ? 'badge' : 'person'}
                   size={20}
                   color={colors.outline}
                 />
@@ -205,7 +136,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             />
 
             {/* Real-time NIP Validation Banner */}
-            {authMode === 'nip' && isNipComplete && nipValidation?.isValid ? (
+            {isNumericInput && isNipComplete && nipValidation?.isValid ? (
               <View style={styles.validBanner}>
                 <MaterialIcons name="verified" size={16} color="#065F46" />
                 <Text style={styles.validBannerText}>
@@ -283,41 +214,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             style={styles.submitBtn}
             icon={<MaterialIcons name="login" size={20} color={colors.onPrimary} />}
           />
-
-          {/* Divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ATAU</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Quick Biometric Authentication Button */}
-          <Button
-            title="Masuk dengan Biometrik ASN (Sidik Jari / Wajah)"
-            onPress={handleBiometricLogin}
-            variant="outline"
-            size="md"
-            fullWidth
-            icon={
-              <MaterialIcons
-                name="fingerprint"
-                size={22}
-                color={colors.primary}
-              />
-            }
-          />
         </View>
 
-        {/* Institutional Footer & Security Badges */}
+        {/* Institutional Footer */}
         <View style={styles.footer}>
-          {/* Security Protocol Banner */}
-          <View style={styles.securityBanner}>
-            <MaterialIcons name="security" size={14} color={colors.primary} />
-            <Text style={styles.securityBannerText}>
-              Terkoneksi ke Server Otentikasi Terenkripsi SSL/TLS 256-bit LLDIKTI X
-            </Text>
-          </View>
-
           {/* Helpdesk */}
           <View style={styles.helpdeskRow}>
             <Text style={styles.helpdeskText}>Mengalami kendala akun? </Text>
@@ -402,36 +302,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(197, 197, 211, 0.5)',
     ...elevations.level1,
     gap: spacing.sm + 2,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.md,
-    padding: 3,
-    marginBottom: 4,
-  },
-  tabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: spacing.sm - 2,
-    borderRadius: rounded.sm,
-  },
-  tabButtonActive: {
-    backgroundColor: colors.surfaceContainerLowest,
-    ...elevations.level1,
-  },
-  tabText: {
-    ...typography.labelMd,
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.onSurfaceVariant,
-  },
-  tabTextActive: {
-    fontWeight: '700',
-    color: colors.primary,
   },
   inputGroup: {
     gap: 2,
@@ -519,44 +389,10 @@ const styles = StyleSheet.create({
   submitBtn: {
     marginTop: 4,
   },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.borderSubtle,
-  },
-  dividerText: {
-    ...typography.labelSm,
-    fontSize: 10,
-    color: colors.outline,
-    paddingHorizontal: spacing.sm,
-    fontWeight: '600',
-  },
   footer: {
     marginTop: spacing.md,
     alignItems: 'center',
     gap: spacing.sm,
-  },
-  securityBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.surfaceContainerLow,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 6,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-  },
-  securityBannerText: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.primary,
-    fontWeight: '500',
   },
   helpdeskRow: {
     flexDirection: 'row',
