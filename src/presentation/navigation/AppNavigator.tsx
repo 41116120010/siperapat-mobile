@@ -1,7 +1,10 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import {
+  createMaterialTopTabNavigator,
+  MaterialTopTabBarProps,
+} from '@react-navigation/material-top-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
@@ -22,80 +25,113 @@ import { EmployeeDirectoryScreen } from '../screens/EmployeeDirectoryScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const Tab = createBottomTabNavigator<MainTabParamList>();
+const Tab = createMaterialTopTabNavigator<MainTabParamList>();
 
-export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation }) => {
+const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof MaterialIcons.glyphMap> = {
+  Beranda: 'dashboard',
+  Agenda: 'event-available',
+  Riwayat: 'history-edu',
+  Profil: 'account-circle',
+};
+
+const CustomBottomTabBar: React.FC<MaterialTopTabBarProps> = ({
+  state,
+  descriptors,
+  navigation,
+}) => {
+  return (
+    <View style={styles.tabBar}>
+      {state.routes.map((route, index) => {
+        const { options } = descriptors[route.key];
+        const isFocused = state.index === index;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        const onLongPress = () => {
+          navigation.emit({
+            type: 'tabLongPress',
+            target: route.key,
+          });
+        };
+
+        const color = isFocused ? colors.primary : colors.outline;
+        const iconName = TAB_ICONS[route.name as keyof MainTabParamList] || 'circle';
+
+        return (
+          <Pressable
+            key={route.key}
+            accessibilityRole="button"
+            accessibilityState={isFocused ? { selected: true } : {}}
+            accessibilityLabel={options.tabBarAccessibilityLabel ?? route.name}
+            testID={options.tabBarButtonTestID}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            style={styles.tabItem}
+          >
+            <MaterialIcons name={iconName} size={22} color={color} />
+            <Text style={[styles.tabBarLabel, { color }]}>
+              {route.name}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+};
+
+export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: rootStackNav }) => {
   return (
     <Tab.Navigator
+      tabBarPosition="bottom"
+      tabBar={(props) => <CustomBottomTabBar {...props} />}
       screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.outline,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
+        swipeEnabled: true,
+        lazy: true,
       }}
     >
-      <Tab.Screen
-        name="Beranda"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="dashboard" size={size} color={color} />
-          ),
-        }}
-      >
-        {() => (
+      <Tab.Screen name="Beranda">
+        {({ navigation: tabNav }) => (
           <DashboardScreen
-            onNavigatePresensi={(id) => navigation.navigate('Presensi', { meetingId: id })}
-            onNavigateDetail={(id) => navigation.navigate('Monitoring', { meetingId: id })}
-            onNavigateAgenda={() => navigation.navigate('Agenda')}
+            onNavigatePresensi={(id) => rootStackNav.navigate('Presensi', { meetingId: id })}
+            onNavigateDetail={(id) => rootStackNav.navigate('Monitoring', { meetingId: id })}
+            onNavigateAgenda={() => tabNav.navigate('Agenda')}
           />
         )}
       </Tab.Screen>
 
-      <Tab.Screen
-        name="Agenda"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="event-available" size={size} color={color} />
-          ),
-        }}
-      >
+      <Tab.Screen name="Agenda">
         {() => (
           <AgendaScreen
-            onNavigateDetail={(id) => navigation.navigate('Monitoring', { meetingId: id })}
-            onNavigateCreate={() => navigation.navigate('CreateMeeting')}
+            onNavigateDetail={(id) => rootStackNav.navigate('Monitoring', { meetingId: id })}
+            onNavigateCreate={() => rootStackNav.navigate('CreateMeeting')}
           />
         )}
       </Tab.Screen>
 
-      <Tab.Screen
-        name="Riwayat"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="history-edu" size={size} color={color} />
-          ),
-        }}
-      >
+      <Tab.Screen name="Riwayat">
         {() => (
           <RiwayatScreen
-            onSelectReceipt={(id) => navigation.navigate('Receipt', { attendanceId: id })}
+            onSelectReceipt={(id) => rootStackNav.navigate('Receipt', { attendanceId: id })}
           />
         )}
       </Tab.Screen>
 
-      <Tab.Screen
-        name="Profil"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="account-circle" size={size} color={color} />
-          ),
-        }}
-      >
+      <Tab.Screen name="Profil">
         {() => (
           <ProfileScreen
-            onLogout={() => navigation.replace('Login')}
-            onNavigateAuditLog={() => navigation.navigate('AuditLog')}
-            onNavigatePegawai={() => navigation.navigate('EmployeeDirectory')}
+            onLogout={() => rootStackNav.replace('Login')}
+            onNavigateAuditLog={() => rootStackNav.navigate('AuditLog')}
+            onNavigatePegawai={() => rootStackNav.navigate('EmployeeDirectory')}
           />
         )}
       </Tab.Screen>
@@ -185,13 +221,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
     borderTopWidth: 1,
     borderTopColor: colors.borderSubtle,
-    paddingBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingBottom: 6,
     paddingTop: 6,
     elevation: 4,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    gap: 2,
   },
   tabBarLabel: {
     ...typography.labelSm,
