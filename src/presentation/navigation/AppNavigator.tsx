@@ -165,11 +165,15 @@ export const AppNavigator: React.FC = () => {
       </Stack.Screen>
 
       <Stack.Screen name="EmployeeDirectory">
-        {() => <EmployeeDirectoryScreen />}
+        {({ navigation }) => (
+          <EmployeeDirectoryScreen onBack={() => navigation.goBack()} />
+        )}
       </Stack.Screen>
 
       <Stack.Screen name="AuditLog">
-        {() => <AuditLogScreen />}
+        {({ navigation }) => (
+          <AuditLogScreen onBack={() => navigation.goBack()} />
+        )}
       </Stack.Screen>
     </Stack.Navigator>
   );

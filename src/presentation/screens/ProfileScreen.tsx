@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Switch,
   Alert,
   Pressable,
   TextInput,
@@ -28,7 +27,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigatePegawai,
 }) => {
   const { user, logout } = useAuthStore();
-  const [biometrics, setBiometrics] = useState(user?.biometricEnabled ?? true);
   const [whatsapp, setWhatsapp] = useState('+62 812-6789-2026');
 
   const handleLogout = () => {
@@ -63,8 +61,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const handleChangePassword = () => {
     Alert.alert(
-      'Ubah Kata Sandi SSO Dikti',
-      'Tautan pembaruan kata sandi akun SSO telah dikirimkan ke email resmi kedinasan Anda.'
+      'Ubah Kata Sandi',
+      'Tautan pembaruan kata sandi telah dikirimkan ke email resmi kedinasan Anda.'
     );
   };
 
@@ -221,59 +219,62 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
         </View>
 
-        {/* SECTION 3: AUTENTIKASI & KEAMANAN SESI */}
+        {/* SECTION 3: KEAMANAN AKUN */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Autentikasi & Keamanan Sesi</Text>
+          <Text style={styles.sectionTitle}>Keamanan Akun</Text>
 
           <View style={styles.authActionRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.authActionTitle}>
-                Kata Sandi Kedinasan (SSO Dikti)
-              </Text>
+              <Text style={styles.authActionTitle}>Kata Sandi</Text>
               <Text style={styles.authActionSub}>
                 Terakhir diperbarui 30 hari yang lalu
               </Text>
             </View>
             <Pressable onPress={handleChangePassword} style={styles.changePassBtn}>
-              <Text style={styles.changePassBtnText}>Ganti Sandi</Text>
+              <Text style={styles.changePassBtnText}>Ubah Sandi</Text>
             </Pressable>
           </View>
+        </View>
 
-          <View style={styles.switchActionRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.authActionTitle}>Autentikasi Biometrik ASN</Text>
-              <Text style={styles.authActionSub}>
-                Masuk cepat menggunakan sidik jari atau sensor biometrik perangkat
-              </Text>
-            </View>
-            <Switch
-              value={biometrics}
-              onValueChange={setBiometrics}
-              trackColor={{ false: colors.borderSubtle, true: colors.secondaryContainer }}
-              thumbColor={biometrics ? colors.primary : '#FFFFFF'}
-            />
-          </View>
+        {/* SECTION 4: MANAJEMEN KEPEGAWAIAN */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Manajemen Kepegawaian</Text>
 
           <Pressable
             onPress={onNavigatePegawai}
-            style={({ pressed }) => [styles.navItem, pressed && styles.itemPressed]}
+            style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
           >
-            <View style={styles.navItemLeft}>
-              <MaterialIcons name="groups" size={20} color={colors.primary} />
-              <Text style={styles.navItemTitle}>Kelola Pegawai & Unit Kerja</Text>
+            <View style={styles.menuNavIconWrap}>
+              <MaterialIcons name="groups" size={22} color={colors.primary} />
             </View>
-            <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
+            <View style={styles.menuNavTextCol}>
+              <Text style={styles.menuNavTitle}>Kelola Pegawai & Unit Kerja</Text>
+              <Text style={styles.menuNavSub}>
+                Direktori 79 pegawai ASN dan pembagian unit kerja
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={22} color={colors.outline} />
           </Pressable>
+        </View>
+
+        {/* SECTION 5: AUDIT & LOG SISTEM */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Audit & Log Sistem</Text>
 
           <Pressable
             onPress={onNavigateAuditLog}
-            style={({ pressed }) => [styles.navItem, pressed && styles.itemPressed]}
+            style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
           >
-            <View style={styles.navItemLeft}>
-              <MaterialIcons name="security" size={20} color={colors.primary} />
-              <Text style={styles.navItemTitle}>Log Aktivitas & Audit Trail</Text>
+            <View style={styles.menuNavIconWrap}>
+              <MaterialIcons name="history" size={22} color={colors.primary} />
             </View>
-            <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
+            <View style={styles.menuNavTextCol}>
+              <Text style={styles.menuNavTitle}>Log Aktivitas Sistem</Text>
+              <Text style={styles.menuNavSub}>
+                Rekam jejak audit trail, autentikasi, dan riwayat presensi
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={22} color={colors.outline} />
           </Pressable>
         </View>
 
@@ -548,14 +549,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 4,
   },
-  switchActionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.3)',
-  },
   authActionTitle: {
     ...typography.labelMd,
     fontSize: 12.5,
@@ -581,27 +574,37 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.onSurface,
   },
-  navItem: {
+  menuNavCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.3)',
+    paddingVertical: 4,
+    gap: 12,
   },
   itemPressed: {
     opacity: 0.7,
   },
-  navItemLeft: {
-    flexDirection: 'row',
+  menuNavIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
   },
-  navItemTitle: {
+  menuNavTextCol: {
+    flex: 1,
+  },
+  menuNavTitle: {
     ...typography.labelMd,
-    fontSize: 12.5,
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.onSurface,
-    fontWeight: '500',
+  },
+  menuNavSub: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
   },
   logoutButton: {
     height: 44,

@@ -17,7 +17,7 @@ import { rounded, spacing, elevations } from '../../core/theme/tokens';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { useAuthStore } from '../store/useAuthStore';
-import { formatNIP, validateNIP, cleanNIP } from '../../core/utils/nipValidator';
+import { formatNIP } from '../../core/utils/nipValidator';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -31,17 +31,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   const { login, isLoading, error, clearError } = useAuthStore();
 
-  const rawDigits = useMemo(() => cleanNIP(identifier), [identifier]);
   const isNumericInput = useMemo(() => {
     const trimmed = identifier.trim();
     return trimmed.length > 0 && /^[0-9\s]+$/.test(trimmed);
   }, [identifier]);
-
-  const isNipComplete = rawDigits.length === 18;
-  const nipValidation = useMemo(() => {
-    if (!isNumericInput) return null;
-    return validateNIP(identifier);
-  }, [isNumericInput, identifier]);
 
   const handleIdentifierChange = (val: string) => {
     // Jika input berupa angka/spasi, terapkan pemformatan NIP cerdas
@@ -76,48 +69,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       >
         {/* Top Identity & Institutional Header Bar */}
         <View style={styles.header}>
-          <View style={styles.logoRow}>
+          <View style={styles.logoTile}>
             <Image
               source={require('../../../assets/images/tut-wuri-handayani.png')}
               style={styles.logo}
               resizeMode="contain"
             />
-            <View>
-              <Text style={styles.appTitle}>SIPERAPAT</Text>
-              <Text style={styles.appSubtitle}>LLDIKTI WILAYAH X</Text>
-            </View>
           </View>
-          <Text style={styles.welcomeTitle}>Masuk ke Akun Kedinasan</Text>
+          <Text style={styles.appTitle}>SIPERAPAT</Text>
+          <Text style={styles.appSubtitle}>LLDIKTI WILAYAH X</Text>
           <Text style={styles.welcomeSubtitle}>
-            Gunakan NIP (18 Digit) atau Username ASN terdaftar untuk memulai pencatatan presensi.
+            Sistem Informasi Presensi Rapat Kedinasan Terpadu
           </Text>
         </View>
 
         {/* Main Authentication Bento Card */}
         <View style={styles.card}>
-          {/* Unified NIP / Username Input with Counter Badge */}
+          {/* Unified NIP / Username Input */}
           <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>NIP (18 Digit) atau Username ASN</Text>
-              {isNumericInput && rawDigits.length > 0 ? (
-                <View
-                  style={[
-                    styles.counterBadge,
-                    isNipComplete && styles.counterBadgeSuccess,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.counterText,
-                      isNipComplete && styles.counterTextSuccess,
-                    ]}
-                  >
-                    {rawDigits.length} / 18
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
+            <Text style={styles.inputLabel}>NIP (18 Digit) atau Username ASN</Text>
             <Input
               label=""
               placeholder="Contoh: 19701205 199203 2 002 atau afdalisma"
@@ -134,16 +104,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 />
               }
             />
-
-            {/* Real-time NIP Validation Banner */}
-            {isNumericInput && isNipComplete && nipValidation?.isValid ? (
-              <View style={styles.validBanner}>
-                <MaterialIcons name="verified" size={16} color="#065F46" />
-                <Text style={styles.validBannerText}>
-                  Format 18 digit NIP valid untuk verifikasi ASN
-                </Text>
-              </View>
-            ) : null}
           </View>
 
           {/* Password Field with Aligned Forgot Link */}
@@ -220,10 +180,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <View style={styles.footer}>
           {/* Helpdesk */}
           <View style={styles.helpdeskRow}>
-            <Text style={styles.helpdeskText}>Mengalami kendala akun? </Text>
+            <Text style={styles.helpdeskText}>Kendala akun kedinasan? </Text>
             <Pressable onPress={handleHelpdesk} style={styles.helpdeskLinkWrap}>
               <Text style={styles.helpdeskLink}>
-                Hubungi Helpdesk Subbag Kepegawaian
+                Hubungi Helpdesk Kepegawaian
               </Text>
               <MaterialIcons name="open-in-new" size={12} color={colors.secondary} />
             </Pressable>
@@ -231,7 +191,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
           {/* Copyright */}
           <Text style={styles.copyrightText}>
-            © 2026 Lembaga Layanan Pendidikan Tinggi Wilayah X. Seluruh hak cipta dilindungi undang-undang.
+            © 2026 Lembaga Layanan Pendidikan Tinggi Wilayah X • Kemdiktisaintek
           </Text>
         </View>
       </ScrollView>
@@ -245,46 +205,52 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: spacing.md,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
+    flexGrow: 1,
     justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
   },
   header: {
     alignItems: 'center',
     marginBottom: spacing.md,
   },
-  logoRow: {
-    flexDirection: 'row',
+  logoTile: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    padding: 10,
     alignItems: 'center',
-    gap: 12,
-    marginBottom: spacing.sm + 2,
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.9)',
+    ...elevations.level2,
+    shadowColor: '#00236F',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
   },
   logo: {
-    width: 48,
-    height: 48,
+    width: '100%',
+    height: '100%',
   },
   appTitle: {
-    ...typography.headlineSm,
+    ...typography.headlineLg,
+    fontSize: 24,
     color: colors.primary,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
+    textAlign: 'center',
   },
   appSubtitle: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    letterSpacing: 1,
-    fontWeight: '600',
-    fontSize: 10,
-    textTransform: 'uppercase',
-  },
-  welcomeTitle: {
-    ...typography.headlineLg,
-    fontSize: 22,
-    color: colors.primary,
+    color: colors.secondary,
+    letterSpacing: 1.2,
     fontWeight: '700',
+    fontSize: 11,
     textAlign: 'center',
-    marginBottom: 4,
+    marginTop: 2,
+    textTransform: 'uppercase',
   },
   welcomeSubtitle: {
     ...typography.bodySm,
@@ -292,19 +258,23 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     lineHeight: 18,
-    maxWidth: 320,
+    marginTop: 6,
+    maxWidth: 290,
   },
   card: {
     backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.xl,
-    padding: spacing.md,
+    borderRadius: 20,
+    padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    ...elevations.level1,
-    gap: spacing.sm + 2,
+    borderColor: 'rgba(226, 232, 240, 0.9)',
+    ...elevations.level2,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    gap: spacing.md,
   },
   inputGroup: {
-    gap: 2,
+    gap: spacing.xs,
   },
   labelRow: {
     flexDirection: 'row',
@@ -317,42 +287,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: colors.onSurface,
-  },
-  counterBadge: {
-    backgroundColor: colors.surfaceContainerHigh,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  counterBadgeSuccess: {
-    backgroundColor: '#ECFDF5',
-  },
-  counterText: {
-    ...typography.labelSm,
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.onSurfaceVariant,
-  },
-  counterTextSuccess: {
-    color: '#065F46',
-  },
-  validBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: rounded.sm,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    marginTop: 2,
-  },
-  validBannerText: {
-    ...typography.labelSm,
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#065F46',
   },
   forgotLink: {
     ...typography.labelSm,
@@ -390,9 +324,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   footer: {
-    marginTop: spacing.md,
+    marginTop: spacing.xl,
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs + 2,
   },
   helpdeskRow: {
     flexDirection: 'row',

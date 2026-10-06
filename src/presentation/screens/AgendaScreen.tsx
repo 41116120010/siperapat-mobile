@@ -55,19 +55,26 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <Header
-        title="Agenda Rapat Kedinasan"
-        subtitle="Jadwal & Koordinasi LLDIKTI X"
-        rightAction={
-          <Pressable
-            onPress={onNavigateCreate}
-            style={styles.createIconButton}
-            accessibilityLabel="Buat Rapat Baru"
-          >
-            <MaterialIcons name="add" size={22} color={colors.primary} />
-          </Pressable>
-        }
-      />
+      <Header />
+
+      {/* Title Section with Create Meeting Button */}
+      <View style={styles.titleSection}>
+        <View style={styles.titleTextWrap}>
+          <Text style={styles.mainTitle}>Agenda Rapat Kedinasan</Text>
+          <Text style={styles.mainSubtitle}>
+            Jadwal & koordinasi rapat dinas LLDIKTI Wilayah X
+          </Text>
+        </View>
+        <Pressable
+          onPress={onNavigateCreate}
+          style={styles.createButton}
+          accessibilityRole="button"
+          accessibilityLabel="Buat Rapat Baru"
+        >
+          <MaterialIcons name="add" size={18} color={colors.onPrimary} />
+          <Text style={styles.createButtonText}>Buat Rapat</Text>
+        </Pressable>
+      </View>
 
       {/* Filter Tabs */}
       <View style={styles.filterRow}>
@@ -135,15 +142,45 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  createIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainerLow,
+  titleSection: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  titleTextWrap: {
+    flex: 1,
+    paddingRight: spacing.sm,
+  },
+  mainTitle: {
+    ...typography.headlineMd,
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.onSurface,
+    letterSpacing: -0.3,
+  },
+  mainSubtitle: {
+    ...typography.labelSm,
+    fontSize: 12,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 8,
+    borderRadius: rounded.md,
+    gap: 4,
+  },
+  createButtonText: {
+    ...typography.labelSm,
+    color: colors.onPrimary,
+    fontWeight: '700',
+    fontSize: 12,
   },
   filterRow: {
     flexDirection: 'row',

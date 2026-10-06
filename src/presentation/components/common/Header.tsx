@@ -22,8 +22,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <View style={styles.leftContent}>
-        {showBack ? (
+      {showBack ? (
+        <View style={styles.navRow}>
           <Pressable
             onPress={onBack}
             style={({ pressed }) => [
@@ -39,7 +39,19 @@ export const Header: React.FC<HeaderProps> = ({
               color={colors.primary}
             />
           </Pressable>
-        ) : (
+          <View style={[styles.textContainer, rightAction ? { paddingRight: 40 } : undefined]}>
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      ) : (
+        <View style={styles.centeredBrandContainer}>
           <View style={styles.logoContainer}>
             <Image
               source={require('../../../../assets/images/tut-wuri-handayani.png')}
@@ -47,19 +59,20 @@ export const Header: React.FC<HeaderProps> = ({
               resizeMode="contain"
             />
           </View>
-        )}
-
-        <View style={styles.textContainer}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {subtitle}
-          </Text>
+          <View style={styles.brandTextContainer}>
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
+            </Text>
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
-      {rightAction ? <View style={styles.rightContent}>{rightAction}</View> : null}
+      {rightAction ? (
+        <View style={styles.rightActionAbsolute}>{rightAction}</View>
+      ) : null}
     </View>
   );
 };
@@ -70,7 +83,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
@@ -80,7 +93,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
   },
-  leftContent: {
+  centeredBrandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm + 2,
+  },
+  navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
@@ -88,13 +107,16 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 36,
     height: 36,
-    marginRight: spacing.sm + 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   logo: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
+  },
+  brandTextContainer: {
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   backButton: {
     width: 36,
@@ -112,15 +134,22 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.headlineSm,
+    fontSize: 15,
     color: colors.primary,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
   subtitle: {
     ...typography.labelSm,
+    fontSize: 11,
     color: colors.onSurfaceVariant,
+    fontWeight: '500',
     marginTop: 1,
   },
-  rightContent: {
-    marginLeft: spacing.sm,
+  rightActionAbsolute: {
+    position: 'absolute',
+    right: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

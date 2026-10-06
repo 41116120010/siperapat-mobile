@@ -100,7 +100,11 @@ const AUDIT_DATA: AuditItem[] = [
   },
 ];
 
-export const AuditLogScreen: React.FC = () => {
+interface AuditLogScreenProps {
+  onBack?: () => void;
+}
+
+export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
 
@@ -122,6 +126,8 @@ export const AuditLogScreen: React.FC = () => {
       <Header
         title="Log Aktivitas Sistem"
         subtitle="Audit Trail & Rekam Jejak Kedinasan LLDIKTI X"
+        showBack={Boolean(onBack)}
+        onBack={onBack}
       />
 
       <ScrollView

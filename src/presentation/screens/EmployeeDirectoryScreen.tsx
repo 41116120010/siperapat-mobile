@@ -85,7 +85,11 @@ const MASTER_UNITS = [
   { code: 'SUBBAG-TU', name: 'Tata Usaha & BMN', count: '18 ASN' },
 ];
 
-export const EmployeeDirectoryScreen: React.FC = () => {
+interface EmployeeDirectoryScreenProps {
+  onBack?: () => void;
+}
+
+export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<'asn' | 'units'>('asn');
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('Semua Role');
@@ -130,6 +134,8 @@ export const EmployeeDirectoryScreen: React.FC = () => {
       <Header
         title="Kelola Pegawai & Unit Kerja"
         subtitle="Administrasi 79 ASN & 11 Unit Kerja"
+        showBack={Boolean(onBack)}
+        onBack={onBack}
         rightAction={
           <Pressable onPress={handleAddEmployee} style={styles.headerBtn}>
             <MaterialIcons name="person-add" size={20} color={colors.primary} />
