@@ -7,11 +7,12 @@ import {
   Pressable,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Button } from '../components/common/Button';
 
@@ -83,7 +84,7 @@ const UNVERIFIED_PARTICIPANTS: Participant[] = [
 export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<TabType>('verified');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPokja, setSelectedPokja] = useState('Semua Unit (11 Pokja)');
+  const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
 
   const handleCopyBANumber = () => {
     Alert.alert(
@@ -94,21 +95,21 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
 
   const handleDownloadPdf = () => {
     Alert.alert(
-      'Unduh Berita Acara Resmi (PDF)',
-      'Dokumen Berita Acara Rapat lengkap dengan stempel digital BSrE (BA-RAPAT/2026/0142/LLDIKTI-X.pdf) berhasil diunduh.'
+      'Unduh Berita Acara (PDF)',
+      'Dokumen Berita Acara Rapat resmi (BA-RAPAT/2026/0142/LLDIKTI-X.pdf) berhasil diunduh.'
     );
   };
 
   const handleDownloadWord = () => {
     Alert.alert(
-      'Unduh Dokumen Word',
+      'Unduh Risalah Sidang (DOCX)',
       'Naskah dinas risalah sidang (BA-RAPAT/2026/0142/LLDIKTI-X.docx) berhasil diunduh untuk pengarsipan.'
     );
   };
 
   const handleDownloadExcel = () => {
     Alert.alert(
-      'Unduh Tabulasi Kehadiran',
+      'Unduh Tabulasi Kehadiran (Excel)',
       'Data tabulasi rekapan presensi 79 ASN (Excel / CSV) berhasil diekspor.'
     );
   };
@@ -125,7 +126,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
   return (
     <View style={styles.container}>
       <Header
-        title="Monitoring Kehadiran Rapat"
+        title="Detail Agenda Rapat"
         subtitle="Administrasi & Presensi Kedinasan LLDIKTI X"
         showBack={Boolean(onBack)}
         onBack={onBack}
@@ -135,7 +136,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* AGENDA SUMMARY & LIVE STATUS HERO CARD */}
+        {/* AGENDA SUMMARY & STATUS HERO CARD */}
         <View style={styles.heroCard}>
           <View style={styles.heroHeader}>
             <View style={styles.heroCodeRow}>
@@ -152,45 +153,51 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             Rapat Koordinasi Penjaminan Mutu & Akreditasi Program Studi PTS 2026
           </Text>
 
-          {/* 4-Grid Meta */}
-          <View style={styles.metaGrid}>
-            <View style={styles.metaBox}>
-              <MaterialIcons name="calendar-today" size={16} color={colors.onSurfaceVariant} />
-              <View style={styles.metaBoxContent}>
-                <Text style={styles.metaBoxLabel}>JADWAL PELAKSANAAN</Text>
-                <Text style={styles.metaBoxValue} numberOfLines={1}>
-                  Kamis, 24 Okt 2026 • 09.00 - 12.00 WIB
-                </Text>
+          {/* Clean 2-Column Metadata Grid */}
+          <View style={styles.metaContainer}>
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <MaterialIcons name="event" size={15} color={colors.primary} />
+                <View style={styles.metaTextGroup}>
+                  <Text style={styles.metaLabel}>Jadwal</Text>
+                  <Text style={styles.metaValue} numberOfLines={1}>
+                    Kamis, 24 Okt 2026 • 09.00 - 12.00 WIB
+                  </Text>
+                </View>
               </View>
             </View>
 
-            <View style={styles.metaBox}>
-              <MaterialIcons name="videocam" size={16} color={colors.onSurfaceVariant} />
-              <View style={styles.metaBoxContent}>
-                <Text style={styles.metaBoxLabel}>FORMAT PRESENSI</Text>
-                <Text style={styles.metaBoxValue} numberOfLines={1}>
-                  Hybrid (R. Sidang Gedung A & Zoom)
-                </Text>
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <MaterialIcons name="videocam" size={15} color={colors.primary} />
+                <View style={styles.metaTextGroup}>
+                  <Text style={styles.metaLabel}>Format</Text>
+                  <Text style={styles.metaValue} numberOfLines={1}>
+                    Hybrid • Ruang Sidang Gedung A & Zoom
+                  </Text>
+                </View>
               </View>
             </View>
 
-            <View style={styles.metaBox}>
-              <MaterialIcons name="person" size={16} color={colors.onSurfaceVariant} />
-              <View style={styles.metaBoxContent}>
-                <Text style={styles.metaBoxLabel}>PIMPINAN RAPAT</Text>
-                <Text style={styles.metaBoxValue} numberOfLines={1}>
-                  Afdalisma, SH, M.Pd
-                </Text>
+            <View style={styles.metaSplitRow}>
+              <View style={styles.metaItem}>
+                <MaterialIcons name="person" size={15} color={colors.primary} />
+                <View style={styles.metaTextGroup}>
+                  <Text style={styles.metaLabel}>Pimpinan Rapat</Text>
+                  <Text style={styles.metaValue} numberOfLines={1}>
+                    Afdalisma, SH, M.Pd
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.metaBox}>
-              <MaterialIcons name="description" size={16} color={colors.onSurfaceVariant} />
-              <View style={styles.metaBoxContent}>
-                <Text style={styles.metaBoxLabel}>NOTULIS RESMI</Text>
-                <Text style={styles.metaBoxValue} numberOfLines={1}>
-                  Rahmat Hidayat, S.Kom
-                </Text>
+              <View style={styles.metaItem}>
+                <MaterialIcons name="edit-note" size={15} color={colors.primary} />
+                <View style={styles.metaTextGroup}>
+                  <Text style={styles.metaLabel}>Notulis</Text>
+                  <Text style={styles.metaValue} numberOfLines={1}>
+                    Rahmat Hidayat, S.Kom
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -199,13 +206,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
         {/* LIVE ATTENDANCE METRICS & PROGRESS GRID */}
         <View style={styles.metricsCard}>
           <View style={styles.metricsHeader}>
-            <View>
-              <Text style={styles.metricsTitle}>Rekapitulasi Kehadiran Pegawai</Text>
-              <Text style={styles.metricsSub}>Data presensi tervalidasi per 09:35 WIB</Text>
-            </View>
-            <View style={styles.quorumPill}>
-              <Text style={styles.quorumPillText}>Kuorum: 66.7%</Text>
-            </View>
+            <Text style={styles.metricsTitle}>Rekapitulasi Kehadiran</Text>
           </View>
 
           {/* 3-Column Metrics */}
@@ -213,10 +214,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Hadir Sah</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: '#047857' }]}>68</Text>
+                <Text style={[styles.metricValue, { color: colors.success }]}>68</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
-              <Text style={[styles.metricFooter, { color: '#047857' }]}>
+              <Text style={[styles.metricFooter, { color: colors.success }]}>
                 86.1% Terverifikasi
               </Text>
             </View>
@@ -224,10 +225,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Belum Hadir</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: '#BE123C' }]}>11</Text>
+                <Text style={[styles.metricValue, { color: colors.error }]}>11</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
-              <Text style={[styles.metricFooter, { color: '#BE123C' }]}>
+              <Text style={[styles.metricFooter, { color: colors.error }]}>
                 13.9% Menunggu
               </Text>
             </View>
@@ -238,8 +239,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <Text style={styles.metricValue}>79</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
-              <Text style={[styles.metricFooter, { color: '#047857' }]}>
-                Kuorum Tercapai
+              <Text style={[styles.metricFooter, { color: colors.onSurfaceVariant }]}>
+                Total Undangan
               </Text>
             </View>
           </View>
@@ -256,67 +257,123 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
           </View>
         </View>
 
-        {/* SEGMENTED CONTROL / TAB NAVIGATION */}
-        <View style={styles.tabBar}>
-          <Pressable
-            onPress={() => setActiveTab('verified')}
-            style={[
-              styles.tabBtn,
-              activeTab === 'verified' && styles.tabBtnActive,
-            ]}
+        {/* FULLY RESPONSIVE HORIZONTAL TAB NAVIGATION */}
+        <View style={styles.tabBarWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabScrollContainer}
           >
-            <Text
+            <Pressable
+              onPress={() => setActiveTab('verified')}
               style={[
-                styles.tabBtnText,
-                activeTab === 'verified' && styles.tabBtnTextActive,
+                styles.tabBtn,
+                activeTab === 'verified' && styles.tabBtnActive,
               ]}
+              accessibilityRole="tab"
+              accessibilityLabel="Tab Terverifikasi Sah"
             >
-              Terverifikasi Sah
-            </Text>
-            <View style={styles.tabBadgeVerified}>
-              <Text style={styles.tabBadgeTextWhite}>68</Text>
-            </View>
-          </Pressable>
+              <Text
+                style={[
+                  styles.tabBtnText,
+                  activeTab === 'verified' && styles.tabBtnTextActive,
+                ]}
+              >
+                Terverifikasi Sah
+              </Text>
+              <View
+                style={[
+                  styles.tabBadge,
+                  activeTab === 'verified'
+                    ? styles.tabBadgeVerifiedActive
+                    : styles.tabBadgeInactive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabBadgeText,
+                    activeTab === 'verified'
+                      ? styles.tabBadgeTextWhite
+                      : styles.tabBadgeTextInactive,
+                  ]}
+                >
+                  68
+                </Text>
+              </View>
+            </Pressable>
 
-          <Pressable
-            onPress={() => setActiveTab('unverified')}
-            style={[
-              styles.tabBtn,
-              activeTab === 'unverified' && styles.tabBtnActive,
-            ]}
-          >
-            <Text
+            <Pressable
+              onPress={() => setActiveTab('unverified')}
               style={[
-                styles.tabBtnText,
-                activeTab === 'unverified' && styles.tabBtnTextActive,
+                styles.tabBtn,
+                activeTab === 'unverified' && styles.tabBtnActive,
               ]}
+              accessibilityRole="tab"
+              accessibilityLabel="Tab Belum Hadir"
             >
-              Belum Hadir
-            </Text>
-            <View style={styles.tabBadgeUnverified}>
-              <Text style={styles.tabBadgeTextRose}>11</Text>
-            </View>
-          </Pressable>
+              <Text
+                style={[
+                  styles.tabBtnText,
+                  activeTab === 'unverified' && styles.tabBtnTextActive,
+                ]}
+              >
+                Belum Hadir
+              </Text>
+              <View
+                style={[
+                  styles.tabBadge,
+                  activeTab === 'unverified'
+                    ? styles.tabBadgeUnverifiedActive
+                    : styles.tabBadgeInactive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabBadgeText,
+                    activeTab === 'unverified'
+                      ? styles.tabBadgeTextWhite
+                      : styles.tabBadgeTextInactive,
+                  ]}
+                >
+                  11
+                </Text>
+              </View>
+            </Pressable>
 
-          <Pressable
-            onPress={() => setActiveTab('minutes')}
-            style={[
-              styles.tabBtn,
-              activeTab === 'minutes' && styles.tabBtnActive,
-            ]}
-          >
-            <Text
+            <Pressable
+              onPress={() => setActiveTab('minutes')}
               style={[
-                styles.tabBtnText,
-                activeTab === 'minutes' && styles.tabBtnTextActive,
+                styles.tabBtn,
+                activeTab === 'minutes' && styles.tabBtnActive,
               ]}
+              accessibilityRole="tab"
+              accessibilityLabel="Tab Notulensi dan RTL"
             >
-              Notulensi & RTL
-            </Text>
-            <View style={styles.tabBadgeDraft}>
-              <Text style={styles.tabBadgeTextDraft}>Draft</Text>
-            </View>
-          </Pressable>
+              <Text
+                style={[
+                  styles.tabBtnText,
+                  activeTab === 'minutes' && styles.tabBtnTextActive,
+                ]}
+              >
+                Notulensi & RTL
+              </Text>
+              <View
+                style={[
+                  styles.tabBadgeDraft,
+                  activeTab === 'minutes' && styles.tabBadgeDraftActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabBadgeTextDraft,
+                    activeTab === 'minutes' && styles.tabBadgeTextDraftActive,
+                  ]}
+                >
+                  Draft
+                </Text>
+              </View>
+            </Pressable>
+          </ScrollView>
         </View>
 
         {/* SEARCH & FILTER CONTROLS */}
@@ -327,7 +384,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <MaterialIcons name="search" size={18} color={colors.outline} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Cari nama ASN atau 18 digit NIP..."
+                  placeholder="Cari nama atau NIP pegawai..."
                   placeholderTextColor={colors.outline}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -342,8 +399,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
               contentContainerStyle={styles.pokjaChipsRow}
             >
               {[
-                'Semua Unit (11 Pokja)',
-                'Pimpinan Lembaga',
+                'Semua Unit',
+                'Pimpinan',
                 'Akademik & Kemahasiswaan',
                 'Sumber Daya PT',
               ].map((chip) => {
@@ -352,9 +409,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                   <Pressable
                     key={chip}
                     onPress={() => setSelectedPokja(chip)}
-                    style={[
+                    style={({ pressed }) => [
                       styles.pokjaChip,
-                      active && styles.pokjaChipActive,
+                      active ? styles.pokjaChipActive : styles.pokjaChipInactive,
+                      pressed && styles.chipPressed,
                     ]}
                   >
                     <Text
@@ -370,7 +428,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
               })}
             </ScrollView>
 
-            {/* Participants Feed */}
+            {/* Clean Enterprise Participants Feed */}
             <View style={styles.participantFeed}>
               {filteredList.map((p, idx) => (
                 <View key={idx} style={styles.participantCard}>
@@ -378,7 +436,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                     <MaterialIcons
                       name={p.isOnline ? 'videocam' : 'person'}
                       size={20}
-                      color={colors.onSurfaceVariant}
+                      color={colors.primary}
                     />
                   </View>
                   <View style={styles.pContent}>
@@ -389,32 +447,37 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                       </View>
                       <View
                         style={[
-                          styles.pTimeBadge,
-                          activeTab === 'unverified' && styles.pTimeBadgeWait,
+                          styles.pStatusBadge,
+                          activeTab === 'unverified'
+                            ? styles.pStatusBadgeWait
+                            : styles.pStatusBadgeValid,
                         ]}
                       >
                         <Text
                           style={[
-                            styles.pTimeText,
-                            activeTab === 'unverified' && styles.pTimeTextWait,
+                            styles.pStatusText,
+                            activeTab === 'unverified'
+                              ? styles.pStatusTextWait
+                              : styles.pStatusTextValid,
                           ]}
                         >
-                          {p.time}
+                          {activeTab === 'verified' ? 'Hadir Sah' : 'Menunggu'}
                         </Text>
                       </View>
                     </View>
 
                     <View style={styles.pMetaRow}>
-                      <Text style={styles.pNipPill}>NIP {p.nip}</Text>
-                      <Text style={styles.pLocPill}>{p.location}</Text>
-                      <Text
-                        style={[
-                          styles.pStatusPill,
-                          activeTab === 'unverified' && styles.pStatusPillWait,
-                        ]}
-                      >
-                        {activeTab === 'verified' ? 'Hadir Sah' : 'Menunggu'}
+                      <Text style={styles.pMetaText}>
+                        NIP: <Text style={styles.pMetaValueMono}>{p.nip}</Text>
                       </Text>
+                      <Text style={styles.pMetaDot}>•</Text>
+                      <Text style={styles.pMetaText}>{p.location}</Text>
+                      {activeTab === 'verified' ? (
+                        <>
+                          <Text style={styles.pMetaDot}>•</Text>
+                          <Text style={styles.pMetaText}>{p.time}</Text>
+                        </>
+                      ) : null}
                     </View>
                   </View>
                 </View>
@@ -427,41 +490,51 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
         {activeTab === 'minutes' ? (
           <View style={styles.minutesCard}>
             <View style={styles.minutesHeader}>
-              <MaterialIcons name="edit-note" size={20} color={colors.primary} />
-              <Text style={styles.minutesTitle}>Draf Risalah Sidang Rapat</Text>
+              <View style={styles.minutesIconCircle}>
+                <MaterialIcons name="edit-note" size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.minutesTitle}>Draf Risalah Sidang Rapat</Text>
+                <Text style={styles.minutesSubtitle}>
+                  Notulis: Rahmat Hidayat, S.Kom • Disunting 09:30 WIB
+                </Text>
+              </View>
             </View>
+            <View style={styles.minutesDivider} />
             <Text style={styles.minutesBody}>
-              1. Peningkatan kuota akreditasi program studi vokasi LLDIKTI X tahun 2026.{'\n'}
-              2. Penyelarasan format pelaporan PDDikti semester genap.{'\n'}
+              1. Peningkatan kuota akreditasi program studi vokasi LLDIKTI X tahun 2026.{'\n\n'}
+              2. Penyelarasan format pelaporan PDDikti semester genap.{'\n\n'}
               3. Alokasi anggaran pendampingan klinik mutu PT Wilayah Sumbar, Riau, Jambi, Kepri.
-            </Text>
-            <Text style={styles.minutesMeta}>
-              Notulis: Rahmat Hidayat, S.Kom • Terakhir disunting 09:30 WIB
             </Text>
           </View>
         ) : null}
 
-        {/* SECTION: BERITA ACARA & OFFICIAL GOV-TECH EXPORT */}
+        {/* SECTION: EKSPOR DOKUMEN RAPAT */}
         <View style={styles.baCard}>
           <View style={styles.baHeader}>
-            <MaterialIcons name="description" size={20} color={colors.onSurfaceVariant} />
-            <View>
-              <Text style={styles.baTitle}>Penerbitan Berita Acara Rapat</Text>
+            <MaterialIcons name="download" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.baTitle}>Ekspor Dokumen Rapat</Text>
               <Text style={styles.baSubtitle}>
-                Tata Naskah Dinas Elektronik Kemdiktisaintek
+                Unduh berita acara dan berkas rekapitulasi resmi
               </Text>
             </View>
           </View>
 
           {/* BA Number Box */}
           <View style={styles.baNumberBox}>
-            <Text style={styles.baNumberLabel}>NOMOR BERITA ACARA:</Text>
+            <Text style={styles.baNumberLabel}>NOMOR BERITA ACARA</Text>
             <View style={styles.baNumberRow}>
               <Text style={styles.baNumberValue}>
                 BA-RAPAT/2026/0142/LLDIKTI-X
               </Text>
-              <Pressable onPress={handleCopyBANumber} style={styles.copyBtn}>
-                <MaterialIcons name="content-copy" size={16} color={colors.onSurfaceVariant} />
+              <Pressable
+                onPress={handleCopyBANumber}
+                style={styles.copyBtn}
+                hitSlop={8}
+                accessibilityLabel="Salin nomor berita acara"
+              >
+                <MaterialIcons name="content-copy" size={16} color={colors.primary} />
               </Pressable>
             </View>
           </View>
@@ -469,7 +542,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
           {/* Export Buttons */}
           <View style={styles.baActionGrid}>
             <Button
-              title="Unduh Berita Acara (PDF Resmi)"
+              title="Unduh Berita Acara (PDF)"
               onPress={handleDownloadPdf}
               variant="primary"
               size="md"
@@ -484,7 +557,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             />
 
             <Button
-              title="Unduh Dokumen Word (.docx)"
+              title="Unduh Risalah Sidang (DOCX)"
               onPress={handleDownloadWord}
               variant="outline"
               size="md"
@@ -493,15 +566,22 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <MaterialIcons
                   name="description"
                   size={18}
-                  color={colors.onSurfaceVariant}
+                  color={colors.primary}
                 />
               }
             />
 
-            <Pressable onPress={handleDownloadExcel} style={styles.excelBtn}>
-              <MaterialIcons name="table-chart" size={15} color={colors.onSurfaceVariant} />
+            <Pressable
+              onPress={handleDownloadExcel}
+              style={({ pressed }) => [
+                styles.excelBtn,
+                pressed && styles.excelBtnPressed,
+              ]}
+              hitSlop={6}
+            >
+              <MaterialIcons name="table-chart" size={15} color={colors.primary} />
               <Text style={styles.excelBtnText}>
-                Unduh Tabulasi Kehadiran (Excel / CSV)
+                Unduh Tabulasi Kehadiran (Excel)
               </Text>
             </Pressable>
           </View>
@@ -526,9 +606,20 @@ const styles = StyleSheet.create({
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     gap: spacing.sm,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   heroHeader: {
     flexDirection: 'row',
@@ -543,78 +634,89 @@ const styles = StyleSheet.create({
   heroCode: {
     ...typography.labelMono,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
-    backgroundColor: colors.surfaceContainer,
+    color: colors.primary,
+    backgroundColor: colors.surfaceContainerLow,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.3)',
-    fontWeight: '600',
+    borderColor: 'rgba(197, 197, 211, 0.4)',
+    fontWeight: '700',
   },
   heroType: {
     ...typography.labelSm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
+    fontWeight: '500',
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: colors.successContainer,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: 'rgba(5, 150, 105, 0.25)',
   },
   liveDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#059669',
+    backgroundColor: colors.success,
   },
   liveBadgeText: {
     ...typography.labelSm,
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#065F46',
+    color: colors.onSuccessContainer,
   },
   heroTitle: {
     ...typography.headlineSm,
-    fontSize: 15.5,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.onSurface,
     lineHeight: 22,
   },
-  metaGrid: {
-    gap: 6,
-  },
-  metaBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  metaContainer: {
     backgroundColor: colors.surfaceContainerLow,
-    padding: 8,
     borderRadius: rounded.md,
+    padding: spacing.sm + 2,
+    gap: 8,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.3)',
+    overflow: 'hidden',
   },
-  metaBoxContent: {
+  metaRow: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  metaSplitRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    width: '100%',
+  },
+  metaItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  metaTextGroup: {
     flex: 1,
   },
-  metaBoxLabel: {
+  metaLabel: {
     ...typography.labelSm,
-    fontSize: 9.5,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
     color: colors.outline,
-    letterSpacing: 0.5,
   },
-  metaBoxValue: {
+  metaValue: {
     ...typography.bodySm,
     fontSize: 12,
-    fontWeight: '500',
     color: colors.onSurface,
+    fontWeight: '500',
     marginTop: 1,
   },
   metricsCard: {
@@ -622,57 +724,50 @@ const styles = StyleSheet.create({
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-    gap: spacing.sm,
-    ...elevations.level1,
+    borderColor: 'rgba(197, 197, 211, 0.45)',
+    gap: spacing.md,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   metricsHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
   metricsTitle: {
     ...typography.headlineSm,
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.onSurface,
   },
-  metricsSub: {
-    ...typography.labelSm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
-  },
-  quorumPill: {
-    backgroundColor: colors.surfaceContainer,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-  },
-  quorumPillText: {
-    ...typography.labelMono,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
-  },
   metricsGrid: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   metricCol: {
     flex: 1,
     backgroundColor: colors.surfaceContainerLow,
-    padding: spacing.sm,
     borderRadius: rounded.md,
+    padding: spacing.sm,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.3)',
+    overflow: 'hidden',
   },
   metricLabel: {
     ...typography.labelSm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   metricValueRow: {
     flexDirection: 'row',
@@ -687,17 +782,17 @@ const styles = StyleSheet.create({
   },
   metricUnit: {
     ...typography.labelSm,
-    fontSize: 10.5,
+    fontSize: 11,
     color: colors.onSurfaceVariant,
   },
   metricFooter: {
     ...typography.labelSm,
     fontSize: 10,
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 3,
   },
   progressSection: {
-    marginTop: 4,
+    marginTop: 2,
   },
   progressLabelRow: {
     flexDirection: 'row',
@@ -716,20 +811,24 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
   },
   progressBarBg: {
-    height: 8,
+    height: 7,
     borderRadius: 4,
     backgroundColor: colors.surfaceContainer,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#059669',
+    backgroundColor: colors.success,
     borderRadius: 4,
   },
-  tabBar: {
-    flexDirection: 'row',
+  tabBarWrapper: {
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(197, 197, 211, 0.4)',
+  },
+  tabScrollContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingBottom: 2,
   },
   tabBtn: {
     flexDirection: 'row',
@@ -737,7 +836,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingBottom: 10,
     paddingHorizontal: 12,
-    borderBottomWidth: 2,
+    borderBottomWidth: 2.5,
     borderBottomColor: 'transparent',
   },
   tabBtnActive: {
@@ -745,45 +844,59 @@ const styles = StyleSheet.create({
   },
   tabBtnText: {
     ...typography.labelMd,
-    fontSize: 12.5,
+    fontSize: 12,
     color: colors.onSurfaceVariant,
+    fontWeight: '500',
   },
   tabBtnTextActive: {
     color: colors.primary,
     fontWeight: '700',
   },
-  tabBadgeVerified: {
-    backgroundColor: colors.primaryContainer,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 10,
+  tabBadge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  tabBadgeUnverified: {
-    backgroundColor: '#FFE4E6',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 10,
+  tabBadgeVerifiedActive: {
+    backgroundColor: colors.primary,
+  },
+  tabBadgeUnverifiedActive: {
+    backgroundColor: colors.error,
+  },
+  tabBadgeInactive: {
+    backgroundColor: colors.surfaceContainer,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  tabBadgeTextWhite: {
+    color: '#FFFFFF',
+  },
+  tabBadgeTextInactive: {
+    color: colors.onSurfaceVariant,
   },
   tabBadgeDraft: {
     backgroundColor: colors.surfaceContainer,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 4,
+    overflow: 'hidden',
   },
-  tabBadgeTextWhite: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  tabBadgeTextRose: {
-    fontSize: 10,
-    color: '#BE123C',
-    fontWeight: '700',
+  tabBadgeDraftActive: {
+    backgroundColor: colors.primary,
   },
   tabBadgeTextDraft: {
     fontSize: 10,
-    color: colors.primary,
+    color: colors.onSurfaceVariant,
     fontWeight: '600',
+  },
+  tabBadgeTextDraftActive: {
+    color: '#FFFFFF',
   },
   filterSection: {
     gap: spacing.sm,
@@ -796,13 +909,14 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 42,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: 'rgba(197, 197, 211, 0.55)',
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceContainerLowest,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
     gap: 8,
+    overflow: 'hidden',
   },
   searchInput: {
     flex: 1,
@@ -813,23 +927,31 @@ const styles = StyleSheet.create({
   pokjaChipsRow: {
     flexDirection: 'row',
     gap: 6,
+    paddingVertical: 2,
   },
   pokjaChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    backgroundColor: colors.surfaceContainerLowest,
+    overflow: 'hidden',
   },
   pokjaChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
+  pokjaChipInactive: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderColor: 'rgba(197, 197, 211, 0.5)',
+  },
+  chipPressed: {
+    opacity: 0.85,
+  },
   pokjaChipText: {
     ...typography.labelSm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
+    fontWeight: '500',
   },
   pokjaChipTextActive: {
     color: '#FFFFFF',
@@ -841,19 +963,30 @@ const styles = StyleSheet.create({
   participantCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.lg,
-    padding: spacing.sm + 2,
+    padding: spacing.sm + 4,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    ...elevations.level1,
+    alignItems: 'center',
+    gap: 12,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   pAvatar: {
     width: 36,
     height: 36,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainer,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -863,7 +996,7 @@ const styles = StyleSheet.create({
   pTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   pName: {
     ...typography.headlineSm,
@@ -877,77 +1010,84 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     marginTop: 1,
   },
-  pTimeBadge: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  pStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    overflow: 'hidden',
   },
-  pTimeBadgeWait: {
-    backgroundColor: '#FFF1F2',
-    borderColor: '#FECDD3',
+  pStatusBadgeValid: {
+    backgroundColor: colors.successContainer,
+    borderColor: 'rgba(5, 150, 105, 0.25)',
   },
-  pTimeText: {
-    ...typography.labelMono,
+  pStatusBadgeWait: {
+    backgroundColor: colors.errorContainer,
+    borderColor: 'rgba(186, 26, 26, 0.25)',
+  },
+  pStatusText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#065F46',
   },
-  pTimeTextWait: {
-    color: '#BE123C',
+  pStatusTextValid: {
+    color: colors.onSuccessContainer,
+  },
+  pStatusTextWait: {
+    color: colors.onErrorContainer,
   },
   pMetaRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 6,
-    marginTop: 6,
+    marginTop: 4,
   },
-  pNipPill: {
-    ...typography.labelMono,
-    fontSize: 10,
-    backgroundColor: '#F1F5F9',
-    color: '#334155',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 3,
-  },
-  pLocPill: {
-    ...typography.labelSm,
-    fontSize: 10,
-    backgroundColor: colors.surfaceContainerLow,
+  pMetaText: {
+    ...typography.bodySm,
+    fontSize: 11,
     color: colors.onSurfaceVariant,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 3,
   },
-  pStatusPill: {
-    ...typography.labelSm,
+  pMetaValueMono: {
+    ...typography.labelMono,
+    fontSize: 10.5,
+    color: colors.onSurface,
+    fontWeight: '600',
+  },
+  pMetaDot: {
     fontSize: 10,
-    fontWeight: '700',
-    backgroundColor: '#ECFDF5',
-    color: '#065F46',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 3,
-  },
-  pStatusPillWait: {
-    backgroundColor: '#FFF1F2',
-    color: '#BE123C',
+    color: colors.outline,
   },
   minutesCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-    gap: 8,
+    borderColor: 'rgba(197, 197, 211, 0.45)',
+    gap: spacing.sm,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   minutesHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
+  },
+  minutesIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   minutesTitle: {
     ...typography.headlineSm,
@@ -955,26 +1095,42 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.onSurface,
   },
+  minutesSubtitle: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 1,
+  },
+  minutesDivider: {
+    height: 1,
+    backgroundColor: 'rgba(197, 197, 211, 0.3)',
+    marginVertical: 2,
+  },
   minutesBody: {
     ...typography.bodySm,
     fontSize: 12,
     color: colors.onSurface,
     lineHeight: 18,
   },
-  minutesMeta: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.outline,
-    fontStyle: 'italic',
-  },
   baCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     gap: spacing.sm,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   baHeader: {
     flexDirection: 'row',
@@ -983,7 +1139,7 @@ const styles = StyleSheet.create({
   },
   baTitle: {
     ...typography.headlineSm,
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.onSurface,
   },
@@ -998,10 +1154,11 @@ const styles = StyleSheet.create({
     borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.3)',
+    overflow: 'hidden',
   },
   baNumberLabel: {
     ...typography.labelSm,
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.outline,
     letterSpacing: 0.5,
@@ -1014,7 +1171,7 @@ const styles = StyleSheet.create({
   },
   baNumberValue: {
     ...typography.labelMono,
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.onSurface,
   },
@@ -1031,10 +1188,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 8,
+    borderRadius: rounded.sm,
+    overflow: 'hidden',
+  },
+  excelBtnPressed: {
+    backgroundColor: colors.surfaceContainerLow,
   },
   excelBtnText: {
     ...typography.labelSm,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '600',
   },
 });
