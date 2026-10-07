@@ -7,11 +7,12 @@ import {
   Alert,
   Pressable,
   TextInput,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -27,7 +28,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigatePegawai,
 }) => {
   const { user, logout } = useAuthStore();
-  const [whatsapp, setWhatsapp] = useState('+62 812-6789-2026');
+  const [whatsapp, setWhatsapp] = useState(user?.phone ?? '0812-6612-8901');
 
   const handleLogout = () => {
     Alert.alert(
@@ -47,18 +48,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     );
   };
 
-  const handleEditWhatsapp = () => {
-    Alert.prompt
-      ? Alert.prompt(
-          'Ubah Nomor WhatsApp Dinas',
-          'Masukkan nomor WhatsApp kedinasan aktif:',
-          (text) => text && setWhatsapp(text),
-          'plain-text',
-          whatsapp
-        )
-      : Alert.alert('Ubah Kontak', `Nomor WhatsApp saat ini: ${whatsapp}`);
-  };
-
   const handleChangePassword = () => {
     Alert.alert(
       'Ubah Kata Sandi',
@@ -74,7 +63,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* SUBTITLE & BADGE IDENTITAS RESMI */}
+        {/* SUBTITLE & IDENTITAS RESMI */}
         <View style={styles.titleSection}>
           <Text style={styles.mainTitle}>Profil ASN</Text>
           <Text style={styles.mainSubtitle}>
@@ -82,12 +71,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </Text>
         </View>
 
-        {/* KARTU PROFIL PEGAWAI RESMI ASN (BENTO HERO) */}
+        {/* KARTU PROFIL PEGAWAI RESMI ASN */}
         <View style={styles.heroCard}>
           <View style={styles.profileTopRow}>
             <View style={styles.avatarWrap}>
               <View style={styles.avatarInner}>
-                <MaterialIcons name="person" size={54} color={colors.primary} />
+                <MaterialIcons name="person" size={48} color={colors.primary} />
               </View>
             </View>
 
@@ -96,85 +85,57 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 {user?.name ?? 'Afdalisma, SH, M.Pd'}
               </Text>
               <Text style={styles.profileRoleTitle}>
-                Kepala Lembaga (Superadmin SIPERAPAT)
+                {user?.jabatan ?? 'Kepala Lembaga'}
               </Text>
-
-              <View style={styles.profileDataGrid}>
-                <View style={styles.dataPill}>
-                  <Text style={styles.dataPillLabel}>NIP:</Text>
-                  <Text style={styles.dataPillValueMono}>
-                    {user?.nip ?? '197012051992032002'}
-                  </Text>
-                </View>
-
-                <View style={styles.dataPill}>
-                  <Text style={styles.dataPillLabel}>Pangkat:</Text>
-                  <Text style={styles.dataPillValue}>
-                    Pembina Utama Muda (IV/c)
-                  </Text>
-                </View>
-
-                <View style={[styles.dataPill, { width: '100%' }]}>
-                  <Text style={styles.dataPillLabel}>Unit Kerja:</Text>
-                  <Text style={styles.dataPillValue} numberOfLines={1}>
-                    Pimpinan & Lintas Unit (Pusat LLDIKTI X Padang)
-                  </Text>
-                </View>
-              </View>
+              <Text style={styles.profileMetaSub} numberOfLines={2}>
+                {user?.pangkatGolongan ?? 'Pembina Utama Madya (IV/d)'} • {user?.unitKerja ?? 'LLDIKTI Wilayah X'}
+              </Text>
             </View>
           </View>
 
-          {/* PERFORMA KEHADIRAN SIDANG (4-GRID METRICS) */}
+          {/* STATISTIK KEHADIRAN (3-COLUMN PROPORTIONAL GRID) */}
           <View style={styles.performanceSection}>
-            <Text style={styles.performanceHeader}>
-              PERFORMA KEHADIRAN SIDANG & RAPAT (SEMESTER BERJALAN)
-            </Text>
+            <Text style={styles.performanceHeader}>Statistik Kehadiran</Text>
 
             <View style={styles.perfGrid}>
               <View style={styles.perfCol}>
-                <Text style={styles.perfLabel}>Rerata Kehadiran</Text>
+                <Text style={styles.perfLabel}>Total Agenda</Text>
+                <Text style={styles.perfValue}>24</Text>
+                <Text style={styles.perfSub}>Rapat & Sidang</Text>
+              </View>
+
+              <View style={styles.perfCol}>
+                <Text style={styles.perfLabel}>Kehadiran</Text>
                 <Text style={styles.perfValue}>98.5%</Text>
-                <Text style={styles.perfSub}>Sangat Patuh</Text>
+                <Text style={styles.perfSub}>Tervalidasi</Text>
               </View>
 
               <View style={styles.perfCol}>
-                <Text style={styles.perfLabel}>Total Rapat</Text>
-                <Text style={styles.perfValue}>24 Agenda</Text>
-                <Text style={styles.perfSub}>LLDIKTI & Nasional</Text>
-              </View>
-
-              <View style={styles.perfCol}>
-                <Text style={styles.perfLabel}>Bulan Ini</Text>
-                <Text style={styles.perfValue}>6 Rapat</Text>
-                <Text style={styles.perfSub}>100% Berita Acara</Text>
-              </View>
-
-              <View style={styles.perfCol}>
-                <Text style={styles.perfLabel}>Kepatuhan Waktu</Text>
+                <Text style={styles.perfLabel}>Tepat Waktu</Text>
                 <Text style={styles.perfValue}>100%</Text>
-                <Text style={styles.perfSub}>Tepat Waktu</Text>
+                <Text style={styles.perfSub}>Presensi Awal</Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* SECTION 2: DATA MASTER KEDINASAN */}
+        {/* SECTION 2: INFORMASI AKUN KEDINASAN */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Informasi Akun Kedinasan</Text>
 
+          {/* NIP Field (Without redundant "Terkunci" tag) */}
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>NIP Resmi Kedinasan</Text>
-            <View style={styles.lockedInputRow}>
-              <MaterialIcons name="fingerprint" size={18} color={colors.outline} />
-              <Text style={styles.lockedInputValueMono}>
+            <Text style={styles.fieldLabel}>NIP</Text>
+            <View style={styles.readonlyInputRow}>
+              <MaterialIcons name="badge" size={18} color={colors.outline} />
+              <Text style={styles.readonlyInputValueMono}>
                 {user?.nip ?? '197012051992032002'}
               </Text>
-              <Text style={styles.lockedTag}>Terkunci</Text>
             </View>
           </View>
 
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Username SIPERAPAT</Text>
+            <Text style={styles.fieldLabel}>Username</Text>
             <View style={styles.readonlyInputRow}>
               <MaterialIcons name="alternate-email" size={18} color={colors.outline} />
               <Text style={styles.readonlyInputValue}>
@@ -184,36 +145,36 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
 
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Email Resmi Kedinasan</Text>
+            <Text style={styles.fieldLabel}>Email Kedinasan</Text>
             <View style={styles.readonlyInputRow}>
               <MaterialIcons name="mail" size={18} color={colors.outline} />
               <Text style={styles.readonlyInputValue} numberOfLines={1}>
-                {user?.email ?? 'afdalisma@lldiktiwilayahx.kemdiktisaintek.go.id'}
+                {user?.email ?? 'afdalisma@lldikti10.kemdikbud.go.id'}
               </Text>
             </View>
           </View>
 
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Nomor WhatsApp Kedinasan</Text>
+            <Text style={styles.fieldLabel}>WhatsApp Kedinasan</Text>
             <View style={styles.editableInputRow}>
               <MaterialIcons name="phone-iphone" size={18} color={colors.outline} />
               <TextInput
                 style={styles.editableInput}
                 value={whatsapp}
                 onChangeText={setWhatsapp}
+                keyboardType="phone-pad"
+                placeholder="Nomor WhatsApp"
+                placeholderTextColor={colors.outline}
               />
-              <Pressable onPress={handleEditWhatsapp} style={styles.editLinkBtn}>
-                <Text style={styles.editLinkText}>Ubah</Text>
-              </Pressable>
             </View>
           </View>
 
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Tingkat Otoritas Sistem</Text>
+            <Text style={styles.fieldLabel}>Hak Akses</Text>
             <View style={styles.readonlyInputRow}>
               <MaterialIcons name="security" size={18} color={colors.outline} />
               <Text style={styles.readonlyInputValueBold}>
-                Administrator (Superadmin Wilayah)
+                Superadmin Wilayah
               </Text>
             </View>
           </View>
@@ -230,64 +191,79 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 Terakhir diperbarui 30 hari yang lalu
               </Text>
             </View>
-            <Pressable onPress={handleChangePassword} style={styles.changePassBtn}>
+            <Pressable
+              onPress={handleChangePassword}
+              style={({ pressed }) => [
+                styles.changePassBtn,
+                pressed && styles.itemPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Ubah Kata Sandi"
+            >
               <Text style={styles.changePassBtnText}>Ubah Sandi</Text>
             </Pressable>
           </View>
         </View>
 
-        {/* SECTION 4: MANAJEMEN KEPEGAWAIAN */}
+        {/* SECTION 4: ADMINISTRASI SISTEM (UNIFIED MENU CARD) */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Manajemen Kepegawaian</Text>
+          <Text style={styles.sectionTitle}>Administrasi Sistem</Text>
 
           <Pressable
             onPress={onNavigatePegawai}
             style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Buka Direktori Pegawai"
           >
             <View style={styles.menuNavIconWrap}>
-              <MaterialIcons name="groups" size={22} color={colors.primary} />
+              <MaterialIcons name="groups" size={20} color={colors.primary} />
             </View>
             <View style={styles.menuNavTextCol}>
-              <Text style={styles.menuNavTitle}>Kelola Pegawai & Unit Kerja</Text>
+              <Text style={styles.menuNavTitle}>Direktori Pegawai ASN</Text>
               <Text style={styles.menuNavSub}>
-                Direktori 79 pegawai ASN dan pembagian unit kerja
+                Daftar 79 pegawai ASN dan pembagian unit kerja
               </Text>
             </View>
-            <MaterialIcons name="chevron-right" size={22} color={colors.outline} />
+            <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
           </Pressable>
-        </View>
 
-        {/* SECTION 5: AUDIT & LOG SISTEM */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Audit & Log Sistem</Text>
+          <View style={styles.menuDivider} />
 
           <Pressable
             onPress={onNavigateAuditLog}
             style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Buka Log Aktivitas Sistem"
           >
             <View style={styles.menuNavIconWrap}>
-              <MaterialIcons name="history" size={22} color={colors.primary} />
+              <MaterialIcons name="history" size={20} color={colors.primary} />
             </View>
             <View style={styles.menuNavTextCol}>
-              <Text style={styles.menuNavTitle}>Log Aktivitas Sistem</Text>
+              <Text style={styles.menuNavTitle}>Log Audit Sistem</Text>
               <Text style={styles.menuNavSub}>
-                Rekam jejak audit trail, autentikasi, dan riwayat presensi
+                Rekam jejak aktivitas, autentikasi, dan presensi
               </Text>
             </View>
-            <MaterialIcons name="chevron-right" size={22} color={colors.outline} />
+            <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
           </Pressable>
         </View>
 
-        {/* SECTION 4: LOGOUT BUTTON */}
-        <Pressable onPress={handleLogout} style={styles.logoutButton}>
+        {/* SECTION 5: LOGOUT BUTTON */}
+        <Pressable
+          onPress={handleLogout}
+          style={({ pressed }) => [
+            styles.logoutButton,
+            pressed && styles.logoutButtonPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Keluar Akun"
+        >
           <MaterialIcons name="logout" size={18} color={colors.error} />
-          <Text style={styles.logoutButtonText}>
-            Keluar Akun (Logout Sesi Kedinasan)
-          </Text>
+          <Text style={styles.logoutButtonText}>Keluar Akun</Text>
         </Pressable>
 
         <Text style={styles.versionNote}>
-          SIPERAPAT LLDIKTI X v1.0.0 • Kementerian Pendidikan Tinggi, Sains, dan Teknologi
+          SIPERAPAT LLDIKTI Wilayah X • v1.0.0
         </Text>
       </ScrollView>
     </View>
@@ -315,7 +291,7 @@ const styles = StyleSheet.create({
   },
   mainSubtitle: {
     ...typography.bodySm,
-    fontSize: 11.5,
+    fontSize: 12,
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
@@ -324,24 +300,35 @@ const styles = StyleSheet.create({
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     gap: spacing.md,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   profileTopRow: {
     flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
+    gap: 14,
+    alignItems: 'center',
   },
   avatarWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 35, 111, 0.2)',
   },
   avatarInner: {
     alignItems: 'center',
@@ -349,7 +336,7 @@ const styles = StyleSheet.create({
   },
   profileMetaInfo: {
     flex: 1,
-    gap: 3,
+    gap: 2,
   },
   profileName: {
     ...typography.headlineSm,
@@ -358,44 +345,16 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
   },
   profileRoleTitle: {
+    ...typography.labelMd,
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  profileMetaSub: {
     ...typography.bodySm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  profileDataGrid: {
-    gap: 4,
-  },
-  dataPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.surfaceContainerLow,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: rounded.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-  },
-  dataPillLabel: {
-    ...typography.labelSm,
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-    fontWeight: '500',
-  },
-  dataPillValue: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.onSurface,
-    fontWeight: '600',
-    flex: 1,
-  },
-  dataPillValueMono: {
-    ...typography.labelMono,
-    fontSize: 11,
-    color: colors.onSurface,
-    fontWeight: '700',
+    marginTop: 2,
   },
   performanceSection: {
     borderTopWidth: 1,
@@ -404,41 +363,41 @@ const styles = StyleSheet.create({
   },
   performanceHeader: {
     ...typography.labelSm,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    color: colors.onSurfaceVariant,
+    color: colors.outline,
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   perfGrid: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   perfCol: {
     flex: 1,
     backgroundColor: colors.surfaceContainerLow,
     borderRadius: rounded.md,
-    padding: 8,
+    padding: 10,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.4)',
     justifyContent: 'space-between',
-    minHeight: 72,
+    minHeight: 74,
   },
   perfLabel: {
     ...typography.labelSm,
-    fontSize: 9.5,
+    fontSize: 10,
     color: colors.onSurfaceVariant,
   },
   perfValue: {
     ...typography.headlineSm,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.onSurface,
     marginTop: 2,
   },
   perfSub: {
     ...typography.labelSm,
-    fontSize: 8.5,
+    fontSize: 9.5,
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
@@ -447,13 +406,24 @@ const styles = StyleSheet.create({
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     gap: spacing.sm + 2,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   sectionTitle: {
     ...typography.headlineSm,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
     color: colors.onSurface,
     borderBottomWidth: 1,
@@ -461,93 +431,69 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xs + 2,
   },
   fieldItem: {
-    gap: 3,
+    gap: 4,
   },
   fieldLabel: {
     ...typography.labelSm,
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.onSurfaceVariant,
   },
-  lockedInputRow: {
-    height: 38,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    gap: 8,
-  },
-  lockedInputValueMono: {
-    ...typography.labelMono,
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.onSurface,
-    flex: 1,
-  },
-  lockedTag: {
-    ...typography.labelSm,
-    fontSize: 10,
-    color: colors.outline,
-  },
   readonlyInputRow: {
-    height: 38,
+    height: 40,
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.5)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     gap: 8,
   },
   readonlyInputValue: {
     ...typography.bodySm,
-    fontSize: 11.5,
+    fontSize: 12,
     color: colors.onSurface,
     flex: 1,
   },
-  readonlyInputValueBold: {
-    ...typography.bodySm,
-    fontSize: 11.5,
+  readonlyInputValueMono: {
+    ...typography.labelMono,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.onSurface,
     flex: 1,
+    letterSpacing: 0.3,
+  },
+  readonlyInputValueBold: {
+    ...typography.bodySm,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    flex: 1,
   },
   editableInputRow: {
-    height: 38,
+    height: 40,
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.7)',
+    borderColor: 'rgba(197, 197, 211, 0.65)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     gap: 8,
   },
   editableInput: {
     ...typography.bodySm,
-    fontSize: 11.5,
+    fontSize: 12,
     color: colors.onSurface,
     flex: 1,
-  },
-  editLinkBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  editLinkText: {
-    ...typography.labelSm,
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
+    paddingVertical: 0,
   },
   authActionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   authActionTitle: {
     ...typography.labelMd,
@@ -559,20 +505,21 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     fontSize: 10.5,
     color: colors.onSurfaceVariant,
-    marginTop: 1,
+    marginTop: 2,
   },
   changePassBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: rounded.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: 'rgba(197, 197, 211, 0.65)',
+    backgroundColor: colors.surfaceContainerLowest,
   },
   changePassBtnText: {
     ...typography.labelSm,
     fontSize: 11,
     fontWeight: '600',
-    color: colors.onSurface,
+    color: colors.primary,
   },
   menuNavCard: {
     flexDirection: 'row',
@@ -584,8 +531,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   menuNavIconWrap: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
@@ -596,7 +543,7 @@ const styles = StyleSheet.create({
   },
   menuNavTitle: {
     ...typography.labelMd,
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
     color: colors.onSurface,
   },
@@ -604,19 +551,27 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-    marginTop: 2,
+    marginTop: 1,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: 'rgba(197, 197, 211, 0.35)',
+    marginVertical: 2,
   },
   logoutButton: {
     height: 44,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(186, 26, 26, 0.4)',
+    borderColor: 'rgba(186, 26, 26, 0.35)',
     backgroundColor: colors.surfaceContainerLowest,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     marginTop: 4,
+  },
+  logoutButtonPressed: {
+    backgroundColor: 'rgba(186, 26, 26, 0.05)',
   },
   logoutButtonText: {
     ...typography.labelMd,
@@ -626,7 +581,7 @@ const styles = StyleSheet.create({
   },
   versionNote: {
     ...typography.labelSm,
-    fontSize: 10,
+    fontSize: 10.5,
     color: colors.outline,
     textAlign: 'center',
     marginTop: 2,
