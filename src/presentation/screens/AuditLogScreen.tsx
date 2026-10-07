@@ -6,12 +6,14 @@ import {
   ScrollView,
   TextInput,
   Pressable,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { EmptyState } from '../components/common/EmptyState';
 
 interface AuditItem {
   id: string;
@@ -134,32 +136,29 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* RINGKASAN INTEGRITAS REKAM JEJAK */}
+        {/* RINGKASAN AKTIVITAS */}
         <View style={styles.integrityCard}>
           <View style={styles.integrityHeader}>
             <View style={styles.integrityTitleRow}>
               <MaterialIcons name="verified-user" size={18} color={colors.primary} />
               <Text style={styles.integrityTitle}>
-                Integritas Rekam Jejak Kedinasan
+                Ringkasan Aktivitas
               </Text>
-            </View>
-            <View style={styles.appendPill}>
-              <Text style={styles.appendPillText}>Append-Only Log</Text>
             </View>
           </View>
 
           <View style={styles.metricsRow}>
             <View style={styles.metricCol}>
               <Text style={styles.metricNumber}>1.482</Text>
-              <Text style={styles.metricLabel}>Total Log Terverifikasi</Text>
+              <Text style={styles.metricLabel}>Total Log</Text>
             </View>
             <View style={styles.metricCol}>
               <Text style={styles.metricNumber}>100%</Text>
-              <Text style={styles.metricLabel}>Otentikasi NIP ASN</Text>
+              <Text style={styles.metricLabel}>Otentikasi Sah</Text>
             </View>
             <View style={styles.metricCol}>
               <Text style={styles.metricNumber}>0</Text>
-              <Text style={styles.metricLabel}>Insiden Keamanan</Text>
+              <Text style={styles.metricLabel}>Insiden</Text>
             </View>
           </View>
         </View>
@@ -169,11 +168,21 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
           <MaterialIcons name="search" size={20} color={colors.outline} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Cari NIP, nama aktor, aktivitas..."
+            placeholder="Cari NIP, nama, atau aktivitas..."
             placeholderTextColor={colors.outline}
             value={search}
             onChangeText={setSearch}
           />
+          {search.length > 0 ? (
+            <Pressable
+              onPress={() => setSearch('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Hapus pencarian"
+            >
+              <MaterialIcons name="close" size={18} color={colors.outline} />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* FILTER PILLS */}
@@ -192,6 +201,8 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                   styles.filterPill,
                   active && styles.filterPillActive,
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Filter kategori ${cat}`}
               >
                 <Text
                   style={[
@@ -199,7 +210,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                     active && styles.filterPillTextActive,
                   ]}
                 >
-                  {cat === 'Semua' ? 'Semua (1.482)' : cat}
+                  {cat}
                 </Text>
               </Pressable>
             );
@@ -208,51 +219,70 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
 
         {/* LIST SECTION HEADER */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Daftar Aktivitas Terkini</Text>
-          <Text style={styles.sectionRealtime}>Real-time</Text>
+          <Text style={styles.sectionTitle}>Daftar Aktivitas</Text>
+          <Text style={styles.sectionCountText}>
+            {filteredLogs.length} Catatan
+          </Text>
         </View>
 
         {/* LOG ITEMS */}
-        <View style={styles.logsList}>
-          {filteredLogs.map((item) => (
-            <View key={item.id} style={styles.logCard}>
-              <View style={styles.logCardHeader}>
-                <View style={styles.logTagRow}>
-                  <Text style={styles.logTag}>{item.tag}</Text>
-                  <View style={styles.dotSeparator} />
-                  <Text style={styles.logTime}>{item.time}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusPill,
-                    item.statusType === 'warning' && styles.statusPillWarn,
-                  ]}
-                >
-                  <Text
+        {filteredLogs.length > 0 ? (
+          <View style={styles.logsList}>
+            {filteredLogs.map((item) => (
+              <View key={item.id} style={styles.logCard}>
+                <View style={styles.logCardHeader}>
+                  <View style={styles.logTagRow}>
+                    <Text style={styles.logTag}>{item.tag}</Text>
+                    <View style={styles.dotSeparator} />
+                    <Text style={styles.logTime}>{item.time}</Text>
+                  </View>
+                  <View
                     style={[
-                      styles.statusPillText,
-                      item.statusType === 'warning' && styles.statusPillTextWarn,
+                      styles.statusPill,
+                      item.statusType === 'success' && styles.statusPillSuccess,
+                      item.statusType === 'warning' && styles.statusPillWarn,
+                      item.statusType === 'info' && styles.statusPillInfo,
                     ]}
                   >
-                    {item.status}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        item.statusType === 'success' && styles.statusPillTextSuccess,
+                        item.statusType === 'warning' && styles.statusPillTextWarn,
+                        item.statusType === 'info' && styles.statusPillTextInfo,
+                      ]}
+                    >
+                      {item.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.actorRow}>
+                  <Text style={styles.actorName}>{item.actorName}</Text>
+                  <Text style={styles.actorNip}>{item.actorNip}</Text>
+                </View>
+
+                <Text style={styles.logDesc}>{item.description}</Text>
+
+                <View style={styles.logFooter}>
+                  <Text style={styles.ipText}>IP {item.ip}</Text>
+                  <Text style={styles.metaText}>{item.meta}</Text>
                 </View>
               </View>
-
-              <View style={styles.actorRow}>
-                <Text style={styles.actorName}>{item.actorName}</Text>
-                <Text style={styles.actorNip}>{item.actorNip}</Text>
-              </View>
-
-              <Text style={styles.logDesc}>{item.description}</Text>
-
-              <View style={styles.logFooter}>
-                <Text style={styles.ipText}>IP {item.ip}</Text>
-                <Text style={styles.metaText}>{item.meta}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            icon="manage-search"
+            title="Tidak Ada Log Ditemukan"
+            description="Tidak ada catatan aktivitas yang cocok dengan kata kunci atau filter kategori yang dipilih."
+            actionLabel="Atur Ulang Filter"
+            onAction={() => {
+              setSearch('');
+              setSelectedCategory('Semua');
+            }}
+          />
+        )}
       </ScrollView>
     </View>
   );
@@ -273,8 +303,19 @@ const styles = StyleSheet.create({
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    ...elevations.level1,
+    borderColor: 'rgba(197, 197, 211, 0.45)',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   integrityHeader: {
     flexDirection: 'row',
@@ -291,21 +332,9 @@ const styles = StyleSheet.create({
   },
   integrityTitle: {
     ...typography.labelMd,
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.onSurface,
-  },
-  appendPill: {
-    backgroundColor: colors.surfaceContainer,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: rounded.full,
-  },
-  appendPillText: {
-    ...typography.labelSm,
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-    fontWeight: '500',
   },
   metricsRow: {
     flexDirection: 'row',
@@ -318,10 +347,12 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: rounded.md,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.35)',
   },
   metricNumber: {
     ...typography.headlineMd,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.onSurface,
   },
@@ -337,17 +368,19 @@ const styles = StyleSheet.create({
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: 'rgba(197, 197, 211, 0.55)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
     gap: 8,
+    overflow: 'hidden',
   },
   searchInput: {
     flex: 1,
     ...typography.bodySm,
     fontSize: 12,
     color: colors.onSurface,
+    paddingVertical: 0,
   },
   filterPillsRow: {
     flexDirection: 'row',
@@ -361,6 +394,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.5)',
     backgroundColor: colors.surfaceContainerLowest,
+    overflow: 'hidden',
   },
   filterPillActive: {
     backgroundColor: colors.primary,
@@ -370,6 +404,7 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     fontSize: 11.5,
     color: colors.onSurfaceVariant,
+    fontWeight: '500',
   },
   filterPillTextActive: {
     color: '#FFFFFF',
@@ -387,10 +422,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.onSurface,
   },
-  sectionRealtime: {
+  sectionCountText: {
     ...typography.bodySm,
     fontSize: 11,
     color: colors.outline,
+    fontWeight: '500',
   },
   logsList: {
     gap: 8,
@@ -400,9 +436,20 @@ const styles = StyleSheet.create({
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     gap: 6,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   logCardHeader: {
     flexDirection: 'row',
@@ -436,23 +483,39 @@ const styles = StyleSheet.create({
     color: colors.outline,
   },
   statusPill: {
-    backgroundColor: colors.surfaceContainerLow,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: rounded.full,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  statusPillSuccess: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
   },
   statusPillWarn: {
     backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+  },
+  statusPillInfo: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
   },
   statusPillText: {
     ...typography.labelSm,
     fontSize: 10,
     color: colors.onSurfaceVariant,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  statusPillTextSuccess: {
+    color: '#065F46',
   },
   statusPillTextWarn: {
     color: '#92400E',
-    fontWeight: '600',
+  },
+  statusPillTextInfo: {
+    color: '#1E40AF',
   },
   actorRow: {
     flexDirection: 'row',
