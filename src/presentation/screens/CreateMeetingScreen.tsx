@@ -7,19 +7,32 @@ import {
   Pressable,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { MeetingType } from '../../domain/entities/types';
+import {
+  AgendaOptionModal,
+  AgendaOption,
+} from '../components/modals/AgendaOptionModal';
 
 interface CreateMeetingScreenProps {
   onBack: () => void;
   onSuccess: () => void;
 }
+
+type ActiveModalType =
+  | 'none'
+  | 'classification'
+  | 'leader'
+  | 'notulis'
+  | 'date'
+  | 'venue';
 
 const UNIT_KERJA_LIST = [
   'Bagian Umum & Tata Usaha',
@@ -35,6 +48,196 @@ const UNIT_KERJA_LIST = [
   'Subbag Kepegawaian & Ortala',
 ];
 
+const CLASSIFICATION_OPTIONS: AgendaOption[] = [
+  {
+    id: 'koordinasi',
+    title: 'Rapat Koordinasi (Rakor Antar-Unit)',
+    subtitle: 'Penyelarasan program kerja lintas kelompok kerja dan bagian',
+    badge: 'Rutin',
+    icon: 'sync-alt',
+  },
+  {
+    id: 'pleno',
+    title: 'Rapat Pleno Pimpinan LLDIKTI X',
+    subtitle: 'Sidang pleno pejabat struktural dan ketua tim kerja',
+    badge: 'Pimpinan',
+    icon: 'account-balance',
+  },
+  {
+    id: 'evaluasi',
+    title: 'Rapat Evaluasi Kinerja & Anggaran',
+    subtitle: 'Tinjauan capaian kinerja triwulanan dan serapan anggaran DIPA',
+    badge: 'Prioritas',
+    icon: 'assessment',
+  },
+  {
+    id: 'bimtek',
+    title: 'Sosialisasi & Bimbingan Teknis PTS',
+    subtitle: 'Pembinaan kelembagaan dan peningkatan mutu perguruan tinggi',
+    badge: 'Eksternal',
+    icon: 'school',
+  },
+  {
+    id: 'disiplin',
+    title: 'Sidang Penegakan Disiplin Pegawai ASN',
+    subtitle: 'Majelis kode etik dan pembinaan aparatur sipil negara',
+    badge: 'Internal',
+    icon: 'gavel',
+  },
+];
+
+const LEADER_OPTIONS: AgendaOption[] = [
+  {
+    id: '197012051992032002',
+    title: 'Afdalisma, SH, M.Pd',
+    subtitle: 'Kepala LLDIKTI Wilayah X • NIP. 197012051992032002',
+    badge: 'Kepala Lembaga',
+    icon: 'person',
+  },
+  {
+    id: '196803151991031002',
+    title: 'Dr. Hj. Syahril, M.Pd',
+    subtitle: 'Sekretaris LLDIKTI Wilayah X • NIP. 196803151991031002',
+    badge: 'Sekretaris',
+    icon: 'person',
+  },
+  {
+    id: '197405101998032001',
+    title: 'Ely Susanti, SE, MM',
+    subtitle: 'Kepala Bagian Umum • NIP. 197405101998032001',
+    badge: 'Kabag Umum',
+    icon: 'person',
+  },
+  {
+    id: '198104122005012003',
+    title: 'Desy Rachmawaty, SE, MM',
+    subtitle: 'Ketua Tim Kerja Kelembagaan • NIP. 198104122005012003',
+    badge: 'Ketua Tim',
+    icon: 'person',
+  },
+];
+
+const NOTULIS_OPTIONS: AgendaOption[] = [
+  {
+    id: 'rahmat',
+    title: 'Rahmat Hidayat, S.Kom',
+    subtitle: 'Subbag Sistem Informasi & Tata Kelola IT',
+    badge: 'Analis TI',
+    icon: 'edit-note',
+  },
+  {
+    id: 'siti',
+    title: 'Siti Rahmawati, S.AP',
+    subtitle: 'Subbag Tata Usaha, Kearsipan & Protokol',
+    badge: 'Arsiparis',
+    icon: 'edit-note',
+  },
+  {
+    id: 'budi',
+    title: 'Budi Santoso, SE',
+    subtitle: 'Subbag Perencanaan, Keuangan & BMN',
+    badge: 'Pranata Keu',
+    icon: 'edit-note',
+  },
+  {
+    id: 'ilham',
+    title: 'Ilham Pratama, S.Kom',
+    subtitle: 'Pokja Penjaminan Mutu & Akreditasi',
+    badge: 'Notulis Mutu',
+    icon: 'edit-note',
+  },
+  {
+    id: 'febrina',
+    title: 'Febrina Anggraini, SE',
+    subtitle: 'Pokja Sumber Daya & Tenaga Pendidik',
+    badge: 'Notulis SDM',
+    icon: 'edit-note',
+  },
+];
+
+const DATE_OPTIONS: AgendaOption[] = [
+  {
+    id: '2026-10-23',
+    title: 'Hari Ini — Rabu, 23 Oktober 2026',
+    subtitle: 'Jadwal penyelenggaraan hari kerja berjalan',
+    badge: 'Hari Ini',
+    icon: 'today',
+  },
+  {
+    id: '2026-10-24',
+    title: 'Besok — Kamis, 24 Oktober 2026',
+    subtitle: 'Rekomendasi jadwal sidang koordinasi rutin',
+    badge: 'Besok',
+    icon: 'event',
+  },
+  {
+    id: '2026-10-25',
+    title: 'Jumat, 25 Oktober 2026',
+    subtitle: 'Sesi rapat pimpinan akhir pekan',
+    badge: 'Minggu Ini',
+    icon: 'date-range',
+  },
+  {
+    id: '2026-10-28',
+    title: 'Senin, 28 Oktober 2026',
+    subtitle: 'Pembuka agenda kedinasan pekan depan',
+    badge: 'Pekan Depan',
+    icon: 'date-range',
+  },
+  {
+    id: '2026-10-31',
+    title: 'Kamis, 31 Oktober 2026',
+    subtitle: 'Sidang evaluasi capaian akhir bulan',
+    badge: 'Akhir Bulan',
+    icon: 'event-available',
+  },
+  {
+    id: '2026-11-04',
+    title: 'Rabu, 4 November 2026',
+    subtitle: 'Agenda terencana awal bulan berikutnya',
+    badge: 'Bulan Depan',
+    icon: 'event-available',
+  },
+];
+
+const VENUE_OPTIONS: AgendaOption[] = [
+  {
+    id: 'utama',
+    title: 'Ruang Sidang Utama Gedung A',
+    subtitle: 'Kapasitas 80 Orang • Sound System & Video Wall • AC Central',
+    badge: 'Kapasitas 80',
+    icon: 'meeting-room',
+  },
+  {
+    id: 'pimpinan',
+    title: 'Ruang Rapat Pimpinan Lt. 2',
+    subtitle: 'Kapasitas 25 Orang • Smart Screen Interactive',
+    badge: 'Kapasitas 25',
+    icon: 'meeting-room',
+  },
+  {
+    id: 'pokja',
+    title: 'Ruang Rapat Pokja Penjaminan Mutu',
+    subtitle: 'Kapasitas 20 Orang • Gedung B Lantai 1',
+    badge: 'Kapasitas 20',
+    icon: 'meeting-room',
+  },
+  {
+    id: 'aula',
+    title: 'Aula Ki Hadjar Dewantara',
+    subtitle: 'Kapasitas 150 Orang • Khusus Pertemuan Pleno Besar',
+    badge: 'Kapasitas 150',
+    icon: 'apartment',
+  },
+  {
+    id: 'akademik',
+    title: 'Ruang Rapat Akademik Gedung B',
+    subtitle: 'Kapasitas 35 Orang • LCD Proyektor & Geofence Valid',
+    badge: 'Kapasitas 35',
+    icon: 'meeting-room',
+  },
+];
+
 export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   onBack,
   onSuccess,
@@ -48,14 +251,16 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [formatType, setFormatType] = useState<MeetingType>('hybrid');
   const [leaderName, setLeaderName] = useState('Afdalisma, SH, M.Pd');
   const [leaderNip, setLeaderNip] = useState('197012051992032002');
-  const [notulisName, setNotulisName] = useState('Pilih Pegawai Notulis / Subbag');
-  
+  const [leaderRole, setLeaderRole] = useState('Kepala LLDIKTI Wilayah X');
+  const [notulisName, setNotulisName] = useState('Rahmat Hidayat, S.Kom');
+  const [notulisId, setNotulisId] = useState('rahmat');
+
   const [date, setDate] = useState('Kamis, 24 Oktober 2026');
+  const [dateIso, setDateIso] = useState('2026-10-24');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
-  const [venue, setVenue] = useState(
-    'Ruang Sidang Utama Gedung A (Kapasitas 80 Orang)'
-  );
+  const [venue, setVenue] = useState('Ruang Sidang Utama Gedung A');
+  const [venueId, setVenueId] = useState('utama');
   const [zoomUrl, setZoomUrl] = useState(
     'https://zoom.lldikti10.kemdikbud.go.id/j/9823481239'
   );
@@ -75,62 +280,22 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     'Surat_Undangan_Rapat_Akreditasi_2026.pdf'
   );
 
+  const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
+
+  const selectedClassification =
+    CLASSIFICATION_OPTIONS.find((c) => c.id === classification) ||
+    CLASSIFICATION_OPTIONS[0];
+
   const toggleUnit = (unit: string) => {
     setSelectedUnits((prev) =>
       prev.includes(unit) ? prev.filter((u) => u !== unit) : [...prev, unit]
     );
   };
 
-  const handlePickNotulis = () => {
-    Alert.alert(
-      'Pilih Petugas Notulis',
-      'Pilih pegawai pelaksana penyusun risalah sidang:',
-      [
-        {
-          text: 'Rahmat Hidayat, S.Kom (Subbag TI)',
-          onPress: () => setNotulisName('Rahmat Hidayat, S.Kom'),
-        },
-        {
-          text: 'Siti Rahmawati, S.AP (Subbag TU)',
-          onPress: () => setNotulisName('Siti Rahmawati, S.AP'),
-        },
-        {
-          text: 'Budi Santoso, SE (Subbag Umum)',
-          onPress: () => setNotulisName('Budi Santoso, SE'),
-        },
-        { text: 'Batal', style: 'cancel' },
-      ]
-    );
-  };
-
-  const handlePickLeader = () => {
-    Alert.alert(
-      'Ganti Penanggung Jawab Rapat',
-      'Pilih pimpinan sidang kedinasan:',
-      [
-        {
-          text: 'Afdalisma, SH, M.Pd (Kepala LLDIKTI X)',
-          onPress: () => {
-            setLeaderName('Afdalisma, SH, M.Pd');
-            setLeaderNip('197012051992032002');
-          },
-        },
-        {
-          text: 'Dr. Hj. Syahril, M.Pd (Sekretaris)',
-          onPress: () => {
-            setLeaderName('Dr. Hj. Syahril, M.Pd');
-            setLeaderNip('196803151991031002');
-          },
-        },
-        { text: 'Batal', style: 'cancel' },
-      ]
-    );
-  };
-
   const handleUploadFile = () => {
     Alert.alert(
-      'Telusuri Dokumen Kedinasan',
-      'Berkas nota dinas resmi "Surat_Undangan_Rapat_Akreditasi_2026.pdf" (1.4 MB) berhasil dilampirkan.'
+      'Dokumen Dilampirkan',
+      'Berkas "Surat_Undangan_Rapat_Akreditasi_2026.pdf" (1.4 MB) berhasil dilampirkan.'
     );
     setAttachedFile('Surat_Undangan_Rapat_Akreditasi_2026.pdf');
   };
@@ -138,13 +303,13 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const handleSaveDraft = () => {
     Alert.alert(
       'Konsep Tersimpan',
-      'Rancangan agenda rapat dinas berhasil disimpan sebagai draf lokal.'
+      'Rancangan agenda rapat berhasil disimpan sebagai draf lokal.'
     );
   };
 
   const handleSubmit = async () => {
-    if (!title) {
-      Alert.alert('Perhatian', 'Harap isi judul / perihal agenda rapat.');
+    if (!title.trim()) {
+      Alert.alert('Perhatian', 'Harap isi perihal agenda rapat.');
       return;
     }
 
@@ -153,18 +318,18 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       title,
       type: formatType,
       leader: leaderName,
-      date: '2026-10-24',
+      date: dateIso,
       startTime,
       endTime,
-      venue: formatType === 'online' ? 'Zoom Meeting' : venue,
+      venue: formatType === 'online' ? 'Daring (Video Conference)' : venue,
       status: 'upcoming',
       geofenceRadiusMeters: 50,
       latitude: -0.92348,
       longitude: 100.36214,
       zoomUrl: formatType !== 'offline' ? zoomUrl : undefined,
-      agendaDescription: `${title}. Penyelenggaraan secara ${formatType}.`,
+      agendaDescription: `${title}. Penyelenggaraan secara ${formatType}. Notulis: ${notulisName}.`,
       targetAudience: scopeUniversal
-        ? 'Seluruh Unit Kerja (Pleno / Universal)'
+        ? 'Seluruh Unit Kerja (Pleno)'
         : `${selectedUnits.length} Unit Kerja Terpilih`,
       totalInvited: scopeUniversal ? 79 : selectedUnits.length * 7,
     });
@@ -176,11 +341,93 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     }
   };
 
+  const getModalConfig = (): {
+    title: string;
+    subtitle: string;
+    options: AgendaOption[];
+    selectedId: string;
+  } => {
+    switch (activeModal) {
+      case 'classification':
+        return {
+          title: 'Pilih Klasifikasi Rapat',
+          subtitle: 'Kategori agenda untuk administrasi dan kearsipan',
+          options: CLASSIFICATION_OPTIONS,
+          selectedId: classification,
+        };
+      case 'leader':
+        return {
+          title: 'Pilih Pimpinan Rapat',
+          subtitle: 'Penanggung jawab sidang kedinasan LLDIKTI Wilayah X',
+          options: LEADER_OPTIONS,
+          selectedId: leaderNip,
+        };
+      case 'notulis':
+        return {
+          title: 'Pilih Petugas Notulis',
+          subtitle: 'Petugas penyusun risalah dan notulensi sidang',
+          options: NOTULIS_OPTIONS,
+          selectedId: notulisId,
+        };
+      case 'date':
+        return {
+          title: 'Pilih Tanggal Pelaksanaan',
+          subtitle: 'Jadwal hari kerja pelaksanaan agenda kedinasan',
+          options: DATE_OPTIONS,
+          selectedId: dateIso,
+        };
+      case 'venue':
+        return {
+          title: 'Pilih Ruang Rapat',
+          subtitle: 'Lokasi fisik ruang sidang di lingkungan kantor LLDIKTI X',
+          options: VENUE_OPTIONS,
+          selectedId: venueId,
+        };
+      default:
+        return {
+          title: '',
+          subtitle: '',
+          options: [],
+          selectedId: '',
+        };
+    }
+  };
+
+  const handleSelectOption = (option: AgendaOption) => {
+    switch (activeModal) {
+      case 'classification':
+        setClassification(option.id);
+        break;
+      case 'leader':
+        setLeaderName(option.title);
+        setLeaderNip(option.id);
+        setLeaderRole(option.badge || 'Pimpinan Rapat');
+        break;
+      case 'notulis':
+        setNotulisName(option.title);
+        setNotulisId(option.id);
+        break;
+      case 'date':
+        setDateIso(option.id);
+        setDate(
+          option.title.includes(' — ')
+            ? option.title.split(' — ')[1]
+            : option.title
+        );
+        break;
+      case 'venue':
+        setVenue(option.title);
+        setVenueId(option.id);
+        break;
+    }
+    setActiveModal('none');
+  };
+
   return (
     <View style={styles.container}>
       <Header
         title="Buat Agenda Rapat Baru"
-        subtitle="Administrasi & Presensi Kedinasan LLDIKTI X"
+        subtitle="Administrasi & Presensi LLDIKTI Wilayah X"
         showBack
         onBack={onBack}
       />
@@ -190,13 +437,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* SECTION 1: Data Pokok Rapat Kedinasan */}
+        {/* SECTION 1: Informasi Rapat */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>1. Data Pokok Rapat Kedinasan</Text>
-            <Text style={styles.sectionSubtitle}>
-              Identitas dasar dan perihal administrasi rapat
-            </Text>
+            <Text style={styles.sectionTitle}>Informasi Rapat</Text>
           </View>
 
           {/* Judul Textarea */}
@@ -213,26 +457,45 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               placeholder="Masukkan perihal agenda rapat dinas..."
               placeholderTextColor={colors.outline}
             />
-            <Text style={styles.fieldHint}>
-              Gunakan format resmi perihal nota dinas / surat undangan kementerian.
-            </Text>
           </View>
 
-          {/* Klasifikasi Selector */}
+          {/* Klasifikasi Selector Modal Trigger */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               Klasifikasi & Jenis Rapat <Text style={styles.required}>*</Text>
             </Text>
-            <View style={styles.classificationSelector}>
-              <Text style={styles.classificationValue}>
-                {classification === 'koordinasi'
-                  ? 'Rapat Koordinasi (Rakor Antar-Unit)'
-                  : classification === 'pleno'
-                  ? 'Rapat Pleno Pimpinan LLDIKTI X'
-                  : 'Rapat Evaluasi Triwulan Kinerja ASN'}
-              </Text>
-              <MaterialIcons name="expand-more" size={20} color={colors.onSurfaceVariant} />
-            </View>
+            <Pressable
+              onPress={() => setActiveModal('classification')}
+              style={({ pressed }) => [
+                styles.selectorTrigger,
+                pressed && styles.pressedState,
+              ]}
+            >
+              <View style={styles.selectorLeft}>
+                <MaterialIcons
+                  name={selectedClassification.icon || 'category'}
+                  size={18}
+                  color={colors.primary}
+                />
+                <Text style={styles.selectorValue} numberOfLines={1}>
+                  {selectedClassification.title}
+                </Text>
+              </View>
+              <View style={styles.selectorRight}>
+                {selectedClassification.badge ? (
+                  <View style={styles.selectorBadge}>
+                    <Text style={styles.selectorBadgeText}>
+                      {selectedClassification.badge}
+                    </Text>
+                  </View>
+                ) : null}
+                <MaterialIcons
+                  name="expand-more"
+                  size={20}
+                  color={colors.onSurfaceVariant}
+                />
+              </View>
+            </Pressable>
           </View>
 
           {/* Segmented Format Buttons */}
@@ -251,7 +514,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 <MaterialIcons
                   name="apartment"
                   size={18}
-                  color={formatType === 'offline' ? colors.onPrimary : colors.outline}
+                  color={
+                    formatType === 'offline' ? colors.onPrimary : colors.outline
+                  }
                 />
                 <Text
                   style={[
@@ -273,7 +538,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 <MaterialIcons
                   name="videocam"
                   size={18}
-                  color={formatType === 'online' ? colors.onPrimary : colors.outline}
+                  color={
+                    formatType === 'online' ? colors.onPrimary : colors.outline
+                  }
                 />
                 <Text
                   style={[
@@ -295,7 +562,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 <MaterialIcons
                   name="hub"
                   size={18}
-                  color={formatType === 'hybrid' ? colors.onPrimary : colors.outline}
+                  color={
+                    formatType === 'hybrid' ? colors.onPrimary : colors.outline
+                  }
                 />
                 <Text
                   style={[
@@ -309,67 +578,112 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             </View>
           </View>
 
-          {/* Leader Card */}
+          {/* Leader Card Modal Trigger */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
-              Penanggung Jawab / Pemimpin Rapat <Text style={styles.required}>*</Text>
+              Penanggung Jawab / Pimpinan Rapat <Text style={styles.required}>*</Text>
             </Text>
-            <View style={styles.leaderCard}>
+            <Pressable
+              onPress={() => setActiveModal('leader')}
+              style={({ pressed }) => [
+                styles.entityCard,
+                pressed && styles.pressedState,
+              ]}
+            >
               <View style={styles.leaderAvatar}>
-                <Text style={styles.leaderAvatarText}>AF</Text>
-              </View>
-              <View style={styles.leaderInfo}>
-                <Text style={styles.leaderName}>{leaderName}</Text>
-                <Text style={styles.leaderNip}>
-                  Kepala Lembaga (NIP. {leaderNip})
+                <Text style={styles.leaderAvatarText}>
+                  {leaderName
+                    .split(' ')
+                    .map((n) => n[0])
+                    .filter((c) => /^[A-Z]$/i.test(c))
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase() || 'PJ'}
                 </Text>
               </View>
-              <Pressable onPress={handlePickLeader} style={styles.changeBtn}>
-                <Text style={styles.changeBtnText}>Ganti</Text>
-              </Pressable>
-            </View>
+              <View style={styles.entityInfo}>
+                <Text style={styles.entityName}>{leaderName}</Text>
+                <Text style={styles.entitySub}>
+                  {leaderRole} • NIP. {leaderNip}
+                </Text>
+              </View>
+              <View style={styles.actionPill}>
+                <Text style={styles.actionPillText}>Ganti</Text>
+                <MaterialIcons
+                  name="chevron-right"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+            </Pressable>
           </View>
 
-          {/* Notulis Picker */}
+          {/* Notulis Picker Modal Trigger */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Petugas Notulis / Risalah Rapat</Text>
-            <Pressable onPress={handlePickNotulis} style={styles.notulisBox}>
-              <View style={styles.notulisLeft}>
-                <MaterialIcons name="person-add" size={20} color={colors.onSurfaceVariant} />
-                <Text style={styles.notulisText}>{notulisName}</Text>
+            <Pressable
+              onPress={() => setActiveModal('notulis')}
+              style={({ pressed }) => [
+                styles.entityCard,
+                pressed && styles.pressedState,
+              ]}
+            >
+              <View style={styles.notulisIconWrap}>
+                <MaterialIcons
+                  name="edit-note"
+                  size={20}
+                  color={colors.primary}
+                />
               </View>
-              <View style={styles.searchCircle}>
-                <MaterialIcons name="search" size={16} color={colors.primary} />
+              <View style={styles.entityInfo}>
+                <Text style={styles.entityName}>{notulisName}</Text>
+                <Text style={styles.entitySub}>
+                  Petugas Notulensi Sidang Kedinasan
+                </Text>
+              </View>
+              <View style={styles.actionPill}>
+                <Text style={styles.actionPillText}>Pilih</Text>
+                <MaterialIcons
+                  name="chevron-right"
+                  size={16}
+                  color={colors.primary}
+                />
               </View>
             </Pressable>
           </View>
         </View>
 
-        {/* SECTION 2: Waktu & Lokasi Penyelenggaraan */}
+        {/* SECTION 2: Waktu & Tempat */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>2. Waktu & Lokasi Penyelenggaraan</Text>
-            <Text style={styles.sectionSubtitle}>
-              Jadwal, durasi, dan ruang pelaksanaan kegiatan
-            </Text>
+            <Text style={styles.sectionTitle}>Waktu & Tempat</Text>
           </View>
 
-          {/* Tanggal */}
+          {/* Tanggal Modal Trigger */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               Tanggal Pelaksanaan <Text style={styles.required}>*</Text>
             </Text>
-            <View style={styles.dateInputBox}>
-              <MaterialIcons name="event" size={20} color={colors.secondary} />
-              <TextInput
-                style={styles.dateInput}
-                value={date}
-                onChangeText={setDate}
+            <Pressable
+              onPress={() => setActiveModal('date')}
+              style={({ pressed }) => [
+                styles.selectorTrigger,
+                pressed && styles.pressedState,
+              ]}
+            >
+              <View style={styles.selectorLeft}>
+                <MaterialIcons name="event" size={18} color={colors.secondary} />
+                <Text style={styles.selectorValue}>{date}</Text>
+              </View>
+              <MaterialIcons
+                name="calendar-today"
+                size={18}
+                color={colors.onSurfaceVariant}
               />
-            </View>
+            </Pressable>
           </View>
 
-          {/* Time Pickers */}
+          {/* Time Inputs & Inline Duration */}
           <View style={styles.timeRow}>
             <View style={styles.timeCol}>
               <Text style={styles.label}>Mulai (WIB)</Text>
@@ -377,6 +691,8 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 style={styles.timeInput}
                 value={startTime}
                 onChangeText={setStartTime}
+                placeholder="09:00"
+                placeholderTextColor={colors.outline}
               />
             </View>
             <View style={styles.timeCol}>
@@ -385,76 +701,97 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 style={styles.timeInput}
                 value={endTime}
                 onChangeText={setEndTime}
+                placeholder="12:00"
+                placeholderTextColor={colors.outline}
               />
             </View>
           </View>
 
-          {/* Duration Banner */}
-          <View style={styles.durationBanner}>
-            <View style={styles.durationLeft}>
-              <MaterialIcons name="schedule" size={18} color={colors.outline} />
-              <Text style={styles.durationLabel}>Total Estimasi Durasi Rapat:</Text>
-            </View>
-            <Text style={styles.durationValue}>3 Jam 00 Menit</Text>
+          {/* Inline Duration Indicator */}
+          <View style={styles.durationInline}>
+            <MaterialIcons name="schedule" size={15} color={colors.primary} />
+            <Text style={styles.durationInlineText}>
+              Estimasi Durasi: 3 Jam 00 Menit
+            </Text>
           </View>
 
-          {/* Venue Location */}
+          {/* Venue Location Selector (Offline / Hybrid) */}
           {formatType !== 'online' ? (
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Nama Ruangan / Gedung <Text style={styles.required}>*</Text>
+                Ruang Rapat / Lokasi <Text style={styles.required}>*</Text>
               </Text>
-              <View style={styles.venueBox}>
-                <MaterialIcons name="meeting-room" size={20} color={colors.secondary} />
-                <TextInput
-                  style={styles.venueInput}
-                  value={venue}
-                  onChangeText={setVenue}
+              <Pressable
+                onPress={() => setActiveModal('venue')}
+                style={({ pressed }) => [
+                  styles.selectorTrigger,
+                  pressed && styles.pressedState,
+                ]}
+              >
+                <View style={styles.selectorLeft}>
+                  <MaterialIcons
+                    name="meeting-room"
+                    size={18}
+                    color={colors.secondary}
+                  />
+                  <Text style={styles.selectorValue} numberOfLines={1}>
+                    {venue}
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name="expand-more"
+                  size={20}
+                  color={colors.onSurfaceVariant}
                 />
-              </View>
-              <Text style={styles.fieldHint}>
-                Lokasi terintegrasi geofencing presensi ASN LLDIKTI X Padang.
-              </Text>
+              </Pressable>
             </View>
           ) : null}
 
-          {/* Online Zoom Box */}
+          {/* Online Meeting Details (Online / Hybrid) */}
           {formatType !== 'offline' ? (
-            <View style={styles.zoomBox}>
-              <View style={styles.zoomHeader}>
-                <View style={styles.zoomHeaderLeft}>
-                  <MaterialIcons name="video-call" size={18} color={colors.outline} />
-                  <Text style={styles.zoomTitle}>Tautan Video Conference Resmi</Text>
+            <View style={styles.virtualMeetingBox}>
+              <View style={styles.virtualHeader}>
+                <View style={styles.virtualHeaderLeft}>
+                  <MaterialIcons
+                    name="videocam"
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.virtualTitle}>
+                    Tautan Pertemuan Virtual
+                  </Text>
                 </View>
-                <Text style={styles.zoomBadge}>Zoom Meeting Pro</Text>
+                <View style={styles.virtualBadge}>
+                  <Text style={styles.virtualBadgeText}>Video Conference</Text>
+                </View>
               </View>
+
               <TextInput
-                style={styles.zoomInput}
+                style={styles.virtualInput}
                 value={zoomUrl}
                 onChangeText={setZoomUrl}
                 placeholder="https://zoom.lldikti10.kemdikbud.go.id/..."
+                placeholderTextColor={colors.outline}
               />
-              <View style={styles.zoomMetaRow}>
-                <View style={styles.zoomMetaCol}>
-                  <Text style={styles.zoomMetaLabel}>Meeting ID:</Text>
-                  <Text style={styles.zoomMetaValue}>{meetingIdInput}</Text>
+
+              <View style={styles.virtualMetaRow}>
+                <View style={styles.virtualMetaCol}>
+                  <Text style={styles.virtualMetaLabel}>Meeting ID</Text>
+                  <Text style={styles.virtualMetaValue}>{meetingIdInput}</Text>
                 </View>
-                <View style={styles.zoomMetaCol}>
-                  <Text style={styles.zoomMetaLabel}>Passcode:</Text>
-                  <Text style={styles.zoomMetaValue}>{passcode}</Text>
+                <View style={styles.virtualMetaCol}>
+                  <Text style={styles.virtualMetaLabel}>Passcode</Text>
+                  <Text style={styles.virtualMetaValue}>{passcode}</Text>
                 </View>
               </View>
             </View>
           ) : null}
         </View>
 
-        {/* SECTION 3: Sasaran & Unit Kerja Diundang */}
+        {/* SECTION 3: Sasaran Peserta */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>3. Sasaran & Unit Kerja Diundang</Text>
-            <Text style={styles.sectionSubtitle}>
-              Penetapan batas unit peserta rapat kedinasan
-            </Text>
+            <Text style={styles.sectionTitle}>Sasaran Peserta</Text>
           </View>
 
           {/* Radio Options */}
@@ -466,16 +803,20 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             ]}
           >
             <MaterialIcons
-              name={scopeUniversal ? 'radio-button-checked' : 'radio-button-unchecked'}
+              name={
+                scopeUniversal
+                  ? 'radio-button-checked'
+                  : 'radio-button-unchecked'
+              }
               size={20}
               color={scopeUniversal ? colors.primary : colors.outline}
             />
             <View style={styles.radioTextWrap}>
               <Text style={styles.radioTitle}>
-                Buka untuk Seluruh Unit Kerja (Pleno / Universal)
+                Seluruh Unit Kerja (Pleno / Universal)
               </Text>
               <Text style={styles.radioSub}>
-                Semua ASN & Tenaga Kontrak di lingkungan LLDIKTI Wilayah X akan mendapatkan lembar daftar hadir.
+                Semua pegawai di lingkungan LLDIKTI Wilayah X diikutsertakan.
               </Text>
             </View>
           </Pressable>
@@ -488,78 +829,103 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             ]}
           >
             <MaterialIcons
-              name={!scopeUniversal ? 'radio-button-checked' : 'radio-button-unchecked'}
+              name={
+                !scopeUniversal
+                  ? 'radio-button-checked'
+                  : 'radio-button-unchecked'
+              }
               size={20}
               color={!scopeUniversal ? colors.primary : colors.outline}
             />
             <View style={styles.radioTextWrap}>
-              <Text style={styles.radioTitle}>
-                Unit Kerja Tertentu (Pilih Subbagian / Pokja)
-              </Text>
+              <Text style={styles.radioTitle}>Unit Kerja Tertentu</Text>
               <Text style={styles.radioSub}>
-                Khusus unit kerja yang dicentang secara spesifik.
+                Pilih bagian atau kelompok kerja yang diundang secara spesifik.
               </Text>
             </View>
           </Pressable>
 
-          {/* Unit Kerja Chips (11 Unit Aktif) */}
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>
-              Rincian Unit Kerja yang Tercakup (11 Unit Aktif):
-            </Text>
-            <View style={styles.chipsWrap}>
-              {UNIT_KERJA_LIST.map((unit) => {
-                const selected = scopeUniversal || selectedUnits.includes(unit);
-                return (
-                  <Pressable
-                    key={unit}
-                    onPress={() => !scopeUniversal && toggleUnit(unit)}
-                    style={[
-                      styles.unitChip,
-                      selected && styles.unitChipSelected,
-                    ]}
-                  >
-                    {selected ? (
-                      <MaterialIcons name="check" size={14} color={colors.primary} />
-                    ) : null}
-                    <Text
+          {/* Universal Scope Notice vs Specific Unit Chips */}
+          {scopeUniversal ? (
+            <View style={styles.universalNoticeBox}>
+              <MaterialIcons
+                name="groups"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={styles.universalNoticeText}>
+                Semua pegawai di 11 unit kerja LLDIKTI Wilayah X otomatis
+                terdaftar sebagai peserta agenda ini.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.unitSelectSection}>
+              <Text style={styles.unitSelectHeader}>
+                Pilih Unit Kerja ({selectedUnits.length} dipilih):
+              </Text>
+              <View style={styles.chipsWrap}>
+                {UNIT_KERJA_LIST.map((unit) => {
+                  const selected = selectedUnits.includes(unit);
+                  return (
+                    <Pressable
+                      key={unit}
+                      onPress={() => toggleUnit(unit)}
                       style={[
-                        styles.unitChipText,
-                        selected && styles.unitChipTextSelected,
+                        styles.unitChip,
+                        selected && styles.unitChipSelected,
                       ]}
                     >
-                      {unit}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      {selected ? (
+                        <MaterialIcons
+                          name="check"
+                          size={13}
+                          color={colors.primary}
+                        />
+                      ) : null}
+                      <Text
+                        style={[
+                          styles.unitChipText,
+                          selected && styles.unitChipTextSelected,
+                        ]}
+                      >
+                        {unit}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
-          </View>
+          )}
         </View>
 
-        {/* SECTION 4: Berkas Surat Undangan Resmi */}
+        {/* SECTION 4: Lampiran Undangan */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>4. Berkas Surat Undangan Resmi</Text>
-            <Text style={styles.sectionSubtitle}>
-              Dokumen nota dinas atau surat panggilan rapat
-            </Text>
+            <Text style={styles.sectionTitle}>Lampiran Undangan</Text>
           </View>
 
           {/* Upload Dropzone */}
-          <Pressable onPress={handleUploadFile} style={styles.dropzone}>
+          <Pressable
+            onPress={handleUploadFile}
+            style={({ pressed }) => [
+              styles.dropzone,
+              pressed && styles.pressedState,
+            ]}
+          >
             <View style={styles.dropzoneIconWrap}>
-              <MaterialIcons name="upload-file" size={26} color={colors.outline} />
+              <MaterialIcons
+                name="upload-file"
+                size={22}
+                color={colors.primary}
+              />
             </View>
-            <Text style={styles.dropzoneTitle}>
-              Unggah Berkas Surat Undangan Resmi
-            </Text>
-            <Text style={styles.dropzoneSub}>
-              Format PDF atau JPG bertanda tangan digital (Maksimal 5 MB)
-            </Text>
-            <View style={styles.browseBtn}>
-              <MaterialIcons name="folder-open" size={16} color={colors.outline} />
-              <Text style={styles.browseBtnText}>Telusuri Dokumen</Text>
+            <View style={styles.dropzoneTextWrap}>
+              <Text style={styles.dropzoneTitle}>
+                Unggah Surat Undangan / Nota Dinas
+              </Text>
+              <Text style={styles.dropzoneSub}>
+                Format PDF bertanda tangan digital (Maksimal 5 MB)
+              </Text>
             </View>
           </Pressable>
 
@@ -568,7 +934,11 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             <View style={styles.attachedCard}>
               <View style={styles.attachedLeft}>
                 <View style={styles.attachedIconBox}>
-                  <MaterialIcons name="picture-as-pdf" size={20} color={colors.error} />
+                  <MaterialIcons
+                    name="picture-as-pdf"
+                    size={20}
+                    color={colors.error}
+                  />
                 </View>
                 <View style={styles.attachedInfo}>
                   <Text style={styles.attachedName} numberOfLines={1}>
@@ -582,17 +952,27 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               <View style={styles.attachedActions}>
                 <Pressable
                   onPress={() =>
-                    Alert.alert('Pratinjau', `Melihat isi ${attachedFile}`)
+                    Alert.alert('Pratinjau Dokumen', `Berkas: ${attachedFile}`)
                   }
                   style={styles.attachedActionBtn}
+                  accessibilityLabel="Pratinjau lampiran"
                 >
-                  <MaterialIcons name="visibility" size={18} color={colors.onSurfaceVariant} />
+                  <MaterialIcons
+                    name="visibility"
+                    size={18}
+                    color={colors.onSurfaceVariant}
+                  />
                 </Pressable>
                 <Pressable
                   onPress={() => setAttachedFile(null)}
                   style={styles.attachedActionBtn}
+                  accessibilityLabel="Hapus lampiran"
                 >
-                  <MaterialIcons name="delete" size={18} color={colors.error} />
+                  <MaterialIcons
+                    name="delete-outline"
+                    size={18}
+                    color={colors.error}
+                  />
                 </Pressable>
               </View>
             </View>
@@ -622,13 +1002,28 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               pressed && styles.buttonPressed,
             ]}
           >
-            <MaterialIcons name="check-circle" size={18} color={colors.onPrimary} />
+            <MaterialIcons
+              name="check-circle"
+              size={18}
+              color={colors.onPrimary}
+            />
             <Text style={styles.publishButtonText}>
               {isLoading ? 'Menerbitkan...' : 'Terbitkan Agenda'}
             </Text>
           </Pressable>
         </View>
       </View>
+
+      {/* Reusable Bottom Sheet Agenda Option Modal */}
+      <AgendaOptionModal
+        visible={activeModal !== 'none'}
+        onClose={() => setActiveModal('none')}
+        title={getModalConfig().title}
+        subtitle={getModalConfig().subtitle}
+        options={getModalConfig().options}
+        selectedId={getModalConfig().selectedId}
+        onSelect={handleSelectOption}
+      />
     </View>
   );
 };
@@ -644,13 +1039,24 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   sectionCard: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.4)',
     gap: spacing.sm + 2,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   sectionHeader: {
     borderBottomWidth: 1,
@@ -660,18 +1066,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.headlineSm,
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.onSurface,
   },
-  sectionSubtitle: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
-  },
   fieldGroup: {
-    gap: 3,
+    gap: 4,
   },
   label: {
     ...typography.labelMd,
@@ -690,17 +1090,11 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     fontSize: 13,
     color: colors.onSurface,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     minHeight: 64,
     textAlignVertical: 'top',
   },
-  fieldHint: {
-    ...typography.bodySm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
-  },
-  classificationSelector: {
+  selectorTrigger: {
     height: 44,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
@@ -709,12 +1103,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
   },
-  classificationValue: {
+  selectorLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  selectorRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  selectorValue: {
     ...typography.bodyMd,
     fontSize: 12.5,
     color: colors.onSurface,
+    flex: 1,
+  },
+  selectorBadge: {
+    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.5)',
+  },
+  selectorBadgeText: {
+    ...typography.labelSm,
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.primary,
   },
   formatSegmentedGrid: {
     flexDirection: 'row',
@@ -734,7 +1154,6 @@ const styles = StyleSheet.create({
   },
   formatBtnActive: {
     backgroundColor: colors.primary,
-    ...elevations.level1,
   },
   formatBtnText: {
     ...typography.labelMd,
@@ -746,14 +1165,14 @@ const styles = StyleSheet.create({
     color: colors.onPrimary,
     fontWeight: '700',
   },
-  leaderCard: {
+  entityCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.sm,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
     borderRadius: rounded.md,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     gap: 10,
   },
   leaderAvatar: {
@@ -769,80 +1188,45 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
-  leaderInfo: {
+  notulisIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  entityInfo: {
     flex: 1,
   },
-  leaderName: {
+  entityName: {
     ...typography.labelMd,
     fontSize: 12.5,
     fontWeight: '600',
     color: colors.onSurface,
   },
-  leaderNip: {
+  entitySub: {
     ...typography.labelSm,
     fontSize: 10.5,
     color: colors.onSurfaceVariant,
+    marginTop: 1,
   },
-  changeBtn: {
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: 'rgba(197, 197, 211, 0.5)',
+    gap: 2,
   },
-  changeBtnText: {
+  actionPillText: {
     ...typography.labelSm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
-  },
-  notulisBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.sm,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.outlineVariant,
-    borderRadius: rounded.md,
-    backgroundColor: 'rgba(239, 244, 255, 0.5)',
-  },
-  notulisLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  notulisText: {
-    ...typography.bodyMd,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-  },
-  searchCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateInputBox: {
-    height: 44,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    borderRadius: rounded.md,
-    paddingHorizontal: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.surfaceContainerLowest,
-  },
-  dateInput: {
-    flex: 1,
-    ...typography.bodyMd,
-    fontSize: 12.5,
-    color: colors.onSurface,
+    fontWeight: '600',
+    color: colors.primary,
   },
   timeRow: {
     flexDirection: 'row',
@@ -862,125 +1246,94 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.onSurface,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
   },
-  durationBanner: {
+  durationInline: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(239, 244, 255, 0.6)',
+    gap: 6,
+    backgroundColor: colors.surfaceContainerLow,
     paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 8,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    paddingVertical: 6,
+    borderRadius: rounded.sm,
+    alignSelf: 'flex-start',
   },
-  durationLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  durationLabel: {
-    ...typography.labelMd,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
-  },
-  durationValue: {
-    ...typography.labelMono,
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: colors.onSurface,
-    backgroundColor: colors.surfaceContainerLowest,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
-  },
-  venueBox: {
-    height: 44,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    borderRadius: rounded.md,
-    paddingHorizontal: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.surfaceContainerLowest,
-  },
-  venueInput: {
-    flex: 1,
-    ...typography.bodyMd,
-    fontSize: 12.5,
-    color: colors.onSurface,
-  },
-  zoomBox: {
-    padding: spacing.sm + 2,
-    backgroundColor: 'rgba(239, 244, 255, 0.5)',
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    gap: 6,
-  },
-  zoomHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  zoomHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  zoomTitle: {
-    ...typography.labelMd,
-    fontSize: 11.5,
+  durationInlineText: {
+    ...typography.labelSm,
+    fontSize: 11,
     fontWeight: '600',
     color: colors.onSurface,
   },
-  zoomBadge: {
-    ...typography.labelSm,
-    fontSize: 10,
-    backgroundColor: colors.surfaceContainerLowest,
-    color: colors.onSurfaceVariant,
+  virtualMeetingBox: {
+    padding: spacing.sm + 2,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.5)',
+    gap: 8,
+  },
+  virtualHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  virtualHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  virtualTitle: {
+    ...typography.labelMd,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  virtualBadge: {
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.5)',
     paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingVertical: 2,
     borderRadius: 4,
   },
-  zoomInput: {
+  virtualBadgeText: {
+    ...typography.labelSm,
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  virtualInput: {
     height: 38,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
     borderRadius: rounded.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     ...typography.bodySm,
     fontSize: 11.5,
     color: colors.onSurface,
   },
-  zoomMetaRow: {
+  virtualMetaRow: {
     flexDirection: 'row',
     gap: spacing.xs + 2,
-    paddingTop: 2,
   },
-  zoomMetaCol: {
+  virtualMetaCol: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLowest,
-    padding: 6,
+    backgroundColor: colors.surfaceCard,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 4,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.4)',
   },
-  zoomMetaLabel: {
+  virtualMetaLabel: {
     ...typography.labelSm,
     fontSize: 10.5,
     color: colors.onSurfaceVariant,
   },
-  zoomMetaValue: {
+  virtualMetaValue: {
     ...typography.labelMono,
     fontSize: 10.5,
     fontWeight: '700',
@@ -992,14 +1345,14 @@ const styles = StyleSheet.create({
     borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     gap: 10,
     alignItems: 'flex-start',
   },
   radioCardActive: {
     borderColor: colors.primary,
-    borderWidth: 2,
-    backgroundColor: 'rgba(239, 244, 255, 0.4)',
+    borderWidth: 1.5,
+    backgroundColor: colors.surfaceContainerLow,
   },
   radioTextWrap: {
     flex: 1,
@@ -1017,22 +1370,48 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 15,
   },
+  universalNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surfaceContainerLow,
+    padding: spacing.sm + 2,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
+  },
+  universalNoticeText: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    flex: 1,
+    lineHeight: 16,
+  },
+  unitSelectSection: {
+    gap: 6,
+    marginTop: 4,
+  },
+  unitSelectHeader: {
+    ...typography.labelSm,
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 4,
   },
   unitChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: rounded.full,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.5)',
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
   },
   unitChipSelected: {
     backgroundColor: colors.surfaceContainerLow,
@@ -1044,26 +1423,32 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   unitChipTextSelected: {
-    color: colors.onSurface,
-    fontWeight: '600',
+    color: colors.primary,
+    fontWeight: '700',
   },
   dropzone: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(197, 197, 211, 0.6)',
-    borderRadius: rounded.lg,
-    padding: spacing.md,
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(239, 244, 255, 0.3)',
+    gap: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.outlineVariant,
+    borderRadius: rounded.md,
+    padding: spacing.md,
+    backgroundColor: colors.surfaceContainerLow,
   },
   dropzoneIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surfaceContainer,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceCard,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.5)',
+  },
+  dropzoneTextWrap: {
+    flex: 1,
   },
   dropzoneTitle: {
     ...typography.labelMd,
@@ -1077,24 +1462,6 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
-  browseBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-  },
-  browseBtnText: {
-    ...typography.labelSm,
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.onSurface,
-  },
   attachedCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1103,8 +1470,7 @@ const styles = StyleSheet.create({
     borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.6)',
-    backgroundColor: colors.surfaceContainerLowest,
-    marginTop: 4,
+    backgroundColor: colors.surfaceCard,
   },
   attachedLeft: {
     flexDirection: 'row',
@@ -1133,29 +1499,41 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     fontSize: 10,
     color: colors.onSurfaceVariant,
+    marginTop: 1,
   },
   attachedActions: {
     flexDirection: 'row',
     gap: 4,
   },
   attachedActionBtn: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     borderRadius: rounded.sm,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerLow,
   },
   stickyFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderTopWidth: 1,
     borderTopColor: 'rgba(197, 197, 211, 0.3)',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
-    ...elevations.level3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   footerGrid: {
     flexDirection: 'row',
@@ -1167,7 +1545,7 @@ const styles = StyleSheet.create({
     borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1188,7 +1566,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    ...elevations.level1,
   },
   publishButtonText: {
     ...typography.labelMd,
@@ -1198,5 +1575,8 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.8,
+  },
+  pressedState: {
+    opacity: 0.7,
   },
 });
