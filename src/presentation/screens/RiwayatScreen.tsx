@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,19 @@ import {
   ScrollView,
   TextInput,
   Pressable,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { EmptyState } from '../components/common/EmptyState';
+import {
+  DateFilterModal,
+  HistoryPeriod,
+  HistoryMeetingType,
+} from '../components/modals/DateFilterModal';
 import { useAttendanceStore } from '../store/useAttendanceStore';
 
 interface RiwayatScreenProps {
@@ -27,6 +34,8 @@ interface HistoryItem {
   room: string;
   verificationMethod: string;
   meetingId: string;
+  periodKey: HistoryPeriod;
+  meetingType: 'hybrid' | 'offline' | 'online';
 }
 
 const HISTORY_DATA: HistoryItem[] = [
@@ -39,6 +48,8 @@ const HISTORY_DATA: HistoryItem[] = [
     room: 'Hybrid • Ruang Sidang Utama LLDIKTI',
     verificationMethod: 'Verifikasi: Biometrik & TTE Sah',
     meetingId: 'meet-001',
+    periodKey: '2026-10',
+    meetingType: 'hybrid',
   },
   {
     id: 'att-002',
@@ -49,6 +60,8 @@ const HISTORY_DATA: HistoryItem[] = [
     room: 'Luring • Auditorium Gedung A LLDIKTI',
     verificationMethod: 'Verifikasi: Presensi Lokasi Sah',
     meetingId: 'meet-002',
+    periodKey: '2026-10',
+    meetingType: 'offline',
   },
   {
     id: 'att-003',
@@ -59,6 +72,8 @@ const HISTORY_DATA: HistoryItem[] = [
     room: 'Daring • Zoom Meeting (ID: 981 234 110)',
     verificationMethod: 'Verifikasi: Token Virtual Valid',
     meetingId: 'meet-003',
+    periodKey: '2026-10',
+    meetingType: 'online',
   },
   {
     id: 'att-004',
@@ -69,18 +84,61 @@ const HISTORY_DATA: HistoryItem[] = [
     room: 'Luring • Ruang Rapat Pimpinan',
     verificationMethod: 'Verifikasi: Tanda Tangan Kedinasan',
     meetingId: 'meet-004',
+    periodKey: '2026-09',
+    meetingType: 'offline',
+  },
+  {
+    id: 'att-005',
+    code: 'RKO-0826-P',
+    title: 'Rapat Koordinasi Persiapan Perkuliahan Semester Ganjil PTS Wilayah X',
+    statusText: 'Hadir',
+    time: '18 Agu 2026, 09:30 WIB',
+    room: 'Hybrid • Ruang Sidang Utama LLDIKTI',
+    verificationMethod: 'Verifikasi: Presensi Lokasi Sah',
+    meetingId: 'meet-005',
+    periodKey: '2026-08',
+    meetingType: 'hybrid',
   },
 ];
 
 export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt }) => {
   const { offlineQueueCount, syncOfflineQueue } = useAttendanceStore();
   const [search, setSearch] = useState('');
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>('all');
+  const [selectedType, setSelectedType] = useState<HistoryMeetingType>('all');
 
-  const filteredHistory = HISTORY_DATA.filter(
-    (h) =>
+  const filteredHistory = HISTORY_DATA.filter((h) => {
+    const matchesSearch =
       h.title.toLowerCase().includes(search.toLowerCase()) ||
-      h.code.toLowerCase().includes(search.toLowerCase())
-  );
+      h.code.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (selectedPeriod !== 'all' && h.periodKey !== selectedPeriod) {
+      return false;
+    }
+
+    if (selectedType !== 'all' && h.meetingType !== selectedType) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const getPeriodButtonLabel = (period: HistoryPeriod): string => {
+    switch (period) {
+      case '2026-10':
+        return 'Okt 2026';
+      case '2026-09':
+        return 'Sep 2026';
+      case '2026-08':
+        return 'Agu 2026';
+      default:
+        return 'Semua Periode';
+    }
+  };
+
+  const isFilterActive = selectedPeriod !== 'all' || selectedType !== 'all';
 
   return (
     <View style={styles.container}>
@@ -115,24 +173,32 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
         <View style={styles.bentoGrid}>
           <View style={styles.bentoCard}>
             <Text style={styles.bentoLabel}>Total Rapat</Text>
-            <Text style={styles.bentoValue}>24</Text>
-            <Text style={styles.bentoSub}>Tahun Anggaran 2026</Text>
+            <Text style={styles.bentoValue}>{filteredHistory.length}</Text>
+            <Text style={styles.bentoSub}>
+              {selectedPeriod === 'all'
+                ? 'Tahun Anggaran 2026'
+                : getPeriodButtonLabel(selectedPeriod)}
+            </Text>
           </View>
 
           <View style={styles.bentoCard}>
             <Text style={styles.bentoLabel}>Tingkat Kehadiran</Text>
-            <Text style={[styles.bentoValue, { color: colors.primary }]}>98%</Text>
+            <Text style={[styles.bentoValue, { color: colors.success }]}>100%</Text>
             <Text style={styles.bentoSub}>Presensi Terverifikasi</Text>
           </View>
 
           <View style={styles.bentoCard}>
             <Text style={styles.bentoLabel}>Periode Aktif</Text>
-            <Text style={styles.bentoValue}>Okt 2026</Text>
-            <Text style={styles.bentoSub}>Bulan Berjalan</Text>
+            <Text style={styles.bentoValue} numberOfLines={1}>
+              {selectedPeriod === 'all' ? 'Semua' : getPeriodButtonLabel(selectedPeriod)}
+            </Text>
+            <Text style={styles.bentoSub}>
+              {selectedPeriod === '2026-10' ? 'Bulan Berjalan' : 'Filter Aktif'}
+            </Text>
           </View>
         </View>
 
-        {/* SEARCH & FILTER CONTROL BAR */}
+        {/* SEARCH & ENTERPRISE FILTER CONTROL BAR */}
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
             <MaterialIcons name="search" size={20} color={colors.outline} />
@@ -144,11 +210,39 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
               onChangeText={setSearch}
             />
           </View>
-          <View style={styles.calendarFilterBtn}>
-            <MaterialIcons name="calendar-today" size={16} color={colors.onSurfaceVariant} />
-            <Text style={styles.calendarFilterText}>Oktober 2026</Text>
-            <MaterialIcons name="arrow-drop-down" size={18} color={colors.onSurfaceVariant} />
-          </View>
+
+          {/* Interactive Date Filter Button */}
+          <Pressable
+            onPress={() => setIsFilterModalVisible(true)}
+            style={({ pressed }) => [
+              styles.calendarFilterBtn,
+              isFilterActive && styles.calendarFilterBtnActive,
+              pressed && styles.calendarFilterBtnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Filter periode tanggal riwayat"
+          >
+            <MaterialIcons
+              name="calendar-month"
+              size={16}
+              color={isFilterActive ? colors.primary : colors.onSurfaceVariant}
+            />
+            <Text
+              style={[
+                styles.calendarFilterText,
+                isFilterActive && styles.calendarFilterTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {getPeriodButtonLabel(selectedPeriod)}
+            </Text>
+            <MaterialIcons
+              name="arrow-drop-down"
+              size={18}
+              color={isFilterActive ? colors.primary : colors.onSurfaceVariant}
+            />
+            {isFilterActive ? <View style={styles.filterActiveDot} /> : null}
+          </Pressable>
         </View>
 
         {/* LIST HEADER */}
@@ -157,55 +251,100 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
             DAFTAR KEHADIRAN RAPAT KEDINASAN
           </Text>
           <Text style={styles.listHeaderSub}>
-            Menampilkan {filteredHistory.length} dari 24
+            Menampilkan {filteredHistory.length} dari {HISTORY_DATA.length}
           </Text>
         </View>
 
-        {/* ATTENDANCE HISTORY LIST CARDS */}
-        <View style={styles.cardsContainer}>
-          {filteredHistory.map((item) => (
-            <View key={item.id} style={styles.historyCard}>
-              <View style={styles.cardTop}>
-                <View style={styles.statusRow}>
-                  <Text style={styles.statusText}>{item.statusText}</Text>
-                  <Text style={styles.dotSeparator}>•</Text>
-                  <Text style={styles.codeText}>{item.code}</Text>
+        {/* ATTENDANCE HISTORY LIST CARDS OR EMPTY STATE */}
+        {filteredHistory.length > 0 ? (
+          <View style={styles.cardsContainer}>
+            {filteredHistory.map((item) => (
+              <View key={item.id} style={styles.historyCard}>
+                <View style={styles.cardTop}>
+                  <View style={styles.statusRow}>
+                    <Text style={styles.statusText}>{item.statusText}</Text>
+                    <Text style={styles.dotSeparator}>•</Text>
+                    <Text style={styles.codeText}>{item.code}</Text>
+                  </View>
+                  <Text style={styles.meetingTitle}>{item.title}</Text>
                 </View>
-                <Text style={styles.meetingTitle}>{item.title}</Text>
-              </View>
 
-              {/* Room and time grid */}
-              <View style={styles.metaBox}>
-                <View style={styles.metaRow}>
-                  <MaterialIcons name="schedule" size={16} color={colors.onSurfaceVariant} />
-                  <Text style={styles.metaText}>{item.time}</Text>
+                {/* Room and time grid */}
+                <View style={styles.metaBox}>
+                  <View style={styles.metaRow}>
+                    <MaterialIcons
+                      name="schedule"
+                      size={15}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.metaText}>{item.time}</Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <MaterialIcons
+                      name="meeting-room"
+                      size={15}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.metaText}>{item.room}</Text>
+                  </View>
                 </View>
-                <View style={styles.metaRow}>
-                  <MaterialIcons name="meeting-room" size={16} color={colors.onSurfaceVariant} />
-                  <Text style={styles.metaText}>{item.room}</Text>
-                </View>
-              </View>
 
-              {/* Bottom verify & receipt action */}
-              <View style={styles.cardBottom}>
-                <Text style={styles.verifyMethodText}>
-                  {item.verificationMethod}
-                </Text>
-                <Pressable
-                  onPress={() => onSelectReceipt(item.id)}
-                  style={({ pressed }) => [
-                    styles.receiptBtn,
-                    pressed && styles.btnPressed,
-                  ]}
-                >
-                  <MaterialIcons name="qr-code-2" size={16} color={colors.onSurfaceVariant} />
-                  <Text style={styles.receiptBtnText}>Tanda Terima</Text>
-                </Pressable>
+                {/* Bottom verify & receipt action */}
+                <View style={styles.cardBottom}>
+                  <Text style={styles.verifyMethodText}>
+                    {item.verificationMethod}
+                  </Text>
+                  <Pressable
+                    onPress={() => onSelectReceipt(item.id)}
+                    style={({ pressed }) => [
+                      styles.receiptBtn,
+                      pressed && styles.btnPressed,
+                    ]}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Buka tanda terima presensi"
+                  >
+                    <MaterialIcons
+                      name="qr-code-2"
+                      size={16}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.receiptBtnText}>Tanda Terima</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            icon="event-busy"
+            title="Tidak Ada Riwayat Presensi"
+            description="Tidak ada catatan kehadiran yang sesuai dengan periode atau kata kunci pencarian yang dipilih."
+            actionLabel="Atur Ulang Filter"
+            onAction={() => {
+              setSelectedPeriod('all');
+              setSelectedType('all');
+              setSearch('');
+            }}
+          />
+        )}
       </ScrollView>
+
+      {/* Enterprise Date Filter Modal */}
+      <DateFilterModal
+        visible={isFilterModalVisible}
+        onClose={() => setIsFilterModalVisible(false)}
+        currentPeriod={selectedPeriod}
+        currentType={selectedType}
+        onApply={(period, type) => {
+          setSelectedPeriod(period);
+          setSelectedType(type);
+        }}
+        onReset={() => {
+          setSelectedPeriod('all');
+          setSelectedType('all');
+        }}
+      />
     </View>
   );
 };
@@ -231,7 +370,7 @@ const styles = StyleSheet.create({
   },
   mainSubtitle: {
     ...typography.bodySm,
-    fontSize: 11.5,
+    fontSize: 12,
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
@@ -269,7 +408,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(197, 197, 211, 0.4)',
     justifyContent: 'space-between',
     minHeight: 74,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   bentoLabel: {
     ...typography.labelSm,
@@ -285,13 +435,14 @@ const styles = StyleSheet.create({
   },
   bentoSub: {
     ...typography.labelSm,
-    fontSize: 9.5,
+    fontSize: 10,
     color: colors.onSurfaceVariant,
     marginTop: 2,
   },
   searchRow: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
   },
   searchBox: {
     flex: 1,
@@ -299,11 +450,12 @@ const styles = StyleSheet.create({
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: 'rgba(197, 197, 211, 0.55)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
     gap: 8,
+    overflow: 'hidden',
   },
   searchInput: {
     flex: 1,
@@ -316,17 +468,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     height: 42,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.md,
+    borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: 'rgba(197, 197, 211, 0.55)',
+    overflow: 'hidden',
+  },
+  calendarFilterBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(0, 35, 111, 0.05)',
+  },
+  calendarFilterBtnPressed: {
+    backgroundColor: colors.surfaceContainerLow,
   },
   calendarFilterText: {
     ...typography.labelMd,
-    fontSize: 11,
-    color: colors.onSurface,
-    fontWeight: '500',
+    fontSize: 12,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
+  },
+  calendarFilterTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  filterActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+    marginLeft: 2,
   },
   listHeaderRow: {
     flexDirection: 'row',
@@ -336,14 +507,14 @@ const styles = StyleSheet.create({
   },
   listHeaderTitle: {
     ...typography.labelSm,
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '700',
-    color: colors.onSurfaceVariant,
+    color: colors.outline,
     letterSpacing: 0.5,
   },
   listHeaderSub: {
     ...typography.labelSm,
-    fontSize: 10.5,
+    fontSize: 11,
     color: colors.outline,
   },
   cardsContainer: {
@@ -354,9 +525,20 @@ const styles = StyleSheet.create({
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     gap: 8,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   cardTop: {
     gap: 3,
@@ -370,7 +552,7 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     fontSize: 11,
     fontWeight: '700',
-    color: colors.tertiaryContainer,
+    color: colors.success,
   },
   dotSeparator: {
     color: colors.outline,
@@ -393,6 +575,7 @@ const styles = StyleSheet.create({
     borderRadius: rounded.md,
     padding: spacing.sm,
     gap: 4,
+    overflow: 'hidden',
   },
   metaRow: {
     flexDirection: 'row',
@@ -420,13 +603,14 @@ const styles = StyleSheet.create({
   receiptBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: rounded.sm,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: 'rgba(197, 197, 211, 0.55)',
     backgroundColor: colors.surfaceContainerLowest,
+    overflow: 'hidden',
   },
   btnPressed: {
     backgroundColor: colors.surfaceContainerLow,
@@ -434,7 +618,7 @@ const styles = StyleSheet.create({
   receiptBtnText: {
     ...typography.labelMd,
     fontSize: 11.5,
-    color: colors.onSurface,
-    fontWeight: '500',
+    color: colors.primary,
+    fontWeight: '600',
   },
 });
