@@ -189,8 +189,21 @@ export const AppNavigator: React.FC = () => {
         {({ navigation, route }) => (
           <ReceiptScreen
             attendanceId={route.params.attendanceId}
-            onBack={() => navigation.goBack()}
+            onBack={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('MainTabs');
+              }
+            }}
             onDone={() => navigation.navigate('MainTabs')}
+            onViewAgendaDetail={(meetingId) => {
+              if (meetingId) {
+                navigation.navigate('Monitoring', { meetingId });
+              } else {
+                navigation.navigate('MainTabs');
+              }
+            }}
           />
         )}
       </Stack.Screen>

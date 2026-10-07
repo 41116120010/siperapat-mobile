@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Attendance } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
 import { typography } from '../../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../../core/theme/tokens';
+import { rounded, spacing } from '../../../core/theme/tokens';
 import { formatWaktuWIB } from '../../../core/utils/dateFormatter';
 
 interface PerforatedTicketProps {
@@ -39,10 +39,6 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
           <Text style={styles.identifierCode}>
             {attendance.verificationToken || 'PRES-LLDIKTI-2026-X0914'}
           </Text>
-        </View>
-        <View style={styles.verifiedBadge}>
-          <MaterialIcons name="verified" size={14} color="#065F46" />
-          <Text style={styles.verifiedBadgeText}>Presensi Terverifikasi</Text>
         </View>
       </View>
 
@@ -111,7 +107,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
       </View>
 
       {/* 6. Bukti Kehadiran (Selfie & TTD) */}
-      <View style={styles.subSection}>
+      <View style={styles.evidenceSection}>
         <Text style={styles.sectionHeading}>BUKTI KEHADIRAN</Text>
         <View style={styles.evidenceGrid}>
           {/* Selfie Box */}
@@ -161,6 +157,8 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
               styles.detailButton,
               pressed && styles.detailButtonPressed,
             ]}
+            accessibilityRole="button"
+            accessibilityLabel="Lihat Detail Agenda"
           >
             <View style={styles.detailButtonLeft}>
               <MaterialIcons name="event-note" size={18} color={colors.primary} />
@@ -174,19 +172,6 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
           </Pressable>
         </View>
       ) : null}
-
-      {/* 8. QR Code Verification & Legal Guarantee */}
-      <View style={styles.qrSection}>
-        <View style={styles.qrBox}>
-          <MaterialIcons name="qr-code-2" size={100} color={colors.primary} />
-        </View>
-        <Text style={styles.qrCaption}>
-          Pindai QR untuk verifikasi keabsahan melalui Portal LLDIKTI X
-        </Text>
-        <Text style={styles.legalGuarantee}>
-          Tanda terima digital ini diterbitkan secara sah dan dilindungi UU ITE No. 11/2008.
-        </Text>
-      </View>
 
       {/* Bottom tear border accent */}
       <View style={styles.tearBorder} />
@@ -202,7 +187,17 @@ const styles = StyleSheet.create({
     borderColor: colors.outlineVariant,
     overflow: 'hidden',
     marginBottom: spacing.md,
-    ...elevations.level2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   header: {
     padding: spacing.md,
@@ -263,23 +258,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     letterSpacing: 0.5,
     marginTop: 1,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: rounded.sm,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  verifiedBadgeText: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#065F46',
   },
   perforationRow: {
     height: 24,
@@ -380,6 +358,13 @@ const styles = StyleSheet.create({
   subSection: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(197, 197, 211, 0.6)',
+  },
+  evidenceSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: 'rgba(197, 197, 211, 0.6)',
   },
@@ -497,7 +482,7 @@ const styles = StyleSheet.create({
   },
   detailButtonWrapper: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: 'rgba(197, 197, 211, 0.6)',
   },
@@ -526,39 +511,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
-  qrSection: {
-    padding: spacing.md,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.6)',
-  },
-  qrBox: {
-    padding: spacing.xs,
-    backgroundColor: '#FFFFFF',
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    marginBottom: spacing.xs,
-  },
-  qrCaption: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  legalGuarantee: {
-    ...typography.labelSm,
-    fontSize: 9.5,
-    color: colors.outline,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
   tearBorder: {
-    height: 6,
+    height: 8,
     backgroundColor: colors.surfaceContainerLow,
     borderTopWidth: 1,
-    borderTopColor: colors.outlineVariant,
+    borderTopColor: 'rgba(197, 197, 211, 0.6)',
     borderStyle: 'dashed',
   },
 });
