@@ -7,15 +7,21 @@ import {
   Pressable,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { BentoGrid } from '../components/cards/BentoStatCard';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
+import {
+  MeetingFilterModal,
+  FilterStatus,
+  FilterOrder,
+} from '../components/modals/MeetingFilterModal';
 import { useAuthStore } from '../store/useAuthStore';
 import { useMeetingStore } from '../store/useMeetingStore';
 
@@ -40,7 +46,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     fetchMeetings,
   } = useMeetingStore();
 
-  const [activeFilterOrder, setActiveFilterOrder] = useState<'all' | 'priority'>('all');
+  const [activeFilterOrder, setActiveFilterOrder] = useState<FilterOrder>('all');
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
   useEffect(() => {
     fetchMeetings();
@@ -48,31 +55,32 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const ongoingCount = meetings.filter((m) => m.status === 'ongoing').length;
   const upcomingMeetings = meetings.filter((m) => m.status === 'upcoming');
+  const completedMeetings = meetings.filter((m) => m.status === 'completed');
 
-  const filteredMeetings = meetings.filter((m) => {
-    if (filterTab === 'ongoing') return m.status === 'ongoing';
-    if (filterTab === 'upcoming') return m.status === 'upcoming';
-    if (filterTab === 'completed') return m.status === 'completed';
-    return true;
-  });
+  const filteredMeetings = meetings
+    .filter((m) => {
+      if (filterTab === 'ongoing') return m.status === 'ongoing';
+      if (filterTab === 'upcoming') return m.status === 'upcoming';
+      if (filterTab === 'completed') return m.status === 'completed';
+      return true;
+    })
+    .filter((m) => {
+      if (activeFilterOrder === 'priority') {
+        return (
+          m.type === 'hybrid' ||
+          m.title.toLowerCase().includes('pleno') ||
+          m.title.toLowerCase().includes('koordinasi')
+        );
+      }
+      return true;
+    });
 
-  const handleFilterPress = () => {
-    Alert.alert(
-      'Filter Agenda Rapat',
-      'Pilih kriteria urutan rapat:',
-      [
-        {
-          text: 'Semua Rapat Dinas',
-          onPress: () => setActiveFilterOrder('all'),
-        },
-        {
-          text: 'Hanya Rapat Prioritas / Pleno',
-          onPress: () => setActiveFilterOrder('priority'),
-        },
-        { text: 'Batal', style: 'cancel' },
-      ]
-    );
-  };
+  const categoryTabs: { id: FilterStatus; label: string; count: number }[] = [
+    { id: 'all', label: 'Semua', count: meetings.length },
+    { id: 'ongoing', label: 'Berlangsung', count: ongoingCount },
+    { id: 'upcoming', label: 'Mendatang', count: upcomingMeetings.length },
+    { id: 'completed', label: 'Selesai', count: completedMeetings.length },
+  ];
 
   const handlePdfView = (title: string) => {
     Alert.alert(
@@ -118,7 +126,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         <BentoGrid
           stats={[
             { label: 'Presensi Rapat', value: '18', subValue: 'Selesai' },
-            { label: 'Jadwal Mendatang', value: '3', subValue: 'Agenda', isPrimary: true },
+            {
+              label: 'Jadwal Mendatang',
+              value: upcomingMeetings.length.toString(),
+              subValue: 'Agenda',
+              isPrimary: true,
+            },
             {
               label: 'Tingkat Kehadiran',
               value: '96.8%',
@@ -128,103 +141,94 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           ]}
         />
 
-        {/* Meeting Section Title with Filter Button */}
+        {/* Meeting Section Title with Enterprise Filter Button */}
         <View style={styles.sectionHeaderRow}>
           <View>
             <Text style={styles.sectionTitle}>Daftar Rapat Dinas</Text>
             <Text style={styles.sectionSub}>Wilayah Kerja LLDIKTI Wilayah X</Text>
           </View>
           <Pressable
-            onPress={handleFilterPress}
+            onPress={() => setIsFilterModalVisible(true)}
             style={({ pressed }) => [
               styles.filterButton,
+              activeFilterOrder === 'priority' && styles.filterButtonHighlighted,
               pressed && styles.filterButtonPressed,
             ]}
+            accessibilityRole="button"
+            accessibilityLabel="Filter agenda rapat"
           >
-            <MaterialIcons name="filter-list" size={16} color={colors.primary} />
-            <Text style={styles.filterButtonText}>Filter</Text>
+            <MaterialIcons
+              name="tune"
+              size={15}
+              color={
+                activeFilterOrder === 'priority'
+                  ? colors.primary
+                  : colors.onSurfaceVariant
+              }
+            />
+            <Text
+              style={[
+                styles.filterButtonText,
+                activeFilterOrder === 'priority' && styles.filterButtonTextHighlighted,
+              ]}
+            >
+              Filter
+            </Text>
+            {activeFilterOrder === 'priority' ? (
+              <View style={styles.filterActiveDot} />
+            ) : null}
           </Pressable>
         </View>
 
-        {/* Filter Pills with Badge Counters */}
+        {/* Category Filter Pills with Cohesive Badge Counters */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
         >
-          <Pressable
-            onPress={() => setFilterTab('ongoing')}
-            style={[
-              styles.filterPill,
-              filterTab === 'ongoing' ? styles.filterPillActive : styles.filterPillInactive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterPillText,
-                filterTab === 'ongoing' && styles.filterPillTextActive,
-              ]}
-            >
-              Sedang Berlangsung
-            </Text>
-            <View
-              style={[
-                styles.badgeCount,
-                filterTab === 'ongoing' ? styles.badgeCountActive : styles.badgeCountInactive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.badgeCountText,
-                  filterTab === 'ongoing' && styles.badgeCountTextActive,
+          {categoryTabs.map((tab) => {
+            const isActive = filterTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setFilterTab(tab.id)}
+                style={({ pressed }) => [
+                  styles.filterPill,
+                  isActive ? styles.filterPillActive : styles.filterPillInactive,
+                  pressed && styles.filterPillPressed,
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Kategori ${tab.label}`}
               >
-                {ongoingCount}
-              </Text>
-            </View>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setFilterTab('upcoming')}
-            style={[
-              styles.filterPill,
-              filterTab === 'upcoming' ? styles.filterPillActive : styles.filterPillInactive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterPillText,
-                filterTab === 'upcoming' && styles.filterPillTextActive,
-              ]}
-            >
-              Akan Datang
-            </Text>
-            <View style={styles.badgeCountGray}>
-              <Text style={styles.badgeCountGrayText}>
-                {upcomingMeetings.length}
-              </Text>
-            </View>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setFilterTab('completed')}
-            style={[
-              styles.filterPill,
-              filterTab === 'completed' ? styles.filterPillActive : styles.filterPillInactive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterPillText,
-                filterTab === 'completed' && styles.filterPillTextActive,
-              ]}
-            >
-              Riwayat Selesai
-            </Text>
-          </Pressable>
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    isActive && styles.filterPillTextActive,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+                <View
+                  style={[
+                    styles.badgeCount,
+                    isActive ? styles.badgeCountActive : styles.badgeCountInactive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.badgeCountText,
+                      isActive && styles.badgeCountTextActive,
+                    ]}
+                  >
+                    {tab.count}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </ScrollView>
 
-        {/* Active Highlight Card when ongoing tab is active */}
+        {/* Active Highlight Card when ongoing tab is active and meeting exists */}
         {filterTab === 'ongoing' && activeMeeting ? (
           <MeetingCard
             meeting={activeMeeting}
@@ -236,7 +240,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         {/* List of Meetings according to Filter */}
         {filteredMeetings.length > 0 ? (
           filteredMeetings
-            .filter((m) => (filterTab === 'ongoing' ? m.id !== activeMeeting?.id : true))
+            .filter((m) =>
+              filterTab === 'ongoing' && activeMeeting
+                ? m.id !== activeMeeting.id
+                : true
+            )
             .map((meeting) => (
               <MeetingCard
                 key={meeting.id}
@@ -254,14 +262,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             onAction={onNavigateAgenda}
           />
         )}
-
-        {/* Legal Guarantee Card */}
-        <View style={styles.legalBox}>
-          <Text style={styles.legalText}>
-            Presensi diverifikasi secara terpusat melalui NIP dan geofencing resmi LLDIKTI Wilayah X. Seluruh tanda tangan elektronik sah berdasarkan ketentuan UU ITE.
-          </Text>
-        </View>
       </ScrollView>
+
+      {/* Enterprise Filter Bottom Sheet Modal */}
+      <MeetingFilterModal
+        visible={isFilterModalVisible}
+        onClose={() => setIsFilterModalVisible(false)}
+        currentStatus={filterTab}
+        currentOrder={activeFilterOrder}
+        onApply={(status, order) => {
+          setFilterTab(status);
+          setActiveFilterOrder(order);
+        }}
+        onReset={() => {
+          setFilterTab('all');
+          setActiveFilterOrder('all');
+        }}
+      />
     </View>
   );
 };
@@ -318,13 +335,18 @@ const styles = StyleSheet.create({
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: rounded.sm,
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: 'rgba(197, 197, 211, 0.55)',
     backgroundColor: colors.surfaceContainerLowest,
+    overflow: 'hidden',
+  },
+  filterButtonHighlighted: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(0, 35, 111, 0.05)',
   },
   filterButtonPressed: {
     backgroundColor: colors.surfaceContainerLow,
@@ -332,30 +354,57 @@ const styles = StyleSheet.create({
   filterButtonText: {
     ...typography.labelMd,
     fontSize: 12,
-    color: colors.primary,
+    color: colors.onSurfaceVariant,
     fontWeight: '600',
+  },
+  filterButtonTextHighlighted: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  filterActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+    marginLeft: 2,
   },
   filterScroll: {
     flexDirection: 'row',
     gap: spacing.xs + 2,
     marginBottom: spacing.md,
+    paddingVertical: 2,
   },
   filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: spacing.sm + 4,
+    paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: rounded.full,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   filterPillActive: {
     backgroundColor: colors.primary,
-    ...elevations.level1,
+    borderColor: colors.primary,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#00236F',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.12,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   filterPillInactive: {
     backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: 'rgba(197, 197, 211, 0.5)',
+  },
+  filterPillPressed: {
+    opacity: 0.85,
   },
   filterPillText: {
     ...typography.labelMd,
@@ -368,51 +417,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   badgeCount: {
-    width: 18,
+    minWidth: 18,
     height: 18,
+    paddingHorizontal: 5,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   badgeCountActive: {
-    backgroundColor: colors.secondaryFixedDim,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
   badgeCountInactive: {
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surfaceContainerLow,
   },
   badgeCountText: {
     fontSize: 10,
     fontWeight: '700',
+    color: colors.onSurfaceVariant,
   },
   badgeCountTextActive: {
-    color: colors.onSecondaryFixed,
-  },
-  badgeCountGray: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.surfaceContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeCountGrayText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.onSurfaceVariant,
-  },
-  legalBox: {
-    marginTop: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.3)',
-  },
-  legalText: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    fontSize: 11,
-    textAlign: 'center',
-    lineHeight: 16,
+    color: colors.onPrimary,
   },
 });

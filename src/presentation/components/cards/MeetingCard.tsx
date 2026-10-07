@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Meeting } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
 import { typography } from '../../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../../core/theme/tokens';
+import { rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 
 interface MeetingCardProps {
@@ -37,8 +37,10 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
         <View style={styles.activeBody}>
           <Text style={styles.meetingCategory}>
             {meeting.type === 'hybrid'
-              ? 'Rapat Pleno Hybrid (Ruang Sidang Utama & Zoom)'
-              : 'Rapat Kedinasan'}
+              ? 'Rapat Pleno Hybrid'
+              : meeting.type === 'online'
+              ? 'Rapat Daring Kedinasan'
+              : 'Rapat Luring Kedinasan'}
           </Text>
           <Text style={styles.activeTitle}>{meeting.title}</Text>
           <Text style={styles.leaderText}>
@@ -46,24 +48,26 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
             <Text style={styles.leaderHighlight}>{meeting.leader}</Text>
           </Text>
 
-          {/* Telemetry info */}
-          <View style={styles.telemetryGrid}>
-            <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryLabel}>Waktu Sesi</Text>
-              <Text style={styles.telemetryValue}>
+          {/* Sesi & Lokasi Rapat */}
+          <View style={styles.meetingInfoGrid}>
+            <View style={styles.meetingInfoItem}>
+              <Text style={styles.infoLabel}>Waktu Sesi</Text>
+              <Text style={styles.infoValue}>
                 {meeting.startTime} - {meeting.endTime} WIB
               </Text>
             </View>
-            <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryLabel}>Radius Geofence</Text>
-              <Text style={styles.telemetryValid}>Tervalidasi (12m)</Text>
+            <View style={styles.meetingInfoItem}>
+              <Text style={styles.infoLabel}>Lokasi / Ruang</Text>
+              <Text style={styles.infoValue} numberOfLines={1}>
+                {meeting.venue || 'Ruang Sidang Utama'}
+              </Text>
             </View>
           </View>
 
           {/* Action Button */}
           {onPressAction ? (
             <Button
-              title="Lakukan Presensi Sekarang (Selfie + TTD)"
+              title="Lakukan Presensi"
               onPress={onPressAction}
               variant="primary"
               size="lg"
@@ -107,6 +111,7 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
                 styles.pdfButton,
                 pressed && styles.linkPressed,
               ]}
+              hitSlop={4}
             >
               <MaterialIcons name="picture-as-pdf" size={15} color={colors.primary} />
               <Text style={styles.pdfButtonText}>Lihat Undangan (PDF)</Text>
@@ -118,6 +123,7 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
                 styles.detailButton,
                 pressed && styles.linkPressed,
               ]}
+              hitSlop={4}
             >
               <Text style={styles.detailButtonText}>Akses Tautan</Text>
               <MaterialIcons
@@ -137,6 +143,7 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
                   styles.detailButton,
                   pressed && styles.linkPressed,
                 ]}
+                hitSlop={4}
               >
                 <Text style={styles.detailButtonText}>Detail Agenda</Text>
                 <MaterialIcons
@@ -158,10 +165,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
     borderWidth: 1.5,
-    borderColor: 'rgba(0, 35, 111, 0.3)',
+    borderColor: 'rgba(0, 35, 111, 0.25)',
     overflow: 'hidden',
     marginBottom: spacing.md,
-    ...elevations.level2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#00236F',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   activeHeader: {
     backgroundColor: colors.surfaceContainerHigh,
@@ -209,7 +226,7 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     fontWeight: '600',
   },
-  telemetryGrid: {
+  meetingInfoGrid: {
     flexDirection: 'row',
     backgroundColor: colors.surfaceContainerLow,
     borderRadius: rounded.md,
@@ -217,34 +234,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.3)',
     marginBottom: spacing.md,
+    overflow: 'hidden',
   },
-  telemetryItem: {
+  meetingInfoItem: {
     flex: 1,
   },
-  telemetryLabel: {
+  infoLabel: {
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
     fontSize: 11,
     marginBottom: 2,
   },
-  telemetryValue: {
+  infoValue: {
     ...typography.labelMd,
     color: colors.onSurface,
     fontWeight: '600',
-  },
-  telemetryValid: {
-    ...typography.labelMd,
-    color: colors.tertiaryContainer,
-    fontWeight: '700',
   },
   cardContainer: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     marginBottom: spacing.sm + 2,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -291,14 +315,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: rounded.sm,
+    overflow: 'hidden',
   },
   pdfButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: rounded.sm,
+    overflow: 'hidden',
   },
   linkPressed: {
-    opacity: 0.6,
+    backgroundColor: colors.surfaceContainerLow,
+    opacity: 0.85,
   },
   pdfButtonText: {
     ...typography.labelSm,

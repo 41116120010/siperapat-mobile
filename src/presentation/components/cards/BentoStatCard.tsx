@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { colors } from '../../../core/theme/colors';
 import { typography } from '../../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../../core/theme/tokens';
+import { rounded, spacing } from '../../../core/theme/tokens';
 
 export interface BentoStatItem {
   label: string;
@@ -86,7 +86,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(197, 197, 211, 0.4)',
     justifyContent: 'space-between',
     minHeight: 74,
-    ...elevations.level1,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   label: {
     ...typography.labelSm,

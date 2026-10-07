@@ -140,6 +140,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    overflow: 'hidden',
+    borderWidth: 0,
   },
   fullWidth: {
     width: '100%',
