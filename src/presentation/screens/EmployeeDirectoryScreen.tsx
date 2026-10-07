@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,12 @@ import {
   Pressable,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 
 interface ASNItem {
@@ -78,18 +79,21 @@ const ASN_DATA: ASNItem[] = [
 ];
 
 const MASTER_UNITS = [
-  { code: 'BAG-AKM', name: 'Bagian Akademik', count: '14 ASN' },
-  { code: 'BAG-SDPT', name: 'Sumber Daya PT', count: '12 ASN' },
-  { code: 'POKJA-PTK', name: 'Pendidik & Tendik', count: '10 ASN' },
-  { code: 'SUBBAG-HKTL', name: 'Hukum & Kepegawaian', count: '15 ASN' },
-  { code: 'SUBBAG-TU', name: 'Tata Usaha & BMN', count: '18 ASN' },
+  { code: 'BAG-AKM', name: 'Bagian Akademik & Kemahasiswaan', count: '14 ASN' },
+  { code: 'BAG-SDPT', name: 'Bagian Sumber Daya Perguruan Tinggi', count: '12 ASN' },
+  { code: 'POKJA-PTK', name: 'Pokja Pendidik & Tenaga Kependidikan', count: '10 ASN' },
+  { code: 'SUBBAG-HKTL', name: 'Subbag Hukum, Kepegawaian & Tata Laksana', count: '15 ASN' },
+  { code: 'SUBBAG-TU', name: 'Subbag Tata Usaha & BMN', count: '18 ASN' },
+  { code: 'POKJA-MUTU', name: 'Pokja Penjaminan Mutu & Akreditasi', count: '10 ASN' },
 ];
 
 interface EmployeeDirectoryScreenProps {
   onBack?: () => void;
 }
 
-export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = ({ onBack }) => {
+export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = ({
+  onBack,
+}) => {
   const [activeTab, setActiveTab] = useState<'asn' | 'units'>('asn');
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('Semua Role');
@@ -126,7 +130,18 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
       item.username.toLowerCase().includes(search.toLowerCase());
     const matchRole =
       selectedRole === 'Semua Role' || item.role === selectedRole;
-    return matchSearch && matchRole;
+    const matchUnit =
+      selectedUnit === 'Semua Unit (79)' ||
+      (selectedUnit === 'Lintas Unit (1)' && item.unit.includes('Lintas Unit')) ||
+      (selectedUnit === 'Bagian Akademik (14)' &&
+        item.unit.includes('Akademik')) ||
+      (selectedUnit === 'Sumber Daya PT (12)' &&
+        item.unit.includes('Sumber Daya')) ||
+      (selectedUnit === 'Pokja PTK (10)' && item.unit.includes('Pendidik')) ||
+      (selectedUnit === 'Hukum & TU (15)' &&
+        (item.unit.includes('Tata Usaha') || item.unit.includes('Hukum')));
+
+    return matchSearch && matchRole && matchUnit;
   });
 
   return (
@@ -136,11 +151,6 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
         subtitle="Administrasi 79 ASN & 11 Unit Kerja"
         showBack={Boolean(onBack)}
         onBack={onBack}
-        rightAction={
-          <Pressable onPress={handleAddEmployee} style={styles.headerBtn}>
-            <MaterialIcons name="person-add" size={20} color={colors.primary} />
-          </Pressable>
-        }
       />
 
       <ScrollView
@@ -154,21 +164,21 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               <Text style={styles.bentoLabel}>Total Pegawai</Text>
               <MaterialIcons name="group" size={16} color={colors.outline} />
             </View>
-            <Text style={styles.bentoValue}>
-              79 <Text style={styles.bentoUnit}>ASN</Text>
-            </Text>
-            <Text style={styles.bentoSub}>78 Staff · 1 Superadmin</Text>
+            <Text style={styles.bentoValue}>79</Text>
+            <Text style={styles.bentoSub}>78 Staf · 1 Admin</Text>
           </View>
 
           <View style={styles.bentoCol}>
             <View style={styles.bentoTop}>
               <Text style={styles.bentoLabel}>Unit Kerja Aktif</Text>
-              <MaterialIcons name="account-tree" size={16} color={colors.outline} />
+              <MaterialIcons
+                name="account-tree"
+                size={16}
+                color={colors.outline}
+              />
             </View>
-            <Text style={styles.bentoValue}>
-              11 <Text style={styles.bentoUnit}>Pokja</Text>
-            </Text>
-            <Text style={styles.bentoSub}>100% Terdaftar Sah</Text>
+            <Text style={styles.bentoValue}>11</Text>
+            <Text style={styles.bentoSub}>Pokja & Bagian</Text>
           </View>
 
           <View style={styles.bentoCol}>
@@ -176,21 +186,21 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               <Text style={styles.bentoLabel}>Status Akun</Text>
               <MaterialIcons name="badge" size={16} color={colors.outline} />
             </View>
-            <Text style={styles.bentoValue}>
-              78 <Text style={styles.bentoUnitGreen}>Aktif</Text>
-            </Text>
+            <Text style={styles.bentoValue}>78</Text>
             <Text style={styles.bentoSub}>1 Nonaktif / Mutasi</Text>
           </View>
 
           <View style={styles.bentoCol}>
             <View style={styles.bentoTop}>
               <Text style={styles.bentoLabel}>Rerata Presensi</Text>
-              <MaterialIcons name="analytics" size={16} color={colors.outline} />
+              <MaterialIcons
+                name="analytics"
+                size={16}
+                color={colors.outline}
+              />
             </View>
-            <Text style={[styles.bentoValue, { color: colors.primary }]}>
-              96.4%
-            </Text>
-            <Text style={styles.bentoSub}>Kuartal II LLDIKTI X</Text>
+            <Text style={styles.bentoValue}>96.4%</Text>
+            <Text style={styles.bentoSub}>Triwulan Berjalan</Text>
           </View>
         </View>
 
@@ -232,7 +242,13 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
         </View>
 
         {/* PRIMARY OPERATIONAL ACTION BAR */}
-        <Pressable onPress={handleAddEmployee} style={styles.primaryAddBtn}>
+        <Pressable
+          onPress={handleAddEmployee}
+          style={({ pressed }) => [
+            styles.primaryAddBtn,
+            pressed && styles.btnPressed,
+          ]}
+        >
           <MaterialIcons name="person-add" size={18} color={colors.onPrimary} />
           <Text style={styles.primaryAddBtnText}>Tambah Pegawai Baru</Text>
         </Pressable>
@@ -244,7 +260,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               <MaterialIcons name="search" size={20} color={colors.outline} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Cari NIP 18 digit, nama, atau username..."
+                placeholder="Cari NIP, nama, atau username..."
                 placeholderTextColor={colors.outline}
                 value={search}
                 onChangeText={setSearch}
@@ -323,11 +339,17 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
             <View style={styles.listHeaderRow}>
               <Text style={styles.listHeaderTitle}>
                 Daftar Pegawai{' '}
-                <Text style={styles.listHeaderSub}>({filteredASN.length} ASN)</Text>
+                <Text style={styles.listHeaderSub}>
+                  ({filteredASN.length} ASN)
+                </Text>
               </Text>
               <View style={styles.sortBtn}>
                 <Text style={styles.sortBtnText}>Urutkan Abjad</Text>
-                <MaterialIcons name="swap-vert" size={16} color={colors.secondary} />
+                <MaterialIcons
+                  name="swap-vert"
+                  size={16}
+                  color={colors.secondary}
+                />
               </View>
             </View>
 
@@ -348,49 +370,71 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                       </View>
 
                       <View style={styles.nipRow}>
-                        <MaterialIcons name="badge" size={14} color={colors.outline} />
+                        <MaterialIcons
+                          name="badge"
+                          size={14}
+                          color={colors.outline}
+                        />
                         <Text style={styles.nipText}>{item.nip}</Text>
-                        <Text style={styles.dividerPipe}>|</Text>
+                        <Text style={styles.dividerDot}>•</Text>
                         <Text style={styles.usernameText}>{item.username}</Text>
                       </View>
 
                       <View style={styles.unitRow}>
-                        <MaterialIcons name="domain" size={14} color={colors.outline} />
+                        <MaterialIcons
+                          name="domain"
+                          size={14}
+                          color={colors.outline}
+                        />
                         <Text style={styles.unitText}>{item.unit}</Text>
                       </View>
-                    </View>
-
-                    <View style={styles.activeDotBadge}>
-                      <View style={styles.activeDot} />
-                      <Text style={styles.activeDotText}>Aktif</Text>
                     </View>
                   </View>
 
                   <View style={styles.asnCardBottom}>
                     <Text style={styles.cardBottomMeta}>
                       {item.lastLogin
-                        ? `Terakhir login: ${item.lastLogin}`
+                        ? `Login: ${item.lastLogin}`
                         : item.attendanceRate
-                        ? `Kehadiran: ${item.attendanceRate} (${item.totalMeetings} Rapat)`
-                        : `Terdaftar: ${item.regDate}`}
+                        ? `Presensi: ${item.attendanceRate} (${item.totalMeetings} Rapat)`
+                        : `Status: ASN Aktif`}
                     </Text>
 
                     <View style={styles.cardActions}>
                       <Pressable
                         onPress={() => handleResetPassword(item.name)}
-                        style={styles.cardActionBtn}
+                        style={({ pressed }) => [
+                          styles.cardActionBtn,
+                          pressed && styles.btnPressed,
+                        ]}
                       >
-                        <MaterialIcons name="lock-reset" size={15} color={colors.onSurfaceVariant} />
+                        <MaterialIcons
+                          name="lock-reset"
+                          size={14}
+                          color={colors.onSurfaceVariant}
+                        />
                         <Text style={styles.cardActionBtnText}>Reset Sandi</Text>
                       </Pressable>
                       <Pressable
                         onPress={() =>
                           Alert.alert('Edit Pegawai', `Sunting profil ${item.name}`)
                         }
-                        style={[styles.cardActionBtn, styles.editActionBtn]}
+                        style={({ pressed }) => [
+                          styles.cardActionBtn,
+                          pressed && styles.btnPressed,
+                        ]}
                       >
-                        <MaterialIcons name="edit" size={15} color={colors.onSurface} />
-                        <Text style={[styles.cardActionBtnText, { color: colors.onSurface }]}>
+                        <MaterialIcons
+                          name="edit"
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.cardActionBtnText,
+                            { color: colors.primary },
+                          ]}
+                        >
                           Edit
                         </Text>
                       </Pressable>
@@ -406,7 +450,11 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
             {MASTER_UNITS.map((unit) => (
               <View key={unit.code} style={styles.unitMasterCard}>
                 <View style={styles.unitMasterIcon}>
-                  <MaterialIcons name="account-tree" size={20} color={colors.primary} />
+                  <MaterialIcons
+                    name="account-tree"
+                    size={20}
+                    color={colors.primary}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.unitMasterCode}>{unit.code}</Text>
@@ -419,31 +467,6 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
             ))}
           </View>
         )}
-
-        {/* MASTER UNIT KERJA PREVIEW BANNER */}
-        <View style={styles.structureBanner}>
-          <View style={styles.structureHeader}>
-            <View style={styles.structureTitleRow}>
-              <MaterialIcons name="hub" size={20} color={colors.outline} />
-              <Text style={styles.structureTitle}>
-                Struktur 11 Unit Kerja Resmi LLDIKTI X
-              </Text>
-            </View>
-            <Text style={styles.structureSubtitle}>
-              Pemetaan hierarki rapat, koordinator pokja, dan pengesahan notula
-            </Text>
-          </View>
-
-          <View style={styles.structureChipsWrap}>
-            {MASTER_UNITS.map((u) => (
-              <View key={u.code} style={styles.structureChip}>
-                <Text style={styles.structureChipText}>
-                  <Text style={{ fontWeight: '700' }}>{u.code}</Text> · {u.name} ({u.count})
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
       </ScrollView>
     </View>
   );
@@ -453,14 +476,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  headerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainerLow,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   scrollContent: {
     padding: spacing.md,
@@ -474,14 +489,25 @@ const styles = StyleSheet.create({
   },
   bentoCol: {
     width: '48.5%',
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.lg,
     padding: spacing.sm + 2,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.4)',
     justifyContent: 'space-between',
-    minHeight: 82,
-    ...elevations.level1,
+    minHeight: 80,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   bentoTop: {
     flexDirection: 'row',
@@ -501,18 +527,6 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     marginTop: 2,
   },
-  bentoUnit: {
-    ...typography.labelSm,
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.onSurfaceVariant,
-  },
-  bentoUnitGreen: {
-    ...typography.labelSm,
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.success,
-  },
   bentoSub: {
     ...typography.labelSm,
     fontSize: 10,
@@ -521,10 +535,12 @@ const styles = StyleSheet.create({
   },
   segmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
     borderRadius: rounded.md,
     padding: 3,
     marginTop: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
   },
   segmentedBtn: {
     flex: 1,
@@ -533,8 +549,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segmentedBtnActive: {
-    backgroundColor: colors.surfaceContainerLowest,
-    ...elevations.level1,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
   },
   segmentedBtnText: {
     ...typography.labelMd,
@@ -554,7 +571,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    ...elevations.level1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   primaryAddBtnText: {
     ...typography.labelMd,
@@ -565,7 +592,7 @@ const styles = StyleSheet.create({
   searchBox: {
     height: 44,
     borderRadius: rounded.md,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.6)',
     flexDirection: 'row',
@@ -596,12 +623,15 @@ const styles = StyleSheet.create({
   },
   roleChip: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: rounded.full,
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
   },
   roleChipActive: {
-    backgroundColor: colors.primaryContainer,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   roleChipText: {
     ...typography.labelSm,
@@ -609,7 +639,7 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   roleChipTextActive: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontWeight: '700',
   },
   unitChipsContainer: {
@@ -623,10 +653,10 @@ const styles = StyleSheet.create({
     borderRadius: rounded.full,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.5)',
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
   },
   unitChipActive: {
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
     borderColor: colors.primary,
   },
   unitChipText: {
@@ -646,7 +676,7 @@ const styles = StyleSheet.create({
   },
   listHeaderTitle: {
     ...typography.headlineSm,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
     color: colors.onSurface,
   },
@@ -669,12 +699,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   asnCard: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.lg,
     padding: spacing.sm + 2,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    ...elevations.level1,
+    borderColor: 'rgba(197, 197, 211, 0.45)',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   asnCardTop: {
     flexDirection: 'row',
@@ -682,18 +723,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   asnAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainer,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
   },
   asnAvatarText: {
     ...typography.labelMd,
     fontSize: 13,
     fontWeight: '700',
-    color: colors.onSurface,
+    color: colors.primary,
   },
   asnMainInfo: {
     flex: 1,
@@ -711,7 +754,7 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
   },
   roleBadge: {
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surfaceContainerLow,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 4,
@@ -721,8 +764,8 @@ const styles = StyleSheet.create({
   roleBadgeText: {
     ...typography.labelSm,
     fontSize: 9.5,
-    color: colors.onSurface,
-    fontWeight: '500',
+    color: colors.primary,
+    fontWeight: '600',
   },
   nipRow: {
     flexDirection: 'row',
@@ -735,9 +778,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.onSurfaceVariant,
   },
-  dividerPipe: {
+  dividerDot: {
     color: colors.outlineVariant,
-    fontSize: 11,
+    fontSize: 10,
+    marginHorizontal: 2,
   },
   usernameText: {
     ...typography.labelSm,
@@ -755,28 +799,6 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-  },
-  activeDotBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.surfaceContainer,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-  },
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#059669',
-  },
-  activeDotText: {
-    ...typography.labelSm,
-    fontSize: 10,
-    color: colors.onSurface,
   },
   asnCardBottom: {
     flexDirection: 'row',
@@ -801,28 +823,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: rounded.sm,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.6)',
+    backgroundColor: colors.surfaceCard,
   },
   cardActionBtnText: {
     ...typography.labelSm,
     fontSize: 10.5,
     color: colors.onSurfaceVariant,
-  },
-  editActionBtn: {
-    backgroundColor: colors.surfaceContainerLow,
+    fontWeight: '600',
   },
   unitMasterCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.sm + 2,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.4)',
     gap: 10,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   unitMasterIcon: {
     width: 36,
@@ -840,65 +873,24 @@ const styles = StyleSheet.create({
   },
   unitMasterName: {
     ...typography.bodyMd,
-    fontSize: 12.5,
+    fontSize: 12,
     color: colors.onSurface,
   },
   unitMasterCountBadge: {
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surfaceContainerLow,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: rounded.full,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
   },
   unitMasterCountText: {
     ...typography.labelSm,
     fontSize: 10.5,
-    color: colors.onSurfaceVariant,
+    color: colors.primary,
+    fontWeight: '600',
   },
-  structureBanner: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.xl,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    gap: 8,
-    marginTop: 4,
-  },
-  structureHeader: {
-    gap: 2,
-  },
-  structureTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  structureTitle: {
-    ...typography.headlineSm,
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: colors.onSurface,
-  },
-  structureSubtitle: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-  },
-  structureChipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  structureChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-  },
-  structureChipText: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.onSurface,
+  btnPressed: {
+    opacity: 0.8,
   },
 });
