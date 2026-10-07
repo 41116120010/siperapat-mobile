@@ -21,9 +21,13 @@ import { formatNIP } from '../../core/utils/nipValidator';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
+  onNavigateForgotPassword?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({
+  onLoginSuccess,
+  onNavigateForgotPassword,
+}) => {
   const [identifier, setIdentifier] = useState('19701205 199203 2 002');
   const [password, setPassword] = useState('lldikti2026');
   const [showPassword, setShowPassword] = useState(false);
@@ -90,7 +94,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <Text style={styles.inputLabel}>NIP (18 Digit) atau Username ASN</Text>
             <Input
               label=""
-              placeholder="Contoh: 19701205 199203 2 002 atau afdalisma"
+              placeholder="Masukkan NIP atau username"
               value={identifier}
               onChangeText={handleIdentifierChange}
               keyboardType="default"
@@ -110,14 +114,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>
               <Text style={styles.inputLabel}>Kata Sandi Kedinasan</Text>
-              <Pressable onPress={handleHelpdesk} hitSlop={6}>
+              <Pressable
+                onPress={onNavigateForgotPassword ?? handleHelpdesk}
+                hitSlop={6}
+              >
                 <Text style={styles.forgotLink}>Lupa Kata Sandi?</Text>
               </Pressable>
             </View>
 
             <Input
               label=""
-              placeholder="••••••••"
+              placeholder="Masukkan kata sandi"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}

@@ -210,7 +210,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               onChangeText={setTitle}
               multiline
               numberOfLines={3}
-              placeholder="Contoh: Rapat Koordinasi Penjaminan Mutu & Akreditasi Program Studi PTS 2026"
+              placeholder="Masukkan perihal agenda rapat dinas..."
               placeholderTextColor={colors.outline}
             />
             <Text style={styles.fieldHint}>

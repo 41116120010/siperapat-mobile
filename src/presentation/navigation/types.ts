@@ -1,6 +1,7 @@
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
+  ForgotPassword: undefined;
   MainTabs: undefined;
   Presensi: { meetingId: string };
   Receipt: { attendanceId: string };

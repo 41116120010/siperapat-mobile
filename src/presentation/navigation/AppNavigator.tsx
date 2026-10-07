@@ -13,6 +13,7 @@ import { RootStackParamList, MainTabParamList } from './types';
 // Screens
 import { SplashScreen } from '../screens/SplashScreen';
 import { LoginScreen } from '../screens/LoginScreen';
+import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { AgendaScreen } from '../screens/AgendaScreen';
 import { RiwayatScreen } from '../screens/RiwayatScreen';
@@ -156,7 +157,19 @@ export const AppNavigator: React.FC = () => {
 
       <Stack.Screen name="Login">
         {({ navigation }) => (
-          <LoginScreen onLoginSuccess={() => navigation.replace('MainTabs')} />
+          <LoginScreen
+            onLoginSuccess={() => navigation.replace('MainTabs')}
+            onNavigateForgotPassword={() => navigation.navigate('ForgotPassword')}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="ForgotPassword">
+        {({ navigation }) => (
+          <ForgotPasswordScreen
+            onBack={() => navigation.goBack()}
+            onSuccessLogin={() => navigation.navigate('Login')}
+          />
         )}
       </Stack.Screen>
 

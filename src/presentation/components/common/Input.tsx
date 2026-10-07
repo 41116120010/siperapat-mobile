@@ -48,7 +48,7 @@ export const Input: React.FC<InputProps> = ({
         <TextInput
           style={[
             styles.input,
-            isMono && styles.inputMono,
+            isMono && Boolean(rest.value) && styles.inputMono,
             Boolean(leftIcon) && styles.inputWithLeftIcon,
             Boolean(rightAction) && styles.inputWithRightAction,
             style,
