@@ -3,9 +3,12 @@
     "name": "SIPERAPAT",
     "slug": "siperapat",
     "version": "1.0.0",
+    "description": "Sistem Informasi Presensi & Rapat Kedinasan LLDIKTI Wilayah X",
+    "scheme": "siperapat",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "primaryColor": "#00236F",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -13,20 +16,39 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "id.go.lldikti10.siperapat"
+      "bundleIdentifier": "id.go.lldikti10.siperapat",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "SIPERAPAT memerlukan akses kamera untuk verifikasi swafoto presensi kehadiran rapat kedinasan ASN.",
+        "NSLocationWhenInUseUsageDescription": "SIPERAPAT memerlukan akses lokasi untuk verifikasi radius geofencing presensi di lokasi rapat kedinasan LLDIKTI X.",
+        "NSFaceIDUsageDescription": "SIPERAPAT menggunakan autentikasi biometrik untuk login cepat dan aman."
+      }
     },
     "android": {
       "package": "id.go.lldikti10.siperapat",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#00236F",
         "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#00236F",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ],
+      "allowBackup": false,
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "SIPERAPAT - LLDIKTI Wilayah X",
+      "shortName": "SIPERAPAT",
+      "themeColor": "#00236F",
+      "backgroundColor": "#00236F"
     }
   }
 }
