@@ -20,12 +20,14 @@ interface ProfileScreenProps {
   onLogout: () => void;
   onNavigateAuditLog: () => void;
   onNavigatePegawai: () => void;
+  onNavigateChangePassword: () => void;
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onLogout,
   onNavigateAuditLog,
   onNavigatePegawai,
+  onNavigateChangePassword,
 }) => {
   const { user, logout } = useAuthStore();
   const [whatsapp, setWhatsapp] = useState(user?.phone ?? '0812-6612-8901');
@@ -49,10 +51,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const handleChangePassword = () => {
-    Alert.alert(
-      'Ubah Kata Sandi',
-      'Tautan pembaruan kata sandi telah dikirimkan ke email resmi kedinasan Anda.'
-    );
+    onNavigateChangePassword();
   };
 
   return (

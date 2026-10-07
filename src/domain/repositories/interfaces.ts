@@ -6,6 +6,7 @@ export interface IAuthRepository {
   logout(): Promise<void>;
   getCurrentUser(): Promise<ASN | null>;
   updateBiometricsSetting(enabled: boolean): Promise<void>;
+  changePassword(currentPassword: string, newPassword: string): Promise<boolean>;
 }
 
 export interface IMeetingRepository {

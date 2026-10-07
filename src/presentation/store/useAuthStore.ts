@@ -12,6 +12,10 @@ interface AuthState {
   login: (nip: string, password?: string) => Promise<boolean>;
   loginBiometric: () => Promise<boolean>;
   logout: () => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<{ success: boolean; message?: string }>;
   clearError: () => void;
 }
 
@@ -68,6 +72,20 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     await authRepo.logout();
     set({ user: null, isLoading: false, error: null });
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await authRepo.changePassword(currentPassword, newPassword);
+      set({ isLoading: false });
+      return { success: true };
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Gagal memperbarui kata sandi.';
+      set({ isLoading: false, error: message });
+      return { success: false, message };
+    }
   },
 
   clearError: () => set({ error: null }),

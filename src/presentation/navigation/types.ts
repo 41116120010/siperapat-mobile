@@ -9,6 +9,7 @@ export type RootStackParamList = {
   Monitoring: { meetingId: string };
   EmployeeDirectory: undefined;
   AuditLog: undefined;
+  ChangePassword: undefined;
 };
 
 export type MainTabParamList = {

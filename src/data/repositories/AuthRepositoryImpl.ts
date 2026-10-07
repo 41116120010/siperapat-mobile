@@ -68,4 +68,28 @@ export class AuthRepositoryImpl implements IAuthRepository {
       await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
     }
   }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<boolean> {
+    if (!currentPassword || currentPassword.trim().length === 0) {
+      throw new Error('Kata sandi saat ini wajib diisi.');
+    }
+    if (!newPassword || newPassword.length < 8) {
+      throw new Error('Kata sandi baru minimal harus 8 karakter.');
+    }
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword)) {
+      throw new Error('Kata sandi baru harus mengombinasikan huruf besar dan kecil.');
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      throw new Error('Kata sandi baru harus memuat sekurang-kurangnya satu angka.');
+    }
+    if (currentPassword === newPassword) {
+      throw new Error('Kata sandi baru tidak boleh sama dengan kata sandi saat ini.');
+    }
+
+    const user = await this.getCurrentUser();
+    if (user) {
+      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+    }
+    return true;
+  }
 }

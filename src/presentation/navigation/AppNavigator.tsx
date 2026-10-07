@@ -24,6 +24,7 @@ import { CreateMeetingScreen } from '../screens/CreateMeetingScreen';
 import { MonitoringScreen } from '../screens/MonitoringScreen';
 import { EmployeeDirectoryScreen } from '../screens/EmployeeDirectoryScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
+import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createMaterialTopTabNavigator<MainTabParamList>();
@@ -133,6 +134,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
             onLogout={() => rootStackNav.replace('Login')}
             onNavigateAuditLog={() => rootStackNav.navigate('AuditLog')}
             onNavigatePegawai={() => rootStackNav.navigate('EmployeeDirectory')}
+            onNavigateChangePassword={() => rootStackNav.navigate('ChangePassword')}
           />
         )}
       </Tab.Screen>
@@ -235,6 +237,15 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="AuditLog">
         {({ navigation }) => (
           <AuditLogScreen onBack={() => navigation.goBack()} />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="ChangePassword">
+        {({ navigation }) => (
+          <ChangePasswordScreen
+            onBack={() => navigation.goBack()}
+            onSuccess={() => navigation.goBack()}
+          />
         )}
       </Stack.Screen>
     </Stack.Navigator>
