@@ -85,3 +85,22 @@ export interface ASNUnitMember {
   pangkatGolongan: string;
   statusPresensiTerakhir: 'Hadir' | 'Tugas Luar' | 'Belum Presensi';
 }
+
+export interface Employee {
+  id: string;
+  initials: string;
+  name: string;
+  nip: string; // 18 Digits
+  role: 'Administrator' | 'Admin Unit' | 'Staff';
+  unit: string;
+  status: 'Aktif' | 'Nonaktif';
+  username: string;
+  email: string;
+  phone: string;
+  jabatan: string;
+  pangkatGolongan: string;
+  lastLogin?: string;
+  attendanceRate?: string;
+  totalMeetings?: number;
+  regDate?: string;
+}

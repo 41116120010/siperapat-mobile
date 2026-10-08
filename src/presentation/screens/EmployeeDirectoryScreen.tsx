@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
 import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { useEmployeeStore } from '../store/useEmployeeStore';
 
 interface ASNItem {
   id: string;
@@ -89,19 +90,37 @@ const MASTER_UNITS = [
 
 interface EmployeeDirectoryScreenProps {
   onBack?: () => void;
+  onNavigateAdd?: () => void;
+  onNavigateEdit?: (employeeId: string) => void;
 }
 
 export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = ({
   onBack,
+  onNavigateAdd,
+  onNavigateEdit,
 }) => {
+  const { employees, fetchEmployees } = useEmployeeStore();
   const [activeTab, setActiveTab] = useState<'asn' | 'units'>('asn');
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('Semua Role');
-  const [selectedUnit, setSelectedUnit] = useState('Semua Unit (79)');
+  const [selectedUnit, setSelectedUnit] = useState('Semua Unit');
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
+
+  const employeeList = employees.length > 0 ? employees : ASN_DATA;
+  const totalCount = employeeList.length;
+  const adminCount = employeeList.filter(
+    (e) => e.role === 'Administrator' || e.role === 'Admin Unit'
+  ).length;
+  const staffCount = employeeList.filter((e) => e.role === 'Staff').length;
+  const activeCount = employeeList.filter((e) => e.status === 'Aktif').length;
+  const inactiveCount = employeeList.filter((e) => e.status === 'Nonaktif').length;
 
   const roles = ['Semua Role', 'Administrator', 'Admin Unit', 'Staff'];
   const units = [
-    'Semua Unit (79)',
+    'Semua Unit',
     'Lintas Unit (1)',
     'Bagian Akademik (14)',
     'Sumber Daya PT (12)',
@@ -110,10 +129,14 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
   ];
 
   const handleAddEmployee = () => {
-    Alert.alert(
-      'Tambah Pegawai ASN',
-      'Formulir pendaftaran akun kedinasan baru akan dimuat.'
-    );
+    if (onNavigateAdd) {
+      onNavigateAdd();
+    } else {
+      Alert.alert(
+        'Tambah Pegawai ASN',
+        'Formulir pendaftaran akun kedinasan baru akan dimuat.'
+      );
+    }
   };
 
   const handleResetPassword = (name: string) => {
@@ -123,7 +146,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     );
   };
 
-  const filteredASN = ASN_DATA.filter((item) => {
+  const filteredASN = employeeList.filter((item) => {
     const matchSearch =
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.nip.includes(search) ||
@@ -131,7 +154,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     const matchRole =
       selectedRole === 'Semua Role' || item.role === selectedRole;
     const matchUnit =
-      selectedUnit === 'Semua Unit (79)' ||
+      selectedUnit === 'Semua Unit' ||
       (selectedUnit === 'Lintas Unit (1)' && item.unit.includes('Lintas Unit')) ||
       (selectedUnit === 'Bagian Akademik (14)' &&
         item.unit.includes('Akademik')) ||
@@ -148,7 +171,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     <View style={styles.container}>
       <Header
         title="Kelola Pegawai & Unit Kerja"
-        subtitle="Administrasi 79 ASN & 11 Unit Kerja"
+        subtitle={`Administrasi ${totalCount} ASN & 11 Unit Kerja`}
         showBack={Boolean(onBack)}
         onBack={onBack}
       />
@@ -164,8 +187,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               <Text style={styles.bentoLabel}>Total Pegawai</Text>
               <MaterialIcons name="group" size={16} color={colors.outline} />
             </View>
-            <Text style={styles.bentoValue}>79</Text>
-            <Text style={styles.bentoSub}>78 Staf · 1 Admin</Text>
+            <Text style={styles.bentoValue}>{totalCount}</Text>
+            <Text style={styles.bentoSub}>{staffCount} Staf · {adminCount} Admin</Text>
           </View>
 
           <View style={styles.bentoCol}>
@@ -186,8 +209,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               <Text style={styles.bentoLabel}>Status Akun</Text>
               <MaterialIcons name="badge" size={16} color={colors.outline} />
             </View>
-            <Text style={styles.bentoValue}>78</Text>
-            <Text style={styles.bentoSub}>1 Nonaktif / Mutasi</Text>
+            <Text style={styles.bentoValue}>{activeCount}</Text>
+            <Text style={styles.bentoSub}>{inactiveCount} Nonaktif / Cuti</Text>
           </View>
 
           <View style={styles.bentoCol}>
@@ -219,7 +242,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                 activeTab === 'asn' && styles.segmentedBtnTextActive,
               ]}
             >
-              Data Pegawai ASN (79)
+              Data Pegawai ASN ({totalCount})
             </Text>
           </Pressable>
 
@@ -416,9 +439,13 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                         <Text style={styles.cardActionBtnText}>Reset Sandi</Text>
                       </Pressable>
                       <Pressable
-                        onPress={() =>
-                          Alert.alert('Edit Pegawai', `Sunting profil ${item.name}`)
-                        }
+                        onPress={() => {
+                          if (onNavigateEdit) {
+                            onNavigateEdit(item.id);
+                          } else {
+                            Alert.alert('Edit Pegawai', `Sunting profil ${item.name}`);
+                          }
+                        }}
                         style={({ pressed }) => [
                           styles.cardActionBtn,
                           pressed && styles.btnPressed,

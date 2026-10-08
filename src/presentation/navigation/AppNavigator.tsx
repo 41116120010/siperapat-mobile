@@ -23,6 +23,8 @@ import { ReceiptScreen } from '../screens/ReceiptScreen';
 import { CreateMeetingScreen } from '../screens/CreateMeetingScreen';
 import { MonitoringScreen } from '../screens/MonitoringScreen';
 import { EmployeeDirectoryScreen } from '../screens/EmployeeDirectoryScreen';
+import { AddEmployeeScreen } from '../screens/AddEmployeeScreen';
+import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 
@@ -230,7 +232,32 @@ export const AppNavigator: React.FC = () => {
 
       <Stack.Screen name="EmployeeDirectory">
         {({ navigation }) => (
-          <EmployeeDirectoryScreen onBack={() => navigation.goBack()} />
+          <EmployeeDirectoryScreen
+            onBack={() => navigation.goBack()}
+            onNavigateAdd={() => navigation.navigate('AddEmployee')}
+            onNavigateEdit={(employeeId) =>
+              navigation.navigate('EditEmployee', { employeeId })
+            }
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="AddEmployee">
+        {({ navigation }) => (
+          <AddEmployeeScreen
+            onBack={() => navigation.goBack()}
+            onSuccess={() => navigation.goBack()}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="EditEmployee">
+        {({ navigation, route }) => (
+          <EditEmployeeScreen
+            employeeId={route.params.employeeId}
+            onBack={() => navigation.goBack()}
+            onSuccess={() => navigation.goBack()}
+          />
         )}
       </Stack.Screen>
 

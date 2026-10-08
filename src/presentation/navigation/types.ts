@@ -8,6 +8,8 @@ export type RootStackParamList = {
   CreateMeeting: undefined;
   Monitoring: { meetingId: string };
   EmployeeDirectory: undefined;
+  AddEmployee: undefined;
+  EditEmployee: { employeeId: string };
   AuditLog: undefined;
   ChangePassword: undefined;
 };

@@ -1,4 +1,4 @@
-import { ASN, Meeting, Attendance, AuditLog, ASNUnitMember } from '../entities/types';
+import { ASN, Meeting, Attendance, AuditLog, ASNUnitMember, Employee } from '../entities/types';
 
 export interface IAuthRepository {
   loginWithNIP(nip: string, password: string): Promise<ASN>;
@@ -25,4 +25,12 @@ export interface IAttendanceRepository {
   syncOfflineQueue(): Promise<number>;
   getAuditLogs(): Promise<AuditLog[]>;
   getUnitMembers(unitKerja?: string): Promise<ASNUnitMember[]>;
+}
+
+export interface IEmployeeRepository {
+  getEmployees(): Promise<Employee[]>;
+  getEmployeeById(id: string): Promise<Employee | null>;
+  createEmployee(employee: Omit<Employee, 'id' | 'initials'>): Promise<Employee>;
+  updateEmployee(id: string, employee: Partial<Employee>): Promise<Employee>;
+  deleteEmployee(id: string): Promise<boolean>;
 }
