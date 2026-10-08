@@ -27,6 +27,7 @@ import { AddEmployeeScreen } from '../screens/AddEmployeeScreen';
 import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
+import { GlobalFeedbackHost } from '../components/common/GlobalFeedbackHost';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createMaterialTopTabNavigator<MainTabParamList>();
@@ -144,9 +145,18 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
   );
 };
 
+const safeGoBack = (navigation: any, fallbackRoute = 'MainTabs') => {
+  if (navigation.canGoBack()) {
+    navigation.goBack();
+  } else {
+    navigation.navigate(fallbackRoute);
+  }
+};
+
 export const AppNavigator: React.FC = () => {
   return (
-    <Stack.Navigator
+    <>
+      <Stack.Navigator
       initialRouteName="Splash"
       screenOptions={{
         headerShown: false,
@@ -171,7 +181,7 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="ForgotPassword">
         {({ navigation }) => (
           <ForgotPasswordScreen
-            onBack={() => navigation.goBack()}
+            onBack={() => safeGoBack(navigation, 'Login')}
             onSuccessLogin={() => navigation.navigate('Login')}
           />
         )}
@@ -183,7 +193,7 @@ export const AppNavigator: React.FC = () => {
         {({ navigation, route }) => (
           <PresensiScreen
             meetingId={route.params.meetingId}
-            onBack={() => navigation.goBack()}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
             onSuccess={(id) => navigation.replace('Receipt', { attendanceId: id })}
           />
         )}
@@ -193,13 +203,7 @@ export const AppNavigator: React.FC = () => {
         {({ navigation, route }) => (
           <ReceiptScreen
             attendanceId={route.params.attendanceId}
-            onBack={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.navigate('MainTabs');
-              }
-            }}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
             onDone={() => navigation.navigate('MainTabs')}
             onViewAgendaDetail={(meetingId) => {
               if (meetingId) {
@@ -215,8 +219,8 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="CreateMeeting">
         {({ navigation }) => (
           <CreateMeetingScreen
-            onBack={() => navigation.goBack()}
-            onSuccess={() => navigation.goBack()}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
+            onSuccess={() => safeGoBack(navigation, 'MainTabs')}
           />
         )}
       </Stack.Screen>
@@ -225,7 +229,7 @@ export const AppNavigator: React.FC = () => {
         {({ navigation, route }) => (
           <MonitoringScreen
             meetingId={route.params.meetingId}
-            onBack={() => navigation.goBack()}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
           />
         )}
       </Stack.Screen>
@@ -233,7 +237,7 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="EmployeeDirectory">
         {({ navigation }) => (
           <EmployeeDirectoryScreen
-            onBack={() => navigation.goBack()}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
             onNavigateAdd={() => navigation.navigate('AddEmployee')}
             onNavigateEdit={(employeeId) =>
               navigation.navigate('EditEmployee', { employeeId })
@@ -245,8 +249,8 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="AddEmployee">
         {({ navigation }) => (
           <AddEmployeeScreen
-            onBack={() => navigation.goBack()}
-            onSuccess={() => navigation.goBack()}
+            onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
+            onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
           />
         )}
       </Stack.Screen>
@@ -255,27 +259,29 @@ export const AppNavigator: React.FC = () => {
         {({ navigation, route }) => (
           <EditEmployeeScreen
             employeeId={route.params.employeeId}
-            onBack={() => navigation.goBack()}
-            onSuccess={() => navigation.goBack()}
+            onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
+            onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
           />
         )}
       </Stack.Screen>
 
       <Stack.Screen name="AuditLog">
         {({ navigation }) => (
-          <AuditLogScreen onBack={() => navigation.goBack()} />
+          <AuditLogScreen onBack={() => safeGoBack(navigation, 'MainTabs')} />
         )}
       </Stack.Screen>
 
       <Stack.Screen name="ChangePassword">
         {({ navigation }) => (
           <ChangePasswordScreen
-            onBack={() => navigation.goBack()}
-            onSuccess={() => navigation.goBack()}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
+            onSuccess={() => safeGoBack(navigation, 'MainTabs')}
           />
         )}
       </Stack.Screen>
     </Stack.Navigator>
+    <GlobalFeedbackHost />
+    </>
   );
 };
 

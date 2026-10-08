@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  Alert,
   Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -15,6 +14,7 @@ import { typography } from '../../core/theme/typography';
 import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { useEmployeeStore } from '../store/useEmployeeStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface ASNItem {
   id: string;
@@ -132,18 +132,18 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     if (onNavigateAdd) {
       onNavigateAdd();
     } else {
-      Alert.alert(
-        'Tambah Pegawai ASN',
-        'Formulir pendaftaran akun kedinasan baru akan dimuat.'
-      );
+      useFeedbackStore.getState().showToast({
+        type: 'info',
+        message: 'Membuka formulir pendaftaran akun pegawai ASN baru...',
+      });
     }
   };
 
   const handleResetPassword = (name: string) => {
-    Alert.alert(
-      'Reset Kata Sandi',
-      `Tautan setel ulang kata sandi telah dikirim ke email kedinasan ${name}.`
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'success',
+      message: `Tautan setel ulang kata sandi dikirim ke email kedinasan ${name}.`,
+    });
   };
 
   const filteredASN = employeeList.filter((item) => {
@@ -443,7 +443,10 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                           if (onNavigateEdit) {
                             onNavigateEdit(item.id);
                           } else {
-                            Alert.alert('Edit Pegawai', `Sunting profil ${item.name}`);
+                            useFeedbackStore.getState().showToast({
+                              type: 'info',
+                              message: `Membuka formulir pembaruan data ${item.name}...`,
+                            });
                           }
                         }}
                         style={({ pressed }) => [

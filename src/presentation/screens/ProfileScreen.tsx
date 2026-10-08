@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   Pressable,
   TextInput,
   Platform,
@@ -15,6 +14,7 @@ import { typography } from '../../core/theme/typography';
 import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { useAuthStore } from '../store/useAuthStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface ProfileScreenProps {
   onLogout: () => void;
@@ -33,21 +33,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [whatsapp, setWhatsapp] = useState(user?.phone ?? '0812-6612-8901');
 
   const handleLogout = () => {
-    Alert.alert(
-      'Konfirmasi Keluar',
-      'Apakah Anda yakin ingin keluar dari akun kedinasan SIPERAPAT?',
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Keluar',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            onLogout();
-          },
-        },
-      ]
-    );
+    useFeedbackStore.getState().showModal({
+      type: 'confirm',
+      title: 'Konfirmasi Keluar',
+      message: 'Apakah Anda yakin ingin keluar dari akun kedinasan SIPERAPAT LLDIKTI X?',
+      confirmText: 'Keluar',
+      cancelText: 'Batal',
+      confirmVariant: 'destructive',
+      onConfirm: async () => {
+        await logout();
+        onLogout();
+      },
+    });
   };
 
   const handleChangePassword = () => {

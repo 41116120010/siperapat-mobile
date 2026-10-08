@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   RefreshControl,
-  Alert,
   Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -24,6 +23,7 @@ import {
 } from '../components/modals/MeetingFilterModal';
 import { useAuthStore } from '../store/useAuthStore';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
@@ -83,17 +83,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   ];
 
   const handlePdfView = (title: string) => {
-    Alert.alert(
-      'Unduhan Berkas Undangan',
-      `Surat Undangan Dinas Resmi untuk "${title}" (Nomor: 0142/LL10/KP/2026.pdf) dibuka.`
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'info',
+      message: `Membuka berkas surat undangan dinas untuk "${title}".`,
+    });
   };
 
   const handleJoinLink = (url?: string) => {
-    Alert.alert(
-      'Akses Zoom Kedinasan',
-      `Menghubungkan ke Ruang Sidang Virtual LLDIKTI X: ${url || 'Meeting ID: 894 1205 9920'}`
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'info',
+      message: `Menghubungkan ke ruang sidang virtual: ${url || 'Meeting ID: 894 1205 9920'}`,
+    });
   };
 
   return (

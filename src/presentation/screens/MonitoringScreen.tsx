@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  Alert,
   Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -15,6 +14,7 @@ import { typography } from '../../core/theme/typography';
 import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Button } from '../components/common/Button';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -87,31 +87,31 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
   const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
 
   const handleCopyBANumber = () => {
-    Alert.alert(
-      'Salin Nomor Berita Acara',
-      'Nomor BA-RAPAT/2026/0142/LLDIKTI-X berhasil disalin ke papan klip.'
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'success',
+      message: 'Nomor BA-RAPAT/2026/0142/LLDIKTI-X berhasil disalin ke clipboard.',
+    });
   };
 
   const handleDownloadPdf = () => {
-    Alert.alert(
-      'Unduh Berita Acara (PDF)',
-      'Dokumen Berita Acara Rapat resmi (BA-RAPAT/2026/0142/LLDIKTI-X.pdf) berhasil diunduh.'
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'success',
+      message: 'Dokumen Berita Acara Rapat resmi (PDF) berhasil diunduh.',
+    });
   };
 
   const handleDownloadWord = () => {
-    Alert.alert(
-      'Unduh Risalah Sidang (DOCX)',
-      'Naskah dinas risalah sidang (BA-RAPAT/2026/0142/LLDIKTI-X.docx) berhasil diunduh untuk pengarsipan.'
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'success',
+      message: 'Naskah dinas risalah sidang (DOCX) berhasil diunduh.',
+    });
   };
 
   const handleDownloadExcel = () => {
-    Alert.alert(
-      'Unduh Tabulasi Kehadiran (Excel)',
-      'Data tabulasi rekapan presensi 79 ASN (Excel / CSV) berhasil diekspor.'
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'success',
+      message: 'Data tabulasi rekapan presensi 79 ASN (Excel / CSV) berhasil diekspor.',
+    });
   };
 
   const displayList =

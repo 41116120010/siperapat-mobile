@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
   TextInput,
   Platform,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { typography } from '../../core/theme/typography';
 import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 import { MeetingType } from '../../domain/entities/types';
 import {
   AgendaOptionModal,
@@ -293,28 +293,32 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   };
 
   const handleUploadFile = () => {
-    Alert.alert(
-      'Dokumen Dilampirkan',
-      'Berkas "Surat_Undangan_Rapat_Akreditasi_2026.pdf" (1.4 MB) berhasil dilampirkan.'
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'success',
+      message: 'Berkas "Surat_Undangan_Rapat_Akreditasi_2026.pdf" (1.4 MB) berhasil dilampirkan.',
+    });
     setAttachedFile('Surat_Undangan_Rapat_Akreditasi_2026.pdf');
   };
 
   const handleSaveDraft = () => {
-    Alert.alert(
-      'Konsep Tersimpan',
-      'Rancangan agenda rapat berhasil disimpan sebagai draf lokal.'
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'info',
+      message: 'Rancangan agenda rapat berhasil disimpan sebagai draf lokal.',
+    });
   };
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      Alert.alert('Perhatian', 'Harap isi perihal agenda rapat.');
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Harap isi perihal agenda rapat kedinasan.',
+      });
       return;
     }
 
+    const meetingCode = `RPK-${Math.floor(1000 + Math.random() * 9000)}-X`;
     const ok = await createMeeting({
-      code: `RPK-${Math.floor(1000 + Math.random() * 9000)}-X`,
+      code: meetingCode,
       title,
       type: formatType,
       leader: leaderName,
@@ -335,9 +339,19 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     });
 
     if (ok) {
-      Alert.alert('Sukses', 'Agenda rapat kedinasan berhasil diterbitkan.', [
-        { text: 'OK', onPress: onSuccess },
-      ]);
+      useFeedbackStore.getState().showModal({
+        type: 'success',
+        title: 'Agenda Rapat Berhasil Diterbitkan',
+        message: 'Agenda rapat kedinasan telah resmi tercatat dan disinkronkan ke kalender presensi aparatur.',
+        detail: {
+          'Kode Rapat': meetingCode,
+          'Perihal': title,
+          'Format': formatType.toUpperCase(),
+          'Pimpinan': leaderName,
+        },
+        confirmText: 'Kembali ke Agenda',
+        onConfirm: onSuccess,
+      });
     }
   };
 
@@ -952,7 +966,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               <View style={styles.attachedActions}>
                 <Pressable
                   onPress={() =>
-                    Alert.alert('Pratinjau Dokumen', `Berkas: ${attachedFile}`)
+                    useFeedbackStore.getState().showToast({
+                      type: 'info',
+                      message: `Membuka pratinjau berkas: ${attachedFile}`,
+                    })
                   }
                   style={styles.attachedActionBtn}
                   accessibilityLabel="Pratinjau lampiran"

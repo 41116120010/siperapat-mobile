@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -18,6 +17,7 @@ import { DigitalSignaturePad } from '../components/attendance/DigitalSignaturePa
 import { useAuthStore } from '../store/useAuthStore';
 import { useAttendanceStore } from '../store/useAttendanceStore';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface PresensiScreenProps {
   meetingId: string;
@@ -45,10 +45,10 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
 
   const handleSubmit = async () => {
     if (!isAgreementChecked) {
-      Alert.alert(
-        'Pernyataan Kehadiran',
-        'Harap centang pernyataan sah kehadiran sebelum mengirim.'
-      );
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Harap centang pernyataan sah integritas kehadiran sebelum mengirim.',
+      });
       return;
     }
 

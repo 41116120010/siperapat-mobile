@@ -16,6 +16,7 @@ import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
+import { FeedbackModal } from '../components/modals/FeedbackModal';
 import { useAuthStore } from '../store/useAuthStore';
 
 interface ChangePasswordScreenProps {
@@ -85,7 +86,17 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
     }
   };
 
+  const isActionHandledRef = React.useRef(false);
+
+  const handleBack = () => {
+    if (isActionHandledRef.current) return;
+    isActionHandledRef.current = true;
+    onBack();
+  };
+
   const handleFinishSuccess = () => {
+    if (isActionHandledRef.current) return;
+    isActionHandledRef.current = true;
     setShowSuccessModal(false);
     onSuccess();
   };
@@ -96,7 +107,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
         title="Ubah Kata Sandi"
         subtitle="Keamanan Akun Kedinasan LLDIKTI X"
         showBack
-        onBack={onBack}
+        onBack={handleBack}
       />
 
       <KeyboardAvoidingView
@@ -372,7 +383,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
 
               <Button
                 title="Batal"
-                onPress={onBack}
+                onPress={handleBack}
                 disabled={isLoading}
                 variant="outline"
                 fullWidth
@@ -383,40 +394,15 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
       </KeyboardAvoidingView>
 
       {/* MODAL FEEDBACK SUKSES ENTERPRISE */}
-      <Modal
+      <FeedbackModal
         visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={handleFinishSuccess}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.successIconWrap}>
-              <MaterialIcons
-                name="check-circle"
-                size={54}
-                color={colors.success}
-              />
-            </View>
-
-            <Text style={styles.modalTitle}>Kata Sandi Berhasil Diperbarui</Text>
-            <Text style={styles.modalSubtitle}>
-              Kredensial akun ASN Anda telah diperbarui pada sistem pusat
-              kepegawaian LLDIKTI Wilayah X.
-            </Text>
-
-            <View style={styles.modalDivider} />
-
-            <Button
-              title="Kembali ke Profil"
-              onPress={handleFinishSuccess}
-              variant="primary"
-              fullWidth
-            />
-          </View>
-        </View>
-      </Modal>
+        onClose={handleFinishSuccess}
+        type="success"
+        title="Kata Sandi Berhasil Diperbarui"
+        message="Kredensial akun ASN Anda telah diperbarui pada sistem pusat kepegawaian LLDIKTI Wilayah X."
+        confirmText="Kembali ke Profil"
+        onConfirm={handleFinishSuccess}
+      />
     </View>
   );
 };
@@ -588,57 +574,5 @@ const styles = StyleSheet.create({
   actionsRow: {
     gap: spacing.sm,
     marginTop: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(11, 28, 48, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.xl,
-    padding: spacing.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
-  },
-  successIconWrap: {
-    marginBottom: spacing.md,
-  },
-  modalTitle: {
-    ...typography.headlineSm,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.onSurface,
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  modalSubtitle: {
-    ...typography.bodySm,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  modalDivider: {
-    height: 1,
-    backgroundColor: 'rgba(197, 197, 211, 0.3)',
-    width: '100%',
-    marginVertical: spacing.md,
   },
 });

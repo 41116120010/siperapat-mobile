@@ -6,7 +6,6 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -16,6 +15,7 @@ import { Header } from '../components/common/Header';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 import { Meeting } from '../../domain/entities/types';
 
 interface AgendaScreenProps {
@@ -40,17 +40,17 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   });
 
   const handlePdfView = (title: string) => {
-    Alert.alert(
-      'Unduh Berkas Undangan',
-      `Surat Undangan Dinas Resmi untuk "${title}" (Nomor: 0142/LL10/KP/2026.pdf) dibuka.`
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'info',
+      message: `Membuka berkas surat undangan dinas untuk "${title}".`,
+    });
   };
 
   const handleJoinLink = (url?: string) => {
-    Alert.alert(
-      'Akses Zoom Kedinasan',
-      `Menghubungkan ke Ruang Sidang Virtual LLDIKTI X: ${url || 'Meeting ID: 982 348 1239'}`
-    );
+    useFeedbackStore.getState().showToast({
+      type: 'info',
+      message: `Menghubungkan ke ruang sidang virtual: ${url || 'Meeting ID: 982 348 1239'}`,
+    });
   };
 
   return (

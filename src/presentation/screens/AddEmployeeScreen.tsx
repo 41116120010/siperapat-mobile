@@ -17,6 +17,7 @@ import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { AgendaOptionModal } from '../components/modals/AgendaOptionModal';
+import { FeedbackModal } from '../components/modals/FeedbackModal';
 import { OFFICIAL_UNITS, PANGKAT_GOLONGAN_OPTIONS } from '../constants/employeeOptions';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { cleanNIP, validateNIP } from '../../core/utils/nipValidator';
@@ -123,7 +124,17 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
     }
   };
 
+  const isActionHandledRef = React.useRef(false);
+
+  const handleBack = () => {
+    if (isActionHandledRef.current) return;
+    isActionHandledRef.current = true;
+    onBack?.();
+  };
+
   const handleSuccessClose = () => {
+    if (isActionHandledRef.current) return;
+    isActionHandledRef.current = true;
     setShowSuccessModal(false);
     if (onSuccess) {
       onSuccess();
@@ -138,7 +149,7 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
         title="Tambah Pegawai ASN"
         subtitle="Registrasi Personel & Akun Kedinasan"
         showBack={Boolean(onBack)}
-        onBack={onBack}
+        onBack={handleBack}
       />
 
       <KeyboardAvoidingView
@@ -570,60 +581,25 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
       />
 
       {/* SUCCESS CONFIRMATION MODAL */}
-      <Modal
+      <FeedbackModal
         visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={handleSuccessClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalSuccessIconWrap}>
-              <MaterialIcons name="check" size={32} color="#005A36" />
-            </View>
-
-            <Text style={styles.modalTitle}>Pegawai Berhasil Didaftarkan</Text>
-            <Text style={styles.modalDesc}>
-              Akun kedinasan aparatur sipil negara telah resmi tercatat di sistem SIPERAPAT LLDIKTI X.
-            </Text>
-
-            {createdSummary && (
-              <View style={styles.summaryBox}>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Nama</Text>
-                  <Text style={styles.summaryValue} numberOfLines={1}>
-                    {createdSummary.name}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>NIP</Text>
-                  <Text style={[styles.summaryValue, styles.monoText]}>
-                    {createdSummary.nip}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Unit</Text>
-                  <Text style={styles.summaryValue} numberOfLines={1}>
-                    {createdSummary.unit}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Peran</Text>
-                  <Text style={styles.summaryValue}>{createdSummary.role}</Text>
-                </View>
-              </View>
-            )}
-
-            <Button
-              title="Kembali ke Direktori Pegawai"
-              onPress={handleSuccessClose}
-              variant="primary"
-              size="md"
-              fullWidth
-            />
-          </View>
-        </View>
-      </Modal>
+        onClose={handleSuccessClose}
+        type="success"
+        title="Pegawai Berhasil Didaftarkan"
+        message="Akun kedinasan aparatur sipil negara telah resmi tercatat di sistem SIPERAPAT LLDIKTI X."
+        detail={
+          createdSummary
+            ? {
+                Nama: createdSummary.name,
+                NIP: createdSummary.nip,
+                Unit: createdSummary.unit,
+                Peran: createdSummary.role,
+              }
+            : undefined
+        }
+        confirmText="Kembali ke Direktori Pegawai"
+        onConfirm={handleSuccessClose}
+      />
     </View>
   );
 };
@@ -879,86 +855,5 @@ const styles = StyleSheet.create({
   actionSection: {
     gap: spacing.sm,
     marginTop: spacing.xs,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  modalCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.xl,
-    padding: spacing.lg,
-    width: '100%',
-    maxWidth: 380,
-    alignItems: 'center',
-    gap: spacing.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 0,
-        borderWidth: 1,
-        borderColor: 'rgba(197, 197, 211, 0.5)',
-      },
-    }),
-  },
-  modalSuccessIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(0, 102, 68, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalTitle: {
-    ...typography.headlineSm,
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.onSurface,
-    textAlign: 'center',
-  },
-  modalDesc: {
-    ...typography.bodySm,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    lineHeight: 17,
-  },
-  summaryBox: {
-    width: '100%',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.md,
-    padding: spacing.sm + 4,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    ...typography.labelSm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-  },
-  summaryValue: {
-    ...typography.bodySm,
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: colors.onSurface,
-    maxWidth: '65%',
-  },
-  monoText: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    letterSpacing: 0.5,
   },
 });
