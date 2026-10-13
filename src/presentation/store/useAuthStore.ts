@@ -8,9 +8,8 @@ interface AuthState {
   user: ASN | null;
   isLoading: boolean;
   error: string | null;
-  checkSession: () => Promise<void>;
-  login: (nip: string, password?: string) => Promise<boolean>;
-  loginBiometric: () => Promise<boolean>;
+  checkSession: () => Promise<boolean>;
+  login: (identifier: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   changePassword: (
     currentPassword: string,
@@ -29,19 +28,21 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await authRepo.getCurrentUser();
       set({ user, isLoading: false });
+      return Boolean(user);
     } catch (err: unknown) {
       set({
         user: null,
         isLoading: false,
         error: err instanceof Error ? err.message : 'Gagal memeriksa sesi pengguna',
       });
+      return false;
     }
   },
 
-  login: async (nip: string, password?: string) => {
+  login: async (identifier: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const user = await authRepo.loginWithNIP(nip, password);
+      const user = await authRepo.loginWithNIP(identifier, password);
       set({ user, isLoading: false });
       return true;
     } catch (err: unknown) {
@@ -53,25 +54,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  loginBiometric: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const user = await authRepo.loginWithBiometrics();
-      set({ user, isLoading: false });
-      return true;
-    } catch (err: unknown) {
-      set({
-        isLoading: false,
-        error: err instanceof Error ? err.message : 'Sensor biometrik gagal memverifikasi.',
-      });
-      return false;
-    }
-  },
-
   logout: async () => {
     set({ isLoading: true });
-    await authRepo.logout();
-    set({ user: null, isLoading: false, error: null });
+    try {
+      await authRepo.logout();
+      set({ user: null, isLoading: false, error: null });
+    } catch {
+      set({ user: null, isLoading: false, error: null });
+    }
   },
 
   changePassword: async (currentPassword: string, newPassword: string) => {

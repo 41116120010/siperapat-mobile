@@ -49,6 +49,9 @@
       "shortName": "SIPERAPAT",
       "themeColor": "#00236F",
       "backgroundColor": "#00236F"
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

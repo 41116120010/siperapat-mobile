@@ -78,13 +78,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
             <View style={styles.profileMetaInfo}>
               <Text style={styles.profileName}>
-                {user?.name ?? 'Afdalisma, SH, M.Pd'}
+                {user?.name ?? 'Nama pengguna'}
               </Text>
               <Text style={styles.profileRoleTitle}>
-                {user?.jabatan ?? 'Kepala Lembaga'}
+                {user?.jabatan ?? 'Jabatan tidak tersedia'}
               </Text>
               <Text style={styles.profileMetaSub} numberOfLines={2}>
-                {user?.pangkatGolongan ?? 'Pembina Utama Madya (IV/d)'} • {user?.unitKerja ?? 'LLDIKTI Wilayah X'}
+                {[user?.pangkatGolongan, user?.unitKerja].filter(Boolean).join(' • ') || 'Informasi unit belum tersedia'}
               </Text>
             </View>
           </View>
@@ -125,7 +125,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.readonlyInputRow}>
               <MaterialIcons name="badge" size={18} color={colors.outline} />
               <Text style={styles.readonlyInputValueMono}>
-                {user?.nip ?? '197012051992032002'}
+                {user?.nip || '—'}
               </Text>
             </View>
           </View>
@@ -135,7 +135,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.readonlyInputRow}>
               <MaterialIcons name="alternate-email" size={18} color={colors.outline} />
               <Text style={styles.readonlyInputValue}>
-                {user?.username ?? 'afdalisma'}
+                {user?.username ?? '—'}
               </Text>
             </View>
           </View>
@@ -145,7 +145,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.readonlyInputRow}>
               <MaterialIcons name="mail" size={18} color={colors.outline} />
               <Text style={styles.readonlyInputValue} numberOfLines={1}>
-                {user?.email ?? 'afdalisma@lldikti10.kemdikbud.go.id'}
+                {user?.email || '—'}
               </Text>
             </View>
           </View>

@@ -115,10 +115,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         <View style={styles.greetingSection}>
           <Text style={styles.greetingSub}>Selamat Pagi,</Text>
           <Text style={styles.greetingName}>
-            {user?.name ?? 'Afdalisma, SH, M.Pd'}
+            {user?.name ?? 'Nama pengguna'}
           </Text>
           <Text style={styles.greetingRole}>
-            {user?.jabatan ?? 'Kepala LLDIKTI Wilayah X'}
+            {user?.jabatan ?? 'Jabatan tidak tersedia'}
           </Text>
         </View>
 

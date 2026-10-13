@@ -127,10 +127,10 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
               </View>
               <View style={styles.accountMeta}>
                 <Text style={styles.accountName}>
-                  {user?.name ?? 'Afdalisma, SH, M.Pd'}
+                  {user?.name ?? 'Nama pengguna'}
                 </Text>
                 <Text style={styles.accountNip}>
-                  NIP. {user?.nip ?? '197012051992032002'} • {user?.jabatan ?? 'Kepala Lembaga'}
+                  NIP. {user?.nip || '—'} • {user?.jabatan ?? 'Jabatan tidak tersedia'}
                 </Text>
               </View>
             </View>

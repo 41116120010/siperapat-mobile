@@ -17,7 +17,6 @@ import { rounded, spacing, elevations } from '../../core/theme/tokens';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { useAuthStore } from '../store/useAuthStore';
-import { formatNIP } from '../../core/utils/nipValidator';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -28,10 +27,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onLoginSuccess,
   onNavigateForgotPassword,
 }) => {
-  const [identifier, setIdentifier] = useState('19701205 199203 2 002');
-  const [password, setPassword] = useState('lldikti2026');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberDevice, setRememberDevice] = useState(true);
 
   const { login, isLoading, error, clearError } = useAuthStore();
 
@@ -41,12 +39,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   }, [identifier]);
 
   const handleIdentifierChange = (val: string) => {
-    // Jika input berupa angka/spasi, terapkan pemformatan NIP cerdas
-    if (/^[0-9\s]*$/.test(val)) {
-      setIdentifier(formatNIP(val));
-    } else {
-      setIdentifier(val);
-    }
+    setIdentifier(val);
     if (error) clearError();
   };
 
@@ -145,21 +138,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               }
             />
           </View>
-
-          {/* Remember Me Checkbox */}
-          <Pressable
-            onPress={() => setRememberDevice(!rememberDevice)}
-            style={styles.rememberRow}
-          >
-            <MaterialIcons
-              name={rememberDevice ? 'check-box' : 'check-box-outline-blank'}
-              size={20}
-              color={rememberDevice ? colors.primary : colors.outline}
-            />
-            <Text style={styles.rememberText}>
-              Ingat perangkat ini (30 Hari)
-            </Text>
-          </Pressable>
 
           {/* Error Banner */}
           {error ? (

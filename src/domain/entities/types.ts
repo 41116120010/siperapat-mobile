@@ -7,9 +7,9 @@ export interface ASN {
   id: string;
   nip: string; // 18 Digits
   name: string;
-  pangkatGolongan: string;
-  jabatan: string;
-  unitKerja: string;
+  pangkatGolongan?: string;
+  jabatan?: string;
+  unitKerja?: string;
   email: string;
   phone: string;
   avatarUrl?: string;
