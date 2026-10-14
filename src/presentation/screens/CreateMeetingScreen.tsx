@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { Header } from '../components/common/Header';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { MeetingType } from '../../domain/entities/types';
+import { ErrorState } from '../components/common/ErrorState';
 import {
   AgendaOptionModal,
   AgendaOption,
@@ -31,22 +32,7 @@ type ActiveModalType =
   | 'classification'
   | 'leader'
   | 'notulis'
-  | 'date'
-  | 'venue';
-
-const UNIT_KERJA_LIST = [
-  'Bagian Umum & Tata Usaha',
-  'Bagian Akademik & Kemahasiswaan',
-  'Bagian Sumber Daya PT',
-  'Pokja Penjaminan Mutu',
-  'Pokja Pendidik & Tendik',
-  'Pokja Kelembagaan & Kerjasama',
-  'Pokja Riset & Pengabdian',
-  'Pokja Sistem Informasi & PDDIKTI',
-  'Subbag Tata Usaha & BMN',
-  'Subbag Perencanaan & Keuangan',
-  'Subbag Kepegawaian & Ortala',
-];
+  | 'date';
 
 const CLASSIFICATION_OPTIONS: AgendaOption[] = [
   {
@@ -86,199 +72,55 @@ const CLASSIFICATION_OPTIONS: AgendaOption[] = [
   },
 ];
 
-const LEADER_OPTIONS: AgendaOption[] = [
-  {
-    id: '197012051992032002',
-    title: 'Afdalisma, SH, M.Pd',
-    subtitle: 'Kepala LLDIKTI Wilayah X • NIP. 197012051992032002',
-    badge: 'Kepala Lembaga',
-    icon: 'person',
-  },
-  {
-    id: '196803151991031002',
-    title: 'Dr. Hj. Syahril, M.Pd',
-    subtitle: 'Sekretaris LLDIKTI Wilayah X • NIP. 196803151991031002',
-    badge: 'Sekretaris',
-    icon: 'person',
-  },
-  {
-    id: '197405101998032001',
-    title: 'Ely Susanti, SE, MM',
-    subtitle: 'Kepala Bagian Umum • NIP. 197405101998032001',
-    badge: 'Kabag Umum',
-    icon: 'person',
-  },
-  {
-    id: '198104122005012003',
-    title: 'Desy Rachmawaty, SE, MM',
-    subtitle: 'Ketua Tim Kerja Kelembagaan • NIP. 198104122005012003',
-    badge: 'Ketua Tim',
-    icon: 'person',
-  },
-];
-
-const NOTULIS_OPTIONS: AgendaOption[] = [
-  {
-    id: 'rahmat',
-    title: 'Rahmat Hidayat, S.Kom',
-    subtitle: 'Subbag Sistem Informasi & Tata Kelola IT',
-    badge: 'Analis TI',
-    icon: 'edit-note',
-  },
-  {
-    id: 'siti',
-    title: 'Siti Rahmawati, S.AP',
-    subtitle: 'Subbag Tata Usaha, Kearsipan & Protokol',
-    badge: 'Arsiparis',
-    icon: 'edit-note',
-  },
-  {
-    id: 'budi',
-    title: 'Budi Santoso, SE',
-    subtitle: 'Subbag Perencanaan, Keuangan & BMN',
-    badge: 'Pranata Keu',
-    icon: 'edit-note',
-  },
-  {
-    id: 'ilham',
-    title: 'Ilham Pratama, S.Kom',
-    subtitle: 'Pokja Penjaminan Mutu & Akreditasi',
-    badge: 'Notulis Mutu',
-    icon: 'edit-note',
-  },
-  {
-    id: 'febrina',
-    title: 'Febrina Anggraini, SE',
-    subtitle: 'Pokja Sumber Daya & Tenaga Pendidik',
-    badge: 'Notulis SDM',
-    icon: 'edit-note',
-  },
-];
-
-const DATE_OPTIONS: AgendaOption[] = [
-  {
-    id: '2026-10-23',
-    title: 'Hari Ini — Rabu, 23 Oktober 2026',
-    subtitle: 'Jadwal penyelenggaraan hari kerja berjalan',
-    badge: 'Hari Ini',
-    icon: 'today',
-  },
-  {
-    id: '2026-10-24',
-    title: 'Besok — Kamis, 24 Oktober 2026',
-    subtitle: 'Rekomendasi jadwal sidang koordinasi rutin',
-    badge: 'Besok',
-    icon: 'event',
-  },
-  {
-    id: '2026-10-25',
-    title: 'Jumat, 25 Oktober 2026',
-    subtitle: 'Sesi rapat pimpinan akhir pekan',
-    badge: 'Minggu Ini',
-    icon: 'date-range',
-  },
-  {
-    id: '2026-10-28',
-    title: 'Senin, 28 Oktober 2026',
-    subtitle: 'Pembuka agenda kedinasan pekan depan',
-    badge: 'Pekan Depan',
-    icon: 'date-range',
-  },
-  {
-    id: '2026-10-31',
-    title: 'Kamis, 31 Oktober 2026',
-    subtitle: 'Sidang evaluasi capaian akhir bulan',
-    badge: 'Akhir Bulan',
-    icon: 'event-available',
-  },
-  {
-    id: '2026-11-04',
-    title: 'Rabu, 4 November 2026',
-    subtitle: 'Agenda terencana awal bulan berikutnya',
-    badge: 'Bulan Depan',
-    icon: 'event-available',
-  },
-];
-
-const VENUE_OPTIONS: AgendaOption[] = [
-  {
-    id: 'utama',
-    title: 'Ruang Sidang Utama Gedung A',
-    subtitle: 'Kapasitas 80 Orang • Sound System & Video Wall • AC Central',
-    badge: 'Kapasitas 80',
-    icon: 'meeting-room',
-  },
-  {
-    id: 'pimpinan',
-    title: 'Ruang Rapat Pimpinan Lt. 2',
-    subtitle: 'Kapasitas 25 Orang • Smart Screen Interactive',
-    badge: 'Kapasitas 25',
-    icon: 'meeting-room',
-  },
-  {
-    id: 'pokja',
-    title: 'Ruang Rapat Pokja Penjaminan Mutu',
-    subtitle: 'Kapasitas 20 Orang • Gedung B Lantai 1',
-    badge: 'Kapasitas 20',
-    icon: 'meeting-room',
-  },
-  {
-    id: 'aula',
-    title: 'Aula Ki Hadjar Dewantara',
-    subtitle: 'Kapasitas 150 Orang • Khusus Pertemuan Pleno Besar',
-    badge: 'Kapasitas 150',
-    icon: 'apartment',
-  },
-  {
-    id: 'akademik',
-    title: 'Ruang Rapat Akademik Gedung B',
-    subtitle: 'Kapasitas 35 Orang • LCD Proyektor & Geofence Valid',
-    badge: 'Kapasitas 35',
-    icon: 'meeting-room',
-  },
-];
+function localDateIso(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   onBack,
   onSuccess,
 }) => {
-  const { createMeeting, isLoading } = useMeetingStore();
+  const { createMeeting, isLoading, error, formOptions, isFormOptionsLoading, formOptionsError, fetchAgendaFormOptions } = useMeetingStore();
+  useEffect(() => { void fetchAgendaFormOptions(); }, [fetchAgendaFormOptions]);
 
-  const [title, setTitle] = useState(
-    'Rapat Koordinasi Penjaminan Mutu & Akreditasi Program Studi PTS 2026'
-  );
+  const [title, setTitle] = useState('');
   const [classification, setClassification] = useState('koordinasi');
   const [formatType, setFormatType] = useState<MeetingType>('hybrid');
-  const [leaderName, setLeaderName] = useState('Afdalisma, SH, M.Pd');
-  const [leaderNip, setLeaderNip] = useState('197012051992032002');
-  const [leaderRole, setLeaderRole] = useState('Kepala LLDIKTI Wilayah X');
-  const [notulisName, setNotulisName] = useState('Rahmat Hidayat, S.Kom');
-  const [notulisId, setNotulisId] = useState('rahmat');
+  const [leaderId, setLeaderId] = useState('');
+  const [notulisId, setNotulisId] = useState('');
 
-  const [date, setDate] = useState('Kamis, 24 Oktober 2026');
-  const [dateIso, setDateIso] = useState('2026-10-24');
+  const [dateIso, setDateIso] = useState(localDateIso(new Date()));
+  const date = new Date(`${dateIso}T12:00:00`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
-  const [venue, setVenue] = useState('Ruang Sidang Utama Gedung A');
-  const [venueId, setVenueId] = useState('utama');
-  const [zoomUrl, setZoomUrl] = useState(
-    'https://zoom.lldikti10.kemdikbud.go.id/j/9823481239'
-  );
-  const [meetingIdInput, setMeetingIdInput] = useState('982 348 1239');
-  const [passcode, setPasscode] = useState('LLDIKTI10');
+  const [venue, setVenue] = useState('');
+  const [zoomUrl, setZoomUrl] = useState('');
 
   const [scopeUniversal, setScopeUniversal] = useState(true);
-  const [selectedUnits, setSelectedUnits] = useState<string[]>([
-    'Bagian Umum & Tata Usaha',
-    'Bagian Akademik & Kemahasiswaan',
-    'Bagian Sumber Daya PT',
-    'Pokja Penjaminan Mutu',
-    'Pokja Pendidik & Tendik',
-  ]);
+  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
 
-  const [attachedFile, setAttachedFile] = useState<string | null>(
-    'Surat_Undangan_Rapat_Akreditasi_2026.pdf'
-  );
+  const attachedFile: string | null = null;
+
+  const leader = formOptions?.users.find((person) => person.id === leaderId);
+  const notulis = formOptions?.users.find((person) => person.id === notulisId);
+  const peopleOptions: AgendaOption[] = (formOptions?.users ?? []).map((person) => ({
+    id: person.id, title: person.name,
+    subtitle: [person.role, person.nip ? `NIP ${person.nip}` : null, person.unitName].filter(Boolean).join(' • '),
+    badge: person.role, icon: 'person',
+  }));
+  const dateOptions: AgendaOption[] = Array.from({ length: 30 }, (_, offset) => {
+    const value = new Date(); value.setDate(value.getDate() + offset);
+    const id = localDateIso(value);
+    return { id, title: value.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), subtitle: '', badge: offset === 0 ? 'Hari ini' : offset === 1 ? 'Besok' : undefined, icon: 'event' };
+  });
+  const durationMinutes = (() => {
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+    return Math.max(0, endHour * 60 + endMinute - startHour * 60 - startMinute);
+  })();
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
 
@@ -294,20 +136,12 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
 
   const handleUploadFile = () => {
     useFeedbackStore.getState().showToast({
-      type: 'success',
-      message: 'Berkas "Surat_Undangan_Rapat_Akreditasi_2026.pdf" (1.4 MB) berhasil dilampirkan.',
-    });
-    setAttachedFile('Surat_Undangan_Rapat_Akreditasi_2026.pdf');
-  };
-
-  const handleSaveDraft = () => {
-    useFeedbackStore.getState().showToast({
       type: 'info',
-      message: 'Rancangan agenda rapat berhasil disimpan sebagai draf lokal.',
+      message: 'Unggah surat edaran belum termasuk integrasi tahap ini.',
     });
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (status: 'draft' | 'scheduled' = 'scheduled') => {
     if (!title.trim()) {
       useFeedbackStore.getState().showToast({
         type: 'warning',
@@ -316,38 +150,30 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       return;
     }
 
-    const meetingCode = `RPK-${Math.floor(1000 + Math.random() * 9000)}-X`;
-    const ok = await createMeeting({
-      code: meetingCode,
-      title,
-      type: formatType,
-      leader: leaderName,
-      date: dateIso,
-      startTime,
-      endTime,
-      venue: formatType === 'online' ? 'Daring (Video Conference)' : venue,
-      status: 'upcoming',
-      geofenceRadiusMeters: 50,
-      latitude: -0.92348,
-      longitude: 100.36214,
-      zoomUrl: formatType !== 'offline' ? zoomUrl : undefined,
-      agendaDescription: `${title}. Penyelenggaraan secara ${formatType}. Notulis: ${notulisName}.`,
-      targetAudience: scopeUniversal
-        ? 'Seluruh Unit Kerja (Pleno)'
-        : `${selectedUnits.length} Unit Kerja Terpilih`,
-      totalInvited: scopeUniversal ? 79 : selectedUnits.length * 7,
+    if ((!scopeUniversal && selectedUnits.length === 0) || (formatType !== 'online' && !venue.trim()) || (formatType !== 'offline' && !zoomUrl.trim())) {
+      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Lengkapi lokasi/tautan rapat dan pilih minimal satu unit untuk sasaran khusus.' });
+      return;
+    }
+    const created = await createMeeting({
+      judul_rapat: title.trim(), jenis_rapat: selectedClassification.title,
+      tipe_rapat: formatType, lokasi_ruang: formatType === 'online' ? null : venue.trim(),
+      link_meeting: formatType === 'offline' ? null : zoomUrl.trim(),
+      waktu_mulai: `${dateIso}T${startTime}:00+07:00`, waktu_selesai: `${dateIso}T${endTime}:00+07:00`,
+      pimpinan_id: leaderId ? Number(leaderId) : null, notulis_id: notulisId ? Number(notulisId) : null,
+      is_all_units: scopeUniversal, unit_ids: scopeUniversal ? undefined : selectedUnits.map(Number),
+      status,
     });
 
-    if (ok) {
+    if (created) {
       useFeedbackStore.getState().showModal({
         type: 'success',
-        title: 'Agenda Rapat Berhasil Diterbitkan',
-        message: 'Agenda rapat kedinasan telah resmi tercatat dan disinkronkan ke kalender presensi aparatur.',
+        title: status === 'draft' ? 'Konsep Agenda Tersimpan' : 'Agenda Rapat Berhasil Diterbitkan',
+        message: status === 'draft' ? 'Konsep agenda berhasil disimpan sebagai draf di server.' : 'Agenda rapat berhasil disimpan oleh server.',
         detail: {
-          'Kode Rapat': meetingCode,
-          'Perihal': title,
+          'Kode Rapat': created.code,
+          'Perihal': created.title,
           'Format': formatType.toUpperCase(),
-          'Pimpinan': leaderName,
+          'Pimpinan': leader?.name ?? 'Belum ditentukan',
         },
         confirmText: 'Kembali ke Agenda',
         onConfirm: onSuccess,
@@ -373,29 +199,22 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         return {
           title: 'Pilih Pimpinan Rapat',
           subtitle: 'Penanggung jawab sidang kedinasan LLDIKTI Wilayah X',
-          options: LEADER_OPTIONS,
-          selectedId: leaderNip,
+          options: peopleOptions,
+          selectedId: leaderId,
         };
       case 'notulis':
         return {
           title: 'Pilih Petugas Notulis',
           subtitle: 'Petugas penyusun risalah dan notulensi sidang',
-          options: NOTULIS_OPTIONS,
+          options: peopleOptions,
           selectedId: notulisId,
         };
       case 'date':
         return {
           title: 'Pilih Tanggal Pelaksanaan',
           subtitle: 'Jadwal hari kerja pelaksanaan agenda kedinasan',
-          options: DATE_OPTIONS,
+          options: dateOptions,
           selectedId: dateIso,
-        };
-      case 'venue':
-        return {
-          title: 'Pilih Ruang Rapat',
-          subtitle: 'Lokasi fisik ruang sidang di lingkungan kantor LLDIKTI X',
-          options: VENUE_OPTIONS,
-          selectedId: venueId,
         };
       default:
         return {
@@ -413,25 +232,13 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         setClassification(option.id);
         break;
       case 'leader':
-        setLeaderName(option.title);
-        setLeaderNip(option.id);
-        setLeaderRole(option.badge || 'Pimpinan Rapat');
+        setLeaderId(option.id);
         break;
       case 'notulis':
-        setNotulisName(option.title);
         setNotulisId(option.id);
         break;
       case 'date':
         setDateIso(option.id);
-        setDate(
-          option.title.includes(' — ')
-            ? option.title.split(' — ')[1]
-            : option.title
-        );
-        break;
-      case 'venue':
-        setVenue(option.title);
-        setVenueId(option.id);
         break;
     }
     setActiveModal('none');
@@ -451,6 +258,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {isFormOptionsLoading ? <Text style={styles.formNotice}>Memuat daftar pengguna dan unit…</Text> : null}
+        {formOptionsError ? <ErrorState message={formOptionsError} onRetry={fetchAgendaFormOptions} /> : null}
+        {error ? <ErrorState message={error} /> : null}
         {/* SECTION 1: Informasi Rapat */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -606,7 +416,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             >
               <View style={styles.leaderAvatar}>
                 <Text style={styles.leaderAvatarText}>
-                  {leaderName
+                  {(leader?.name ?? '')
                     .split(' ')
                     .map((n) => n[0])
                     .filter((c) => /^[A-Z]$/i.test(c))
@@ -616,9 +426,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 </Text>
               </View>
               <View style={styles.entityInfo}>
-                <Text style={styles.entityName}>{leaderName}</Text>
+                <Text style={styles.entityName}>{leader?.name ?? 'Pilih pimpinan dari daftar pengguna'}</Text>
                 <Text style={styles.entitySub}>
-                  {leaderRole} • NIP. {leaderNip}
+                  {leader ? `${leader.role}${leader.nip ? ` • NIP. ${leader.nip}` : ''}` : 'Data dari server'}
                 </Text>
               </View>
               <View style={styles.actionPill}>
@@ -650,7 +460,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 />
               </View>
               <View style={styles.entityInfo}>
-                <Text style={styles.entityName}>{notulisName}</Text>
+                <Text style={styles.entityName}>{notulis?.name ?? 'Pilih notulis (opsional)'}</Text>
                 <Text style={styles.entitySub}>
                   Petugas Notulensi Sidang Kedinasan
                 </Text>
@@ -725,7 +535,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           <View style={styles.durationInline}>
             <MaterialIcons name="schedule" size={15} color={colors.primary} />
             <Text style={styles.durationInlineText}>
-              Estimasi Durasi: 3 Jam 00 Menit
+              Estimasi Durasi: {Math.floor(durationMinutes / 60)} Jam {String(durationMinutes % 60).padStart(2, '0')} Menit
             </Text>
           </View>
 
@@ -735,29 +545,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               <Text style={styles.label}>
                 Ruang Rapat / Lokasi <Text style={styles.required}>*</Text>
               </Text>
-              <Pressable
-                onPress={() => setActiveModal('venue')}
-                style={({ pressed }) => [
-                  styles.selectorTrigger,
-                  pressed && styles.pressedState,
-                ]}
-              >
-                <View style={styles.selectorLeft}>
-                  <MaterialIcons
-                    name="meeting-room"
-                    size={18}
-                    color={colors.secondary}
-                  />
-                  <Text style={styles.selectorValue} numberOfLines={1}>
-                    {venue}
-                  </Text>
-                </View>
-                <MaterialIcons
-                  name="expand-more"
-                  size={20}
-                  color={colors.onSurfaceVariant}
-                />
-              </Pressable>
+              <TextInput style={styles.virtualInput} value={venue} onChangeText={setVenue} placeholder="Masukkan lokasi rapat" placeholderTextColor={colors.outline} />
             </View>
           ) : null}
 
@@ -791,11 +579,11 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               <View style={styles.virtualMetaRow}>
                 <View style={styles.virtualMetaCol}>
                   <Text style={styles.virtualMetaLabel}>Meeting ID</Text>
-                  <Text style={styles.virtualMetaValue}>{meetingIdInput}</Text>
+                  <Text style={styles.virtualMetaValue}>Sesuai tautan</Text>
                 </View>
                 <View style={styles.virtualMetaCol}>
                   <Text style={styles.virtualMetaLabel}>Passcode</Text>
-                  <Text style={styles.virtualMetaValue}>{passcode}</Text>
+                  <Text style={styles.virtualMetaValue}>Sesuai tautan</Text>
                 </View>
               </View>
             </View>
@@ -868,8 +656,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 color={colors.primary}
               />
               <Text style={styles.universalNoticeText}>
-                Semua pegawai di 11 unit kerja LLDIKTI Wilayah X otomatis
-                terdaftar sebagai peserta agenda ini.
+                Agenda ini ditujukan untuk seluruh unit kerja yang tercatat pada server.
               </Text>
             </View>
           ) : (
@@ -878,12 +665,12 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 Pilih Unit Kerja ({selectedUnits.length} dipilih):
               </Text>
               <View style={styles.chipsWrap}>
-                {UNIT_KERJA_LIST.map((unit) => {
-                  const selected = selectedUnits.includes(unit);
+                {(formOptions?.units ?? []).map((unit) => {
+                  const selected = selectedUnits.includes(unit.id);
                   return (
                     <Pressable
-                      key={unit}
-                      onPress={() => toggleUnit(unit)}
+                      key={unit.id}
+                      onPress={() => toggleUnit(unit.id)}
                       style={[
                         styles.unitChip,
                         selected && styles.unitChipSelected,
@@ -902,7 +689,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                           selected && styles.unitChipTextSelected,
                         ]}
                       >
-                        {unit}
+                        {unit.name}
                       </Text>
                     </Pressable>
                   );
@@ -981,7 +768,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                   />
                 </Pressable>
                 <Pressable
-                  onPress={() => setAttachedFile(null)}
+                  onPress={() => undefined}
                   style={styles.attachedActionBtn}
                   accessibilityLabel="Hapus lampiran"
                 >
@@ -1001,7 +788,8 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       <View style={styles.stickyFooter}>
         <View style={styles.footerGrid}>
           <Pressable
-            onPress={handleSaveDraft}
+            onPress={() => handleSubmit('draft')}
+            disabled={isLoading}
             style={({ pressed }) => [
               styles.draftButton,
               pressed && styles.buttonPressed,
@@ -1012,7 +800,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           </Pressable>
 
           <Pressable
-            onPress={handleSubmit}
+            onPress={() => handleSubmit('scheduled')}
             disabled={isLoading}
             style={({ pressed }) => [
               styles.publishButton,
@@ -1054,6 +842,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingBottom: 110,
     gap: spacing.md,
+  },
+  formNotice: {
+    color: colors.onSurfaceVariant,
+    fontSize: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   sectionCard: {
     backgroundColor: colors.surfaceCard,

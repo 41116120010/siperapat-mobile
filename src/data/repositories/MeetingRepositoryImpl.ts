@@ -1,53 +1,43 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IMeetingRepository } from '../../domain/repositories/interfaces';
-import { Meeting } from '../../domain/entities/types';
-import { MOCK_MEETINGS } from '../datasources/mockData';
-
-const MEETINGS_STORAGE_KEY = '@siperapat_meetings_data';
+import { CreateAgendaInput, AgendaFormOptions } from '../../domain/repositories/interfaces';
+import { agendaApi } from '../datasources/agendaApi';
+import { toMeeting } from '../mappers/agendaMapper';
 
 export class MeetingRepositoryImpl implements IMeetingRepository {
-  private async loadOrSeedMeetings(): Promise<Meeting[]> {
-    try {
-      const stored = await AsyncStorage.getItem(MEETINGS_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored) as Meeting[];
-      }
-    } catch {
-      // Ignore and fallback
-    }
-    // Seed default
-    await AsyncStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(MOCK_MEETINGS));
-    return MOCK_MEETINGS;
-  }
-
-  async getMeetings(): Promise<Meeting[]> {
-    return this.loadOrSeedMeetings();
-  }
-
-  async getMeetingById(id: string): Promise<Meeting | null> {
-    const list = await this.loadOrSeedMeetings();
-    return list.find((m) => m.id === id) ?? null;
-  }
-
-  async createMeeting(meetingData: Omit<Meeting, 'id' | 'totalAttended'>): Promise<Meeting> {
-    const list = await this.loadOrSeedMeetings();
-    const newMeeting: Meeting = {
-      ...meetingData,
-      id: `meet-${Date.now()}`,
-      totalAttended: 0,
+  async getMeetings(page = 1, type?: 'hybrid' | 'offline' | 'online') {
+    const response = await agendaApi.list(page, 50, type);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat agenda.');
+    return {
+      meetings: response.data.map(toMeeting),
+      currentPage: response.meta.current_page,
+      lastPage: response.meta.last_page,
+      total: response.meta.total,
     };
-    const updated = [newMeeting, ...list];
-    await AsyncStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(updated));
-    return newMeeting;
   }
 
-  async getUpcomingMeetings(): Promise<Meeting[]> {
-    const list = await this.loadOrSeedMeetings();
-    return list.filter((m) => m.status === 'upcoming');
+  async getMeetingById(id: string) {
+    const response = await agendaApi.detail(id);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat detail agenda.');
+    return toMeeting(response.data);
   }
 
-  async getActiveMeeting(): Promise<Meeting | null> {
-    const list = await this.loadOrSeedMeetings();
-    return list.find((m) => m.status === 'ongoing') ?? list[0] ?? null;
+  async createMeeting(payload: CreateAgendaInput) {
+    const response = await agendaApi.create(payload);
+    if (!response.success) throw new Error(response.message || 'Gagal membuat agenda.');
+    return toMeeting(response.data);
+  }
+
+  async getAgendaFormOptions(): Promise<AgendaFormOptions> {
+    const response = await agendaApi.formOptions();
+    return {
+      users: response.users.map((user) => ({
+        id: String(user.id),
+        name: user.name,
+        nip: user.nip,
+        role: user.role.label,
+        unitName: user.unit?.nama_unit ?? '',
+      })),
+      units: response.units.map((unit) => ({ id: String(unit.id), name: unit.nama_unit })),
+    };
   }
 }

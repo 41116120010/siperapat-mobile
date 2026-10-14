@@ -14,10 +14,11 @@ export interface ASN {
   phone: string;
   avatarUrl?: string;
   username?: string;
+  role?: string;
   biometricEnabled: boolean;
 }
 
-export type MeetingStatus = 'ongoing' | 'upcoming' | 'completed' | 'cancelled';
+export type MeetingStatus = 'draft' | 'ongoing' | 'upcoming' | 'completed' | 'cancelled';
 export type MeetingType = 'hybrid' | 'offline' | 'online';
 
 export interface Meeting {
@@ -31,14 +32,14 @@ export interface Meeting {
   endTime: string;
   venue: string;
   status: MeetingStatus;
-  geofenceRadiusMeters: number;
-  latitude: number;
-  longitude: number;
+  geofenceRadiusMeters?: number;
+  latitude?: number;
+  longitude?: number;
   agendaDescription: string;
   targetAudience: string;
   zoomUrl?: string;
   invitationPdfUrl?: string;
-  totalInvited: number;
+  totalInvited?: number;
   totalAttended: number;
 }
 

@@ -22,6 +22,7 @@ import { PresensiScreen } from '../screens/PresensiScreen';
 import { ReceiptScreen } from '../screens/ReceiptScreen';
 import { CreateMeetingScreen } from '../screens/CreateMeetingScreen';
 import { MonitoringScreen } from '../screens/MonitoringScreen';
+import { AgendaDetailScreen } from '../screens/AgendaDetailScreen';
 import { EmployeeDirectoryScreen } from '../screens/EmployeeDirectoryScreen';
 import { AddEmployeeScreen } from '../screens/AddEmployeeScreen';
 import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
@@ -108,7 +109,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
         {({ navigation: tabNav }) => (
           <DashboardScreen
             onNavigatePresensi={(id) => rootStackNav.navigate('Presensi', { meetingId: id })}
-            onNavigateDetail={(id) => rootStackNav.navigate('Monitoring', { meetingId: id })}
+            onNavigateDetail={(id) => rootStackNav.navigate('AgendaDetail', { meetingId: id })}
             onNavigateAgenda={() => tabNav.navigate('Agenda')}
           />
         )}
@@ -117,7 +118,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
       <Tab.Screen name="Agenda">
         {() => (
           <AgendaScreen
-            onNavigateDetail={(id) => rootStackNav.navigate('Monitoring', { meetingId: id })}
+            onNavigateDetail={(id) => rootStackNav.navigate('AgendaDetail', { meetingId: id })}
             onNavigateCreate={() => rootStackNav.navigate('CreateMeeting')}
           />
         )}
@@ -232,6 +233,15 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="Monitoring">
         {({ navigation, route }) => (
           <MonitoringScreen
+            meetingId={route.params.meetingId}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="AgendaDetail">
+        {({ navigation, route }) => (
+          <AgendaDetailScreen
             meetingId={route.params.meetingId}
             onBack={() => safeGoBack(navigation, 'MainTabs')}
           />

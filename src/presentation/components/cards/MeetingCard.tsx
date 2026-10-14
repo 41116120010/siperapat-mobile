@@ -30,7 +30,6 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
         {/* Active Banner */}
         <View style={styles.activeHeader}>
           <Text style={styles.activeHeaderTitle}>Presensi Sedang Dibuka</Text>
-          <Text style={styles.activeHeaderCountdown}>Sisa 45 Menit</Text>
         </View>
 
         {/* Content Body */}
@@ -59,7 +58,7 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
             <View style={styles.meetingInfoItem}>
               <Text style={styles.infoLabel}>Lokasi / Ruang</Text>
               <Text style={styles.infoValue} numberOfLines={1}>
-                {meeting.venue || 'Ruang Sidang Utama'}
+                {meeting.venue || 'Tidak tersedia'}
               </Text>
             </View>
           </View>

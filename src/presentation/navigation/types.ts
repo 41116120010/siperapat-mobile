@@ -7,6 +7,7 @@ export type RootStackParamList = {
   Receipt: { attendanceId: string };
   CreateMeeting: undefined;
   Monitoring: { meetingId: string };
+  AgendaDetail: { meetingId: string };
   EmployeeDirectory: undefined;
   AddEmployee: undefined;
   EditEmployee: { employeeId: string };

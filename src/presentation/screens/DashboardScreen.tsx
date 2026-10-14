@@ -16,14 +16,15 @@ import { Header } from '../components/common/Header';
 import { BentoGrid } from '../components/cards/BentoStatCard';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
+import { ErrorState } from '../components/common/ErrorState';
 import {
   MeetingFilterModal,
   FilterStatus,
   FilterOrder,
 } from '../components/modals/MeetingFilterModal';
 import { useAuthStore } from '../store/useAuthStore';
+import { useDashboardStore } from '../store/useDashboardStore';
 import { useMeetingStore } from '../store/useMeetingStore';
-import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
@@ -37,25 +38,24 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigateAgenda,
 }) => {
   const { user } = useAuthStore();
-  const {
-    meetings,
-    activeMeeting,
-    isLoading,
-    filterTab,
-    setFilterTab,
-    fetchMeetings,
-  } = useMeetingStore();
+  const { data, isLoading, error, fetchDashboard } = useDashboardStore();
+  const [filterTab, setFilterTab] = useState<FilterStatus>('all');
+  const meetings = data?.activeAgendas ?? [];
+  const activeMeeting = meetings.find((meeting) => meeting.status === 'ongoing') ?? null;
+  const setActiveMeeting = useMeetingStore((state) => state.setActiveMeeting);
 
   const [activeFilterOrder, setActiveFilterOrder] = useState<FilterOrder>('all');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
   useEffect(() => {
-    fetchMeetings();
-  }, [fetchMeetings]);
+    fetchDashboard();
+  }, [fetchDashboard]);
 
-  const ongoingCount = meetings.filter((m) => m.status === 'ongoing').length;
-  const upcomingMeetings = meetings.filter((m) => m.status === 'upcoming');
-  const completedMeetings = meetings.filter((m) => m.status === 'completed');
+  useEffect(() => {
+    if (activeMeeting) setActiveMeeting(activeMeeting);
+  }, [activeMeeting, setActiveMeeting]);
+
+  const ongoingCount = data?.stats.ongoing_agendas ?? 0;
 
   const filteredMeetings = meetings
     .filter((m) => {
@@ -76,25 +76,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     });
 
   const categoryTabs: { id: FilterStatus; label: string; count: number }[] = [
-    { id: 'all', label: 'Semua', count: meetings.length },
-    { id: 'ongoing', label: 'Berlangsung', count: ongoingCount },
-    { id: 'upcoming', label: 'Mendatang', count: upcomingMeetings.length },
-    { id: 'completed', label: 'Selesai', count: completedMeetings.length },
+    { id: 'all', label: 'Semua', count: (data?.stats.ongoing_agendas ?? 0) + (data?.stats.upcoming_agendas ?? 0) },
+    { id: 'ongoing', label: 'Berlangsung', count: data?.stats.ongoing_agendas ?? 0 },
+    { id: 'upcoming', label: 'Mendatang', count: data?.stats.upcoming_agendas ?? 0 },
+    { id: 'completed', label: 'Selesai', count: data?.stats.completed_agendas ?? 0 },
   ];
-
-  const handlePdfView = (title: string) => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: `Membuka berkas surat undangan dinas untuk "${title}".`,
-    });
-  };
-
-  const handleJoinLink = (url?: string) => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: `Menghubungkan ke ruang sidang virtual: ${url || 'Meeting ID: 894 1205 9920'}`,
-    });
-  };
 
   return (
     <View style={styles.container}>
@@ -104,8 +90,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading && meetings.length > 0}
-            onRefresh={fetchMeetings}
+            refreshing={isLoading && data !== null}
+            onRefresh={fetchDashboard}
             colors={[colors.primary]}
           />
         }
@@ -125,17 +111,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         {/* Bento Telemetry Stats */}
         <BentoGrid
           stats={[
-            { label: 'Presensi Rapat', value: '18', subValue: 'Selesai' },
+            { label: 'Total Agenda', value: data?.stats.total_agendas ?? '—', subValue: 'Terdaftar' },
             {
               label: 'Jadwal Mendatang',
-              value: upcomingMeetings.length.toString(),
+              value: data?.stats.upcoming_agendas ?? '—',
               subValue: 'Agenda',
               isPrimary: true,
             },
             {
-              label: 'Tingkat Kehadiran',
-              value: '96.8%',
-              subValue: 'Sah',
+              label: 'Agenda Selesai',
+              value: data?.stats.completed_agendas ?? '—',
+              subValue: 'Agenda',
               subValueColor: colors.success,
             },
           ]}
@@ -229,6 +215,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </ScrollView>
 
         {/* Active Highlight Card when ongoing tab is active and meeting exists */}
+        {isLoading && !data ? <View style={styles.dataState}><Text>Memuat dashboard…</Text></View> : null}
+        {error && !data ? <ErrorState message={error} onRetry={fetchDashboard} /> : null}
+        {error && data ? <ErrorState message={error} onRetry={fetchDashboard} /> : null}
         {filterTab === 'ongoing' && activeMeeting ? (
           <MeetingCard
             meeting={activeMeeting}
@@ -250,18 +239,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 key={meeting.id}
                 meeting={meeting}
                 onPressDetail={() => onNavigateDetail(meeting.id)}
-                onPressPdf={() => handlePdfView(meeting.title)}
-                onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
+                onPressPdf={() => onNavigateDetail(meeting.id)}
+                onPressJoinLink={() => onNavigateDetail(meeting.id)}
               />
             ))
-        ) : (
+        ) : filterTab === 'completed' && data ? (
+          <EmptyState title="Agenda selesai" description="Dashboard hanya menampilkan agenda berlangsung dan mendatang. Riwayat agenda selesai dapat dilihat pada tab Agenda." actionLabel="Buka Agenda" onAction={onNavigateAgenda} />
+        ) : !isLoading && !error && data ? (
           <EmptyState
             title="Tidak Ada Agenda Rapat"
             description="Tidak ada jadwal pertemuan kedinasan yang sesuai dengan filter yang dipilih."
             actionLabel="Lihat Semua Agenda"
             onAction={onNavigateAgenda}
           />
-        )}
+        ) : null}
       </ScrollView>
 
       {/* Enterprise Filter Bottom Sheet Modal */}
@@ -284,6 +275,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  dataState: { padding: spacing.md, alignItems: 'center' },
   container: {
     flex: 1,
     backgroundColor: colors.background,

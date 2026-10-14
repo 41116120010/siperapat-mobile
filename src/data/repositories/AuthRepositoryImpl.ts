@@ -13,6 +13,7 @@ function toAppUser(user: ApiUserDto): ASN {
     phone: user.phone ?? '',
     avatarUrl: user.avatar_url ?? undefined,
     username: user.username ?? undefined,
+    role: user.role.value,
     unitKerja: user.unit?.nama_unit ?? '',
     // The current UserResource does not expose rank or job title.
     pangkatGolongan: undefined,
