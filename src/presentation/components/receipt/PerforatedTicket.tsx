@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Attendance } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
@@ -37,7 +36,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
         <View>
           <Text style={styles.identifierLabel}>NOMOR BUKTI PRESENSI</Text>
           <Text style={styles.identifierCode}>
-            {attendance.verificationToken || 'PRES-LLDIKTI-2026-X0914'}
+            {attendance.verificationToken || `ID ${attendance.id} • token tidak disediakan API`}
           </Text>
         </View>
       </View>
@@ -58,7 +57,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
           <View style={styles.agendaGridItem}>
             <MaterialIcons name="apartment" size={16} color={colors.primary} />
             <Text style={styles.agendaGridText}>
-              {attendance.asnUnitKerja || 'Bagian Akademik & Kemahasiswaan'}
+              {attendance.asnUnitKerja || 'Unit tidak disediakan API'}
             </Text>
           </View>
           <View style={styles.agendaGridItem}>
@@ -76,7 +75,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
           <MaterialIcons name="videocam" size={16} color={colors.primary} />
           <Text style={styles.formatText}>
             <Text style={styles.formatBold}>Format Kedinasan: </Text>
-            R. Sidang Utama Gedung A & Zoom
+            Lokasi dan format tidak disediakan API
           </Text>
         </View>
       </View>
@@ -98,9 +97,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             </View>
             <View style={styles.participantCol}>
               <Text style={styles.participantLabel}>Radius Geofence</Text>
-              <Text style={styles.participantValueSuccess}>
-                Tervalidasi ({attendance.distanceMeters}m)
-              </Text>
+              <Text style={attendance.distanceMeters === undefined ? styles.participantValue : styles.participantValueSuccess}>{attendance.distanceMeters === undefined ? 'Validasi lokasi tidak disediakan API' : `Tervalidasi (${attendance.distanceMeters}m)`}</Text>
             </View>
           </View>
         </View>
@@ -119,31 +116,16 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
               </View>
             </View>
             <Text style={styles.evidenceTitle}>Swafoto Presensi</Text>
-            <Text style={styles.evidenceSub}>Terekam Presensi Masuk</Text>
+            <Text style={styles.evidenceSub}>{attendance.selfieUrl ? 'Bukti tersimpan di server' : 'Bukti tidak tersedia'}</Text>
           </View>
 
           {/* Signature Box */}
           <View style={styles.evidenceCard}>
             <View style={styles.signatureBox}>
-              <Svg width="100" height="44" viewBox="0 0 120 60">
-                <Path
-                  d="M10 40 C 25 15, 30 10, 40 35 C 50 55, 45 10, 60 25 C 75 38, 85 45, 95 30 C 105 15, 110 38, 115 28"
-                  stroke={colors.primary}
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-                <Path
-                  d="M25 45 L 85 43"
-                  stroke={colors.primary}
-                  strokeWidth="1.2"
-                  strokeDasharray="2,2"
-                />
-              </Svg>
+              <MaterialIcons name={attendance.signatureUrl ? 'draw' : 'draw'} size={32} color={colors.primary} />
             </View>
             <Text style={styles.evidenceTitle}>Tanda Tangan Digital</Text>
-            <Text style={styles.evidenceSub}>Telah Ditandatangani</Text>
+            <Text style={styles.evidenceSub}>{attendance.signatureUrl ? 'Bukti tersimpan di server' : 'Bukti tidak tersedia'}</Text>
           </View>
         </View>
       </View>

@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
   Platform,
+  Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -23,8 +24,8 @@ import {
   FilterOrder,
 } from '../components/modals/MeetingFilterModal';
 import { useAuthStore } from '../store/useAuthStore';
-import { useDashboardStore } from '../store/useDashboardStore';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
@@ -38,11 +39,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigateAgenda,
 }) => {
   const { user } = useAuthStore();
-  const { data, isLoading, error, fetchDashboard } = useDashboardStore();
-  const [filterTab, setFilterTab] = useState<FilterStatus>('all');
-  const meetings = data?.activeAgendas ?? [];
-  const activeMeeting = meetings.find((meeting) => meeting.status === 'ongoing') ?? null;
-  const setActiveMeeting = useMeetingStore((state) => state.setActiveMeeting);
+  const {
+    dashboardMeetings: meetings,
+    activeMeeting,
+    dashboardStats,
+    isLoading,
+    error,
+    filterTab,
+    setFilterTab,
+    fetchDashboard,
+  } = useMeetingStore();
 
   const [activeFilterOrder, setActiveFilterOrder] = useState<FilterOrder>('all');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
@@ -51,11 +57,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     fetchDashboard();
   }, [fetchDashboard]);
 
-  useEffect(() => {
-    if (activeMeeting) setActiveMeeting(activeMeeting);
-  }, [activeMeeting, setActiveMeeting]);
-
-  const ongoingCount = data?.stats.ongoing_agendas ?? 0;
+  const ongoingCount = dashboardStats?.ongoing_agendas;
+  const upcomingCount = dashboardStats?.upcoming_agendas;
+  const agendaCount = dashboardStats?.total_agendas;
+  const attendanceCount = dashboardStats?.my_attendances ?? dashboardStats?.total_attendances;
 
   const filteredMeetings = meetings
     .filter((m) => {
@@ -75,12 +80,22 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       return true;
     });
 
-  const categoryTabs: { id: FilterStatus; label: string; count: number }[] = [
-    { id: 'all', label: 'Semua', count: (data?.stats.ongoing_agendas ?? 0) + (data?.stats.upcoming_agendas ?? 0) },
-    { id: 'ongoing', label: 'Berlangsung', count: data?.stats.ongoing_agendas ?? 0 },
-    { id: 'upcoming', label: 'Mendatang', count: data?.stats.upcoming_agendas ?? 0 },
-    { id: 'completed', label: 'Selesai', count: data?.stats.completed_agendas ?? 0 },
+  const categoryTabs: { id: FilterStatus; label: string; count: number | string }[] = [
+    { id: 'all', label: 'Semua', count: agendaCount ?? '—' },
+    { id: 'ongoing', label: 'Berlangsung', count: ongoingCount ?? '—' },
+    { id: 'upcoming', label: 'Mendatang', count: upcomingCount ?? '—' },
+    { id: 'completed', label: 'Selesai', count: dashboardStats?.completed_agendas ?? '—' },
   ];
+
+  const handlePdfView = (url?: string) => {
+    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' }));
+    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
+  };
+
+  const handleJoinLink = (url?: string) => {
+    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Tautan rapat tidak dapat dibuka.' }));
+    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Tautan rapat belum tersedia pada agenda ini.' });
+  };
 
   return (
     <View style={styles.container}>
@@ -90,7 +105,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading && data !== null}
+            refreshing={isLoading && meetings.length > 0}
             onRefresh={fetchDashboard}
             colors={[colors.primary]}
           />
@@ -101,27 +116,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         <View style={styles.greetingSection}>
           <Text style={styles.greetingSub}>Selamat Pagi,</Text>
           <Text style={styles.greetingName}>
-            {user?.name ?? 'Nama pengguna'}
+            {user?.name ?? 'ASN'}
           </Text>
           <Text style={styles.greetingRole}>
-            {user?.jabatan ?? 'Jabatan tidak tersedia'}
+            {user?.jabatan ?? 'SIPERAPAT'}
           </Text>
         </View>
 
         {/* Bento Telemetry Stats */}
         <BentoGrid
           stats={[
-            { label: 'Total Agenda', value: data?.stats.total_agendas ?? '—', subValue: 'Terdaftar' },
+            { label: 'Presensi Rapat', value: attendanceCount === undefined ? '—' : String(attendanceCount), subValue: 'Tercatat' },
             {
               label: 'Jadwal Mendatang',
-              value: data?.stats.upcoming_agendas ?? '—',
+                value: String(upcomingCount ?? '—'),
               subValue: 'Agenda',
               isPrimary: true,
             },
             {
-              label: 'Agenda Selesai',
-              value: data?.stats.completed_agendas ?? '—',
-              subValue: 'Agenda',
+              label: 'Tingkat Kehadiran',
+              value: '—',
+              subValue: 'Tidak tersedia',
               subValueColor: colors.success,
             },
           ]}
@@ -215,9 +230,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </ScrollView>
 
         {/* Active Highlight Card when ongoing tab is active and meeting exists */}
-        {isLoading && !data ? <View style={styles.dataState}><Text>Memuat dashboard…</Text></View> : null}
-        {error && !data ? <ErrorState message={error} onRetry={fetchDashboard} /> : null}
-        {error && data ? <ErrorState message={error} onRetry={fetchDashboard} /> : null}
         {filterTab === 'ongoing' && activeMeeting ? (
           <MeetingCard
             meeting={activeMeeting}
@@ -225,6 +237,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             onPressAction={() => onNavigatePresensi(activeMeeting.id)}
           />
         ) : null}
+
+        {error ? <ErrorState message={error} onRetry={fetchDashboard} /> : null}
 
         {/* List of Meetings according to Filter */}
         {filteredMeetings.length > 0 ? (
@@ -239,20 +253,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 key={meeting.id}
                 meeting={meeting}
                 onPressDetail={() => onNavigateDetail(meeting.id)}
-                onPressPdf={() => onNavigateDetail(meeting.id)}
-                onPressJoinLink={() => onNavigateDetail(meeting.id)}
+                onPressPdf={() => handlePdfView(meeting.invitationPdfUrl)}
+                onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
               />
             ))
-        ) : filterTab === 'completed' && data ? (
-          <EmptyState title="Agenda selesai" description="Dashboard hanya menampilkan agenda berlangsung dan mendatang. Riwayat agenda selesai dapat dilihat pada tab Agenda." actionLabel="Buka Agenda" onAction={onNavigateAgenda} />
-        ) : !isLoading && !error && data ? (
+        ) : (
           <EmptyState
             title="Tidak Ada Agenda Rapat"
             description="Tidak ada jadwal pertemuan kedinasan yang sesuai dengan filter yang dipilih."
             actionLabel="Lihat Semua Agenda"
             onAction={onNavigateAgenda}
           />
-        ) : null}
+        )}
       </ScrollView>
 
       {/* Enterprise Filter Bottom Sheet Modal */}
@@ -275,7 +287,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  dataState: { padding: spacing.md, alignItems: 'center' },
   container: {
     flex: 1,
     backgroundColor: colors.background,

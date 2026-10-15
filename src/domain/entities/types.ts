@@ -27,6 +27,7 @@ export interface Meeting {
   title: string;
   type: MeetingType;
   leader: string;
+  notulis?: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -41,13 +42,16 @@ export interface Meeting {
   invitationPdfUrl?: string;
   totalInvited?: number;
   totalAttended: number;
+  minutesHtml?: string | null;
+  summaryHtml?: string | null;
 }
 
-export type AttendanceStatus = 'sah' | 'terlambat' | 'izin' | 'ditolak';
+export type AttendanceStatus = 'sah' | 'terlambat' | 'izin' | 'ditolak' | 'tercatat';
 
 export interface Attendance {
   id: string;
   meetingId: string;
+  agendaId?: string;
   meetingTitle: string;
   asnNip: string;
   asnName: string;
@@ -59,9 +63,12 @@ export interface Attendance {
   verificationToken: string;
   ipAddress: string;
   deviceInfo: string;
-  latitude: number;
-  longitude: number;
-  distanceMeters: number;
+  latitude?: number;
+  longitude?: number;
+  distanceMeters?: number;
+  selfieUrl?: string | null;
+  signatureUrl?: string | null;
+  userId?: string;
   status: AttendanceStatus;
   isSynced: boolean; // Durability: false when submitted offline, true when synced to central server
 }

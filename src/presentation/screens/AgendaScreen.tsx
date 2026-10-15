@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -16,8 +17,8 @@ import { Header } from '../components/common/Header';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
-import { useAuthStore } from '../store/useAuthStore';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 import { Meeting } from '../../domain/entities/types';
 
 interface AgendaScreenProps {
@@ -30,7 +31,6 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   onNavigateCreate,
 }) => {
   const { meetings, fetchMeetings, isLoading, isLoadingMore, error, currentPage, lastPage } = useMeetingStore();
-  const user = useAuthStore((state) => state.user);
   const [filter, setFilter] = useState<'semua' | 'hybrid' | 'offline' | 'online'>('semua');
 
   useEffect(() => {
@@ -42,7 +42,15 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
     return m.type === filter;
   });
 
-  const canCreate = user?.role === 'administrator' || user?.role === 'admin';
+  const handlePdfView = (url?: string) => {
+    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' }));
+    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
+  };
+
+  const handleJoinLink = (url?: string) => {
+    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Tautan rapat tidak dapat dibuka.' }));
+    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Tautan rapat belum tersedia.' });
+  };
 
   return (
     <View style={styles.container}>
@@ -56,7 +64,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
             Jadwal & koordinasi rapat dinas LLDIKTI Wilayah X
           </Text>
         </View>
-        {canCreate ? <Pressable
+        <Pressable
           onPress={onNavigateCreate}
           style={styles.createButton}
           accessibilityRole="button"
@@ -64,7 +72,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
         >
           <MaterialIcons name="add" size={18} color={colors.onPrimary} />
           <Text style={styles.createButtonText}>Buat Rapat</Text>
-        </Pressable> : null}
+        </Pressable>
       </View>
 
       {/* Filter Tabs */}
@@ -103,31 +111,30 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
           <MeetingCard
             meeting={item}
             onPressDetail={() => onNavigateDetail(item.id)}
-            onPressPdf={() => onNavigateDetail(item.id)}
-            onPressJoinLink={() => onNavigateDetail(item.id)}
+            onPressPdf={() => handlePdfView(item.invitationPdfUrl)}
+            onPressJoinLink={() => handleJoinLink(item.zoomUrl)}
           />
         )}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
             refreshing={isLoading && meetings.length > 0}
-            onRefresh={() => fetchMeetings(1, false)}
+            onRefresh={fetchMeetings}
             colors={[colors.primary]}
           />
         }
-        onEndReached={() => { if (currentPage < lastPage) void fetchMeetings(currentPage + 1, true); }}
+        onEndReached={() => { if (currentPage < lastPage && !isLoadingMore) void fetchMeetings(currentPage + 1, true); }}
         onEndReachedThreshold={0.4}
-        ListFooterComponent={isLoadingMore ? <ActivityIndicator style={{ padding: spacing.md }} color={colors.primary} /> : null}
+        ListFooterComponent={isLoadingMore ? <ActivityIndicator color={colors.primary} /> : null}
         ListEmptyComponent={
-          isLoading ? <ActivityIndicator style={{ padding: spacing.xl }} color={colors.primary} /> : error ? <ErrorState message={error} onRetry={() => fetchMeetings(1, false)} /> : <EmptyState
+          error ? <ErrorState message={error} onRetry={() => void fetchMeetings(1, false, filter === 'semua' ? 'all' : filter)} /> : <EmptyState
             title="Tidak Ada Jadwal Rapat"
             description="Tidak ada agenda yang sesuai dengan tipe pertemuan yang dipilih."
-            actionLabel={canCreate ? 'Buat Agenda Baru' : undefined}
-            onAction={canCreate ? onNavigateCreate : undefined}
+            actionLabel="Buat Agenda Baru"
+            onAction={onNavigateCreate}
           />
         }
       />
-      {error && meetings.length > 0 ? <ErrorState message={error} onRetry={() => fetchMeetings(1, false)} style={{ marginHorizontal: spacing.md }} /> : null}
     </View>
   );
 };

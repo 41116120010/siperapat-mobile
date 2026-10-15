@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,15 +22,11 @@ interface SplashScreenProps {
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const [isCheckingSession, setIsCheckingSession] = useState(false);
-  const checkSession = useAuthStore((state) => state.checkSession);
+  const { user, checkSession, isLoading } = useAuthStore();
 
-  const handleEnter = async () => {
-    if (isCheckingSession) return;
-    setIsCheckingSession(true);
-    const hasSession = await checkSession();
-    onFinish(hasSession);
-  };
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
 
   return (
     <View style={styles.container}>
@@ -88,8 +84,11 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           {/* Bottom Controls & System Status */}
           <View style={styles.footer}>
             <Pressable
-              onPress={handleEnter}
-              disabled={isCheckingSession}
+              onPress={async () => {
+                if (isLoading) return;
+                if (!user) await checkSession();
+                onFinish(Boolean(useAuthStore.getState().user));
+              }}
               style={({ pressed }) => [
                 styles.enterButton,
                 pressed && styles.enterButtonPressed,

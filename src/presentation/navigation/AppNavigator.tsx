@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
@@ -22,13 +22,13 @@ import { PresensiScreen } from '../screens/PresensiScreen';
 import { ReceiptScreen } from '../screens/ReceiptScreen';
 import { CreateMeetingScreen } from '../screens/CreateMeetingScreen';
 import { MonitoringScreen } from '../screens/MonitoringScreen';
-import { AgendaDetailScreen } from '../screens/AgendaDetailScreen';
 import { EmployeeDirectoryScreen } from '../screens/EmployeeDirectoryScreen';
 import { AddEmployeeScreen } from '../screens/AddEmployeeScreen';
 import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import { GlobalFeedbackHost } from '../components/common/GlobalFeedbackHost';
+import { useAuthStore } from '../store/useAuthStore';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createMaterialTopTabNavigator<MainTabParamList>();
@@ -96,6 +96,10 @@ const CustomBottomTabBar: React.FC<MaterialTopTabBarProps> = ({
 };
 
 export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: rootStackNav }) => {
+  const user = useAuthStore((state) => state.user);
+  useEffect(() => {
+    if (!user) rootStackNav.replace('Login');
+  }, [user, rootStackNav]);
   return (
     <Tab.Navigator
       tabBarPosition="bottom"
@@ -109,7 +113,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
         {({ navigation: tabNav }) => (
           <DashboardScreen
             onNavigatePresensi={(id) => rootStackNav.navigate('Presensi', { meetingId: id })}
-            onNavigateDetail={(id) => rootStackNav.navigate('AgendaDetail', { meetingId: id })}
+            onNavigateDetail={(id) => rootStackNav.navigate('Monitoring', { meetingId: id })}
             onNavigateAgenda={() => tabNav.navigate('Agenda')}
           />
         )}
@@ -118,7 +122,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
       <Tab.Screen name="Agenda">
         {() => (
           <AgendaScreen
-            onNavigateDetail={(id) => rootStackNav.navigate('AgendaDetail', { meetingId: id })}
+            onNavigateDetail={(id) => rootStackNav.navigate('Monitoring', { meetingId: id })}
             onNavigateCreate={() => rootStackNav.navigate('CreateMeeting')}
           />
         )}
@@ -166,11 +170,7 @@ export const AppNavigator: React.FC = () => {
     >
       <Stack.Screen name="Splash">
         {({ navigation }) => (
-          <SplashScreen
-            onFinish={(hasSession) =>
-              navigation.replace(hasSession ? 'MainTabs' : 'Login')
-            }
-          />
+          <SplashScreen onFinish={(hasSession) => navigation.replace(hasSession ? 'MainTabs' : 'Login')} />
         )}
       </Stack.Screen>
 
@@ -233,15 +233,6 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="Monitoring">
         {({ navigation, route }) => (
           <MonitoringScreen
-            meetingId={route.params.meetingId}
-            onBack={() => safeGoBack(navigation, 'MainTabs')}
-          />
-        )}
-      </Stack.Screen>
-
-      <Stack.Screen name="AgendaDetail">
-        {({ navigation, route }) => (
-          <AgendaDetailScreen
             meetingId={route.params.meetingId}
             onBack={() => safeGoBack(navigation, 'MainTabs')}
           />

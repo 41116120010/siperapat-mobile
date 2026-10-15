@@ -51,7 +51,14 @@
       "backgroundColor": "#00236F"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SIPERAPAT memerlukan akses foto untuk memilih bukti swafoto presensi.",
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }

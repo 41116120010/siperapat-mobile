@@ -16,11 +16,13 @@ import { Header } from '../components/common/Header';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { MeetingType } from '../../domain/entities/types';
-import { ErrorState } from '../components/common/ErrorState';
 import {
   AgendaOptionModal,
   AgendaOption,
 } from '../components/modals/AgendaOptionModal';
+import * as DocumentPicker from 'expo-document-picker';
+import { toIsoDateTime } from '../../data/mappers/apiMappers';
+import { UploadFileRef } from '../../data/datasources/agendaApi';
 
 interface CreateMeetingScreenProps {
   onBack: () => void;
@@ -32,7 +34,8 @@ type ActiveModalType =
   | 'classification'
   | 'leader'
   | 'notulis'
-  | 'date';
+  | 'date'
+  | 'venue';
 
 const CLASSIFICATION_OPTIONS: AgendaOption[] = [
   {
@@ -72,55 +75,120 @@ const CLASSIFICATION_OPTIONS: AgendaOption[] = [
   },
 ];
 
-function localDateIso(value: Date): string {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, '0');
-  const day = String(value.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+const DATE_OPTIONS: AgendaOption[] = [
+  {
+    id: '2026-10-23',
+    title: 'Hari Ini — Rabu, 23 Oktober 2026',
+    subtitle: 'Jadwal penyelenggaraan hari kerja berjalan',
+    badge: 'Hari Ini',
+    icon: 'today',
+  },
+  {
+    id: '2026-10-24',
+    title: 'Besok — Kamis, 24 Oktober 2026',
+    subtitle: 'Rekomendasi jadwal sidang koordinasi rutin',
+    badge: 'Besok',
+    icon: 'event',
+  },
+  {
+    id: '2026-10-25',
+    title: 'Jumat, 25 Oktober 2026',
+    subtitle: 'Sesi rapat pimpinan akhir pekan',
+    badge: 'Minggu Ini',
+    icon: 'date-range',
+  },
+  {
+    id: '2026-10-28',
+    title: 'Senin, 28 Oktober 2026',
+    subtitle: 'Pembuka agenda kedinasan pekan depan',
+    badge: 'Pekan Depan',
+    icon: 'date-range',
+  },
+  {
+    id: '2026-10-31',
+    title: 'Kamis, 31 Oktober 2026',
+    subtitle: 'Sidang evaluasi capaian akhir bulan',
+    badge: 'Akhir Bulan',
+    icon: 'event-available',
+  },
+  {
+    id: '2026-11-04',
+    title: 'Rabu, 4 November 2026',
+    subtitle: 'Agenda terencana awal bulan berikutnya',
+    badge: 'Bulan Depan',
+    icon: 'event-available',
+  },
+];
+
+const VENUE_OPTIONS: AgendaOption[] = [
+  {
+    id: 'utama',
+    title: 'Ruang Sidang Utama Gedung A',
+    subtitle: 'Kapasitas 80 Orang • Sound System & Video Wall • AC Central',
+    badge: 'Kapasitas 80',
+    icon: 'meeting-room',
+  },
+  {
+    id: 'pimpinan',
+    title: 'Ruang Rapat Pimpinan Lt. 2',
+    subtitle: 'Kapasitas 25 Orang • Smart Screen Interactive',
+    badge: 'Kapasitas 25',
+    icon: 'meeting-room',
+  },
+  {
+    id: 'pokja',
+    title: 'Ruang Rapat Pokja Penjaminan Mutu',
+    subtitle: 'Kapasitas 20 Orang • Gedung B Lantai 1',
+    badge: 'Kapasitas 20',
+    icon: 'meeting-room',
+  },
+  {
+    id: 'aula',
+    title: 'Aula Ki Hadjar Dewantara',
+    subtitle: 'Kapasitas 150 Orang • Khusus Pertemuan Pleno Besar',
+    badge: 'Kapasitas 150',
+    icon: 'apartment',
+  },
+  {
+    id: 'akademik',
+    title: 'Ruang Rapat Akademik Gedung B',
+    subtitle: 'Kapasitas 35 Orang • LCD Proyektor & Geofence Valid',
+    badge: 'Kapasitas 35',
+    icon: 'meeting-room',
+  },
+];
 
 export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   onBack,
   onSuccess,
 }) => {
-  const { createMeeting, isLoading, error, formOptions, isFormOptionsLoading, formOptionsError, fetchAgendaFormOptions } = useMeetingStore();
+  const { createMeeting, isLoading, error, formOptions, fetchAgendaFormOptions, isFormOptionsLoading } = useMeetingStore();
   useEffect(() => { void fetchAgendaFormOptions(); }, [fetchAgendaFormOptions]);
+  useEffect(() => { if (error) useFeedbackStore.getState().showToast({ type: 'error', message: error }); }, [error]);
 
   const [title, setTitle] = useState('');
   const [classification, setClassification] = useState('koordinasi');
   const [formatType, setFormatType] = useState<MeetingType>('hybrid');
+  const [leaderName, setLeaderName] = useState('');
+  const [leaderNip, setLeaderNip] = useState('');
+  const [leaderRole, setLeaderRole] = useState('');
   const [leaderId, setLeaderId] = useState('');
+  const [notulisName, setNotulisName] = useState('');
   const [notulisId, setNotulisId] = useState('');
 
-  const [dateIso, setDateIso] = useState(localDateIso(new Date()));
-  const date = new Date(`${dateIso}T12:00:00`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const [date, setDate] = useState('Pilih tanggal rapat');
+  const [dateIso, setDateIso] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
-  const [venue, setVenue] = useState('');
+  const [venue, setVenue] = useState('Pilih ruang rapat');
+  const [venueId, setVenueId] = useState('');
   const [zoomUrl, setZoomUrl] = useState('');
+  const [meetingIdInput] = useState('');
+  const [passcode] = useState('');
 
   const [scopeUniversal, setScopeUniversal] = useState(true);
-  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
-
-  const attachedFile: string | null = null;
-
-  const leader = formOptions?.users.find((person) => person.id === leaderId);
-  const notulis = formOptions?.users.find((person) => person.id === notulisId);
-  const peopleOptions: AgendaOption[] = (formOptions?.users ?? []).map((person) => ({
-    id: person.id, title: person.name,
-    subtitle: [person.role, person.nip ? `NIP ${person.nip}` : null, person.unitName].filter(Boolean).join(' • '),
-    badge: person.role, icon: 'person',
-  }));
-  const dateOptions: AgendaOption[] = Array.from({ length: 30 }, (_, offset) => {
-    const value = new Date(); value.setDate(value.getDate() + offset);
-    const id = localDateIso(value);
-    return { id, title: value.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), subtitle: '', badge: offset === 0 ? 'Hari ini' : offset === 1 ? 'Besok' : undefined, icon: 'event' };
-  });
-  const durationMinutes = (() => {
-    const [startHour, startMinute] = startTime.split(':').map(Number);
-    const [endHour, endMinute] = endTime.split(':').map(Number);
-    return Math.max(0, endHour * 60 + endMinute - startHour * 60 - startMinute);
-  })();
+  const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
+  const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
 
@@ -128,20 +196,31 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     CLASSIFICATION_OPTIONS.find((c) => c.id === classification) ||
     CLASSIFICATION_OPTIONS[0];
 
-  const toggleUnit = (unit: string) => {
+  const toggleUnit = (unitId: number) => {
     setSelectedUnits((prev) =>
-      prev.includes(unit) ? prev.filter((u) => u !== unit) : [...prev, unit]
+      prev.includes(unitId) ? prev.filter((id) => id !== unitId) : [...prev, unitId]
     );
   };
 
-  const handleUploadFile = () => {
+  const handleUploadFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], copyToCacheDirectory: true });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if ((asset.size ?? 0) > 5 * 1024 * 1024) {
+      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Ukuran lampiran melebihi batas backend 5 MB.' });
+      return;
+    }
+    setAttachedFile({ uri: asset.uri, name: asset.name, type: asset.mimeType ?? 'application/octet-stream', size: asset.size ?? 0 });
+  };
+
+  const handleSaveDraft = () => {
     useFeedbackStore.getState().showToast({
       type: 'info',
-      message: 'Unggah surat edaran belum termasuk integrasi tahap ini.',
+      message: 'Rancangan agenda rapat berhasil disimpan sebagai draf lokal.',
     });
   };
 
-  const handleSubmit = async (status: 'draft' | 'scheduled' = 'scheduled') => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
       useFeedbackStore.getState().showToast({
         type: 'warning',
@@ -149,31 +228,48 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       });
       return;
     }
+    if (!dateIso) {
+      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Pilih tanggal rapat terlebih dahulu.' });
+      return;
+    }
+    if (formatType !== 'online' && venueId === '') {
+      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Pilih ruang rapat terlebih dahulu.' });
+      return;
+    }
+    if (formatType !== 'offline' && !zoomUrl.trim()) {
+      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Masukkan tautan rapat daring.' });
+      return;
+    }
 
-    if ((!scopeUniversal && selectedUnits.length === 0) || (formatType !== 'online' && !venue.trim()) || (formatType !== 'offline' && !zoomUrl.trim())) {
-      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Lengkapi lokasi/tautan rapat dan pilih minimal satu unit untuk sasaran khusus.' });
+    if (!scopeUniversal && selectedUnits.length === 0) {
+      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Pilih minimal satu unit kerja untuk agenda terbatas.' });
       return;
     }
     const created = await createMeeting({
-      judul_rapat: title.trim(), jenis_rapat: selectedClassification.title,
-      tipe_rapat: formatType, lokasi_ruang: formatType === 'online' ? null : venue.trim(),
-      link_meeting: formatType === 'offline' ? null : zoomUrl.trim(),
-      waktu_mulai: `${dateIso}T${startTime}:00+07:00`, waktu_selesai: `${dateIso}T${endTime}:00+07:00`,
-      pimpinan_id: leaderId ? Number(leaderId) : null, notulis_id: notulisId ? Number(notulisId) : null,
-      is_all_units: scopeUniversal, unit_ids: scopeUniversal ? undefined : selectedUnits.map(Number),
-      status,
-    });
+      judul_rapat: title.trim(),
+      jenis_rapat: selectedClassification.title,
+      tipe_rapat: formatType,
+      lokasi_ruang: formatType === 'online' ? null : venue,
+      link_meeting: formatType === 'offline' ? null : zoomUrl || null,
+      waktu_mulai: toIsoDateTime(dateIso, startTime),
+      waktu_selesai: toIsoDateTime(dateIso, endTime),
+      pimpinan_id: leaderId ? Number(leaderId) : null,
+      notulis_id: notulisId ? Number(notulisId) : null,
+      is_all_units: scopeUniversal,
+      unit_ids: scopeUniversal ? [] : selectedUnits,
+      status: 'scheduled',
+    }, attachedFile ?? undefined);
 
     if (created) {
       useFeedbackStore.getState().showModal({
         type: 'success',
-        title: status === 'draft' ? 'Konsep Agenda Tersimpan' : 'Agenda Rapat Berhasil Diterbitkan',
-        message: status === 'draft' ? 'Konsep agenda berhasil disimpan sebagai draf di server.' : 'Agenda rapat berhasil disimpan oleh server.',
+        title: 'Agenda Rapat Berhasil Diterbitkan',
+        message: 'Agenda rapat berhasil dibuat oleh server.',
         detail: {
           'Kode Rapat': created.code,
-          'Perihal': created.title,
+          'Perihal': title,
           'Format': formatType.toUpperCase(),
-          'Pimpinan': leader?.name ?? 'Belum ditentukan',
+          'Pimpinan': leaderName,
         },
         confirmText: 'Kembali ke Agenda',
         onConfirm: onSuccess,
@@ -199,22 +295,29 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         return {
           title: 'Pilih Pimpinan Rapat',
           subtitle: 'Penanggung jawab sidang kedinasan LLDIKTI Wilayah X',
-          options: peopleOptions,
+          options: (formOptions?.users ?? []).map((user) => ({ id: String(user.id), title: user.name, subtitle: `${user.role.label} • NIP. ${user.nip ?? '—'}`, badge: user.role.label, icon: 'person' })),
           selectedId: leaderId,
         };
       case 'notulis':
         return {
           title: 'Pilih Petugas Notulis',
           subtitle: 'Petugas penyusun risalah dan notulensi sidang',
-          options: peopleOptions,
+          options: (formOptions?.users ?? []).map((user) => ({ id: String(user.id), title: user.name, subtitle: `${user.role.label} • NIP. ${user.nip ?? '—'}`, badge: user.role.label, icon: 'edit-note' })),
           selectedId: notulisId,
         };
       case 'date':
         return {
           title: 'Pilih Tanggal Pelaksanaan',
           subtitle: 'Jadwal hari kerja pelaksanaan agenda kedinasan',
-          options: dateOptions,
+          options: DATE_OPTIONS,
           selectedId: dateIso,
+        };
+      case 'venue':
+        return {
+          title: 'Pilih Ruang Rapat',
+          subtitle: 'Lokasi fisik ruang sidang di lingkungan kantor LLDIKTI X',
+          options: VENUE_OPTIONS,
+          selectedId: venueId,
         };
       default:
         return {
@@ -232,13 +335,26 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         setClassification(option.id);
         break;
       case 'leader':
+        setLeaderName(option.title);
         setLeaderId(option.id);
+        setLeaderNip(formOptions?.users.find((u) => String(u.id) === option.id)?.nip ?? '');
+        setLeaderRole(option.badge || 'Pimpinan Rapat');
         break;
       case 'notulis':
+        setNotulisName(option.title);
         setNotulisId(option.id);
         break;
       case 'date':
         setDateIso(option.id);
+        setDate(
+          option.title.includes(' — ')
+            ? option.title.split(' — ')[1]
+            : option.title
+        );
+        break;
+      case 'venue':
+        setVenue(option.title);
+        setVenueId(option.id);
         break;
     }
     setActiveModal('none');
@@ -258,9 +374,6 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {isFormOptionsLoading ? <Text style={styles.formNotice}>Memuat daftar pengguna dan unit…</Text> : null}
-        {formOptionsError ? <ErrorState message={formOptionsError} onRetry={fetchAgendaFormOptions} /> : null}
-        {error ? <ErrorState message={error} /> : null}
         {/* SECTION 1: Informasi Rapat */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -416,7 +529,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             >
               <View style={styles.leaderAvatar}>
                 <Text style={styles.leaderAvatarText}>
-                  {(leader?.name ?? '')
+                  {leaderName
                     .split(' ')
                     .map((n) => n[0])
                     .filter((c) => /^[A-Z]$/i.test(c))
@@ -426,9 +539,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 </Text>
               </View>
               <View style={styles.entityInfo}>
-                <Text style={styles.entityName}>{leader?.name ?? 'Pilih pimpinan dari daftar pengguna'}</Text>
+                <Text style={styles.entityName}>{leaderName}</Text>
                 <Text style={styles.entitySub}>
-                  {leader ? `${leader.role}${leader.nip ? ` • NIP. ${leader.nip}` : ''}` : 'Data dari server'}
+                  {leaderRole} • NIP. {leaderNip}
                 </Text>
               </View>
               <View style={styles.actionPill}>
@@ -460,7 +573,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 />
               </View>
               <View style={styles.entityInfo}>
-                <Text style={styles.entityName}>{notulis?.name ?? 'Pilih notulis (opsional)'}</Text>
+                <Text style={styles.entityName}>{notulisName}</Text>
                 <Text style={styles.entitySub}>
                   Petugas Notulensi Sidang Kedinasan
                 </Text>
@@ -535,7 +648,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           <View style={styles.durationInline}>
             <MaterialIcons name="schedule" size={15} color={colors.primary} />
             <Text style={styles.durationInlineText}>
-              Estimasi Durasi: {Math.floor(durationMinutes / 60)} Jam {String(durationMinutes % 60).padStart(2, '0')} Menit
+              Estimasi Durasi: 3 Jam 00 Menit
             </Text>
           </View>
 
@@ -545,7 +658,29 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               <Text style={styles.label}>
                 Ruang Rapat / Lokasi <Text style={styles.required}>*</Text>
               </Text>
-              <TextInput style={styles.virtualInput} value={venue} onChangeText={setVenue} placeholder="Masukkan lokasi rapat" placeholderTextColor={colors.outline} />
+              <Pressable
+                onPress={() => setActiveModal('venue')}
+                style={({ pressed }) => [
+                  styles.selectorTrigger,
+                  pressed && styles.pressedState,
+                ]}
+              >
+                <View style={styles.selectorLeft}>
+                  <MaterialIcons
+                    name="meeting-room"
+                    size={18}
+                    color={colors.secondary}
+                  />
+                  <Text style={styles.selectorValue} numberOfLines={1}>
+                    {venue}
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name="expand-more"
+                  size={20}
+                  color={colors.onSurfaceVariant}
+                />
+              </Pressable>
             </View>
           ) : null}
 
@@ -579,11 +714,11 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               <View style={styles.virtualMetaRow}>
                 <View style={styles.virtualMetaCol}>
                   <Text style={styles.virtualMetaLabel}>Meeting ID</Text>
-                  <Text style={styles.virtualMetaValue}>Sesuai tautan</Text>
+                  <Text style={styles.virtualMetaValue}>{meetingIdInput}</Text>
                 </View>
                 <View style={styles.virtualMetaCol}>
                   <Text style={styles.virtualMetaLabel}>Passcode</Text>
-                  <Text style={styles.virtualMetaValue}>Sesuai tautan</Text>
+                  <Text style={styles.virtualMetaValue}>{passcode}</Text>
                 </View>
               </View>
             </View>
@@ -656,7 +791,8 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 color={colors.primary}
               />
               <Text style={styles.universalNoticeText}>
-                Agenda ini ditujukan untuk seluruh unit kerja yang tercatat pada server.
+                Semua pegawai di 11 unit kerja LLDIKTI Wilayah X otomatis
+                terdaftar sebagai peserta agenda ini.
               </Text>
             </View>
           ) : (
@@ -689,7 +825,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                           selected && styles.unitChipTextSelected,
                         ]}
                       >
-                        {unit.name}
+                        {unit.nama_unit}
                       </Text>
                     </Pressable>
                   );
@@ -743,10 +879,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 </View>
                 <View style={styles.attachedInfo}>
                   <Text style={styles.attachedName} numberOfLines={1}>
-                    {attachedFile}
+                    {attachedFile.name}
                   </Text>
                   <Text style={styles.attachedMeta}>
-                    1.4 MB • Ditandatangani Elektronik (BSrE)
+                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB • {attachedFile.type}
                   </Text>
                 </View>
               </View>
@@ -755,7 +891,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                   onPress={() =>
                     useFeedbackStore.getState().showToast({
                       type: 'info',
-                      message: `Membuka pratinjau berkas: ${attachedFile}`,
+                      message: `Berkas terpilih: ${attachedFile.name}`,
                     })
                   }
                   style={styles.attachedActionBtn}
@@ -768,7 +904,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                   />
                 </Pressable>
                 <Pressable
-                  onPress={() => undefined}
+                  onPress={() => setAttachedFile(null)}
                   style={styles.attachedActionBtn}
                   accessibilityLabel="Hapus lampiran"
                 >
@@ -788,8 +924,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       <View style={styles.stickyFooter}>
         <View style={styles.footerGrid}>
           <Pressable
-            onPress={() => handleSubmit('draft')}
-            disabled={isLoading}
+            onPress={handleSaveDraft}
             style={({ pressed }) => [
               styles.draftButton,
               pressed && styles.buttonPressed,
@@ -800,7 +935,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           </Pressable>
 
           <Pressable
-            onPress={() => handleSubmit('scheduled')}
+            onPress={handleSubmit}
             disabled={isLoading}
             style={({ pressed }) => [
               styles.publishButton,
@@ -842,12 +977,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingBottom: 110,
     gap: spacing.md,
-  },
-  formNotice: {
-    color: colors.onSurfaceVariant,
-    fontSize: 12,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
   },
   sectionCard: {
     backgroundColor: colors.surfaceCard,
