@@ -3,121 +3,77 @@ import { Attendance, AuditLog, ASNUnitMember } from '../../domain/entities/types
 import { AttendanceRepositoryImpl } from '../../data/repositories/AttendanceRepositoryImpl';
 
 const attendanceRepo = new AttendanceRepositoryImpl();
+type AttendancePortal = Awaited<ReturnType<typeof attendanceRepo.getAttendancePortal>>;
+type AttendancePage = Awaited<ReturnType<typeof attendanceRepo.getAttendanceHistory>>;
+type AgendaAttendancePage = Awaited<ReturnType<typeof attendanceRepo.getAgendaAttendances>>;
 
 interface AttendanceState {
-  attendances: Attendance[];
-  lastReceipt: Attendance | null;
-  auditLogs: AuditLog[];
-  unitMembers: ASNUnitMember[];
-  isLoading: boolean;
-  isSubmitting: boolean;
-  error: string | null;
-  offlineQueueCount: number;
-
-  fetchHistory: (nip?: string) => Promise<void>;
-  fetchReceipt: (id: string) => Promise<Attendance | null>;
-  submitAttendance: (
-    data: Omit<Attendance, 'id' | 'verificationToken' | 'timestamp' | 'isSynced'>
-  ) => Promise<Attendance | null>;
-  fetchAuditLogs: () => Promise<void>;
-  fetchUnitMembers: (unitKerja?: string) => Promise<void>;
-  syncOfflineQueue: () => Promise<number>;
-  clearError: () => void;
+  attendances: Attendance[]; lastReceipt: Attendance | null; historyPage: AttendancePage | null;
+  agendaAttendances: Attendance[]; agendaAttendancePage: AgendaAttendancePage | null; portal: AttendancePortal | null;
+  auditLogs: AuditLog[]; unitMembers: ASNUnitMember[]; isLoading: boolean; isSubmitting: boolean; error: string | null; offlineQueueCount: number;
+  fetchHistory: (page?: number, append?: boolean) => Promise<void>; fetchAgendaAttendances: (agendaId: string, page?: number, append?: boolean) => Promise<void>;
+  fetchPortal: (agendaId: string) => Promise<void>; fetchReceipt: (id: string) => Promise<Attendance | null>;
+  submitAttendance: (agendaId: string, payload: { selfie_data?: string; signature_data?: string }) => Promise<Attendance | null>;
+  fetchAuditLogs: () => Promise<void>; fetchUnitMembers: (unitKerja?: string) => Promise<void>; syncOfflineQueue: () => Promise<number>; clearError: () => void;
 }
 
+function errorMessage(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
+
 export const useAttendanceStore = create<AttendanceState>((set, get) => ({
-  attendances: [],
-  lastReceipt: null,
-  auditLogs: [],
-  unitMembers: [],
-  isLoading: false,
-  isSubmitting: false,
-  error: null,
-  offlineQueueCount: 0,
+  attendances: [], lastReceipt: null, historyPage: null, agendaAttendances: [], agendaAttendancePage: null, portal: null,
+  auditLogs: [], unitMembers: [], isLoading: false, isSubmitting: false, error: null, offlineQueueCount: 0,
 
-  fetchHistory: async (nip = '') => {
-    const hasData = get().attendances.length > 0;
-    if (!hasData) {
-      set({ isLoading: true, error: null });
-    }
-
-    try {
-      const attendances = await attendanceRepo.getAttendanceHistory(nip);
-      const queue = await attendanceRepo.getOfflineQueue();
-      set({
-        attendances,
-        offlineQueueCount: queue.length,
-        isLoading: false,
-        error: null,
-      });
-    } catch (err: unknown) {
-      set({
-        isLoading: false,
-        error: err instanceof Error ? err.message : 'Gagal memuat riwayat presensi',
-      });
-    }
+  fetchPortal: async (agendaId) => {
+    set({ isLoading: true, error: null });
+    try { set({ portal: await attendanceRepo.getAttendancePortal(agendaId) }); }
+    catch (error) { set({ error: errorMessage(error, 'Gagal memuat portal presensi.') }); }
+    finally { set({ isLoading: false }); }
   },
 
-  fetchReceipt: async (id: string) => {
+  fetchHistory: async (page = 1, append = false) => {
+    set({ isLoading: true, error: null });
     try {
-      const receipt = await attendanceRepo.getAttendanceReceipt(id);
-      if (receipt) {
-        set({ lastReceipt: receipt });
-      }
-      return receipt;
-    } catch {
-      return null;
-    }
-  },
-
-  submitAttendance: async (data) => {
-    set({ isSubmitting: true, error: null });
-    try {
-      const record = await attendanceRepo.submitAttendance(data);
-      set((state) => ({
-        attendances: [record, ...state.attendances],
-        lastReceipt: record,
-        isSubmitting: false,
-        error: null,
-      }));
-      return record;
-    } catch (err: unknown) {
-      set({
-        isSubmitting: false,
-        error: err instanceof Error ? err.message : 'Gagal mengirim berkas presensi',
-      });
-      return null;
-    }
-  },
-
-  fetchAuditLogs: async () => {
-    try {
-      const logs = await attendanceRepo.getAuditLogs();
-      set({ auditLogs: logs });
-    } catch {
-      // Fallback
-    }
-  },
-
-  fetchUnitMembers: async (unitKerja) => {
-    try {
-      const members = await attendanceRepo.getUnitMembers(unitKerja);
-      set({ unitMembers: members });
-    } catch {
-      // Fallback
-    }
-  },
-
-  syncOfflineQueue: async () => {
-    try {
-      const count = await attendanceRepo.syncOfflineQueue();
+      const result = await attendanceRepo.getAttendanceHistory(page);
+      set((state) => ({ attendances: append ? [...state.attendances, ...result.records] : result.records, historyPage: result }));
       const queue = await attendanceRepo.getOfflineQueue();
       set({ offlineQueueCount: queue.length });
-      return count;
-    } catch {
-      return 0;
-    }
+    } catch (error) { set({ error: errorMessage(error, 'Gagal memuat riwayat presensi.') }); }
+    finally { set({ isLoading: false }); }
   },
 
+  fetchAgendaAttendances: async (agendaId, page = 1, append = false) => {
+    set({ isLoading: true, error: null });
+    try {
+      const result = await attendanceRepo.getAgendaAttendances(agendaId, page);
+      set((state) => ({ agendaAttendances: append ? [...state.agendaAttendances, ...result.records] : result.records, agendaAttendancePage: result }));
+    } catch (error) { set({ error: errorMessage(error, 'Gagal memuat daftar kehadiran agenda.') }); }
+    finally { set({ isLoading: false }); }
+  },
+
+  fetchReceipt: async (id) => {
+    try {
+      const cached = get().attendances.find((item) => item.id === id) ?? get().lastReceipt;
+      if (cached?.id === id) return cached;
+      const record = await attendanceRepo.getAttendanceReceipt(id);
+      if (record) set({ lastReceipt: record });
+      return record;
+    } catch (error) { set({ error: errorMessage(error, 'Gagal memuat tanda terima presensi.') }); return null; }
+  },
+
+  submitAttendance: async (agendaId, payload) => {
+    if (get().isSubmitting || get().portal?.hasAttended) return null;
+    set({ isSubmitting: true, error: null });
+    try {
+      const record = await attendanceRepo.submitAttendance(agendaId, payload);
+      set({ lastReceipt: record, portal: get().portal ? { ...get().portal!, hasAttended: true, attendance: record } : null });
+      await get().fetchHistory(1);
+      return record;
+    } catch (error) { set({ error: errorMessage(error, 'Gagal mengirim presensi.') }); return null; }
+    finally { set({ isSubmitting: false }); }
+  },
+
+  fetchAuditLogs: async () => { try { set({ auditLogs: await attendanceRepo.getAuditLogs() }); } catch { /* prototype module */ } },
+  fetchUnitMembers: async (unit) => { try { set({ unitMembers: await attendanceRepo.getUnitMembers(unit) }); } catch { /* prototype module */ } },
+  syncOfflineQueue: async () => { try { const count = await attendanceRepo.syncOfflineQueue(); set({ offlineQueueCount: (await attendanceRepo.getOfflineQueue()).length }); return count; } catch { return 0; } },
   clearError: () => set({ error: null }),
 }));

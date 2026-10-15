@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
@@ -28,6 +28,7 @@ import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import { GlobalFeedbackHost } from '../components/common/GlobalFeedbackHost';
+import { useAuthStore } from '../store/useAuthStore';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createMaterialTopTabNavigator<MainTabParamList>();
@@ -95,6 +96,10 @@ const CustomBottomTabBar: React.FC<MaterialTopTabBarProps> = ({
 };
 
 export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: rootStackNav }) => {
+  const user = useAuthStore((state) => state.user);
+  useEffect(() => {
+    if (!user) rootStackNav.replace('Login');
+  }, [user, rootStackNav]);
   return (
     <Tab.Navigator
       tabBarPosition="bottom"
@@ -165,7 +170,7 @@ export const AppNavigator: React.FC = () => {
     >
       <Stack.Screen name="Splash">
         {({ navigation }) => (
-          <SplashScreen onFinish={() => navigation.replace('Login')} />
+          <SplashScreen onFinish={(hasSession) => navigation.replace(hasSession ? 'MainTabs' : 'Login')} />
         )}
       </Stack.Screen>
 

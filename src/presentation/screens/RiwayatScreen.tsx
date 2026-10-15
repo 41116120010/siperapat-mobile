@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TextInput,
   Pressable,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -20,6 +21,7 @@ import {
   HistoryMeetingType,
 } from '../components/modals/DateFilterModal';
 import { useAttendanceStore } from '../store/useAttendanceStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface RiwayatScreenProps {
   onSelectReceipt: (id: string) => void;
@@ -35,80 +37,28 @@ interface HistoryItem {
   verificationMethod: string;
   meetingId: string;
   periodKey: HistoryPeriod;
-  meetingType: 'hybrid' | 'offline' | 'online';
+  meetingType?: 'hybrid' | 'offline' | 'online';
 }
 
-const HISTORY_DATA: HistoryItem[] = [
-  {
-    id: 'att-001',
-    code: 'RPK-1026-X',
-    title: 'Rapat Koordinasi Penjaminan Mutu & Akreditasi Program Studi PTS 2026',
-    statusText: 'Hadir',
-    time: 'Hari ini, 09:14 WIB',
-    room: 'Hybrid • Ruang Sidang Utama LLDIKTI',
-    verificationMethod: 'Verifikasi: Biometrik & TTE Sah',
-    meetingId: 'meet-001',
-    periodKey: '2026-10',
-    meetingType: 'hybrid',
-  },
-  {
-    id: 'att-002',
-    code: 'EV-PDD-1026',
-    title: 'Evaluasi Pelaporan PDDikti Semester Ganjil 2025/2026',
-    statusText: 'Hadir',
-    time: '14 Okt 2026, 10:02 WIB',
-    room: 'Luring • Auditorium Gedung A LLDIKTI',
-    verificationMethod: 'Verifikasi: Presensi Lokasi Sah',
-    meetingId: 'meet-002',
-    periodKey: '2026-10',
-    meetingType: 'offline',
-  },
-  {
-    id: 'att-003',
-    code: 'BKD-1026-D',
-    title: 'Sosialisasi Kebijakan Beban Kerja Dosen (BKD) LLDIKTI X',
-    statusText: 'Hadir',
-    time: '02 Okt 2026, 08:55 WIB',
-    room: 'Daring • Zoom Meeting (ID: 981 234 110)',
-    verificationMethod: 'Verifikasi: Token Virtual Valid',
-    meetingId: 'meet-003',
-    periodKey: '2026-10',
-    meetingType: 'online',
-  },
-  {
-    id: 'att-004',
-    code: 'KNS-0926-X',
-    title: 'Konsinyasi Penyusunan Rencana Anggaran Satker LLDIKTI',
-    statusText: 'Hadir',
-    time: '25 Sep 2026, 09:05 WIB',
-    room: 'Luring • Ruang Rapat Pimpinan',
-    verificationMethod: 'Verifikasi: Tanda Tangan Kedinasan',
-    meetingId: 'meet-004',
-    periodKey: '2026-09',
-    meetingType: 'offline',
-  },
-  {
-    id: 'att-005',
-    code: 'RKO-0826-P',
-    title: 'Rapat Koordinasi Persiapan Perkuliahan Semester Ganjil PTS Wilayah X',
-    statusText: 'Hadir',
-    time: '18 Agu 2026, 09:30 WIB',
-    room: 'Hybrid • Ruang Sidang Utama LLDIKTI',
-    verificationMethod: 'Verifikasi: Presensi Lokasi Sah',
-    meetingId: 'meet-005',
-    periodKey: '2026-08',
-    meetingType: 'hybrid',
-  },
-];
-
 export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt }) => {
-  const { offlineQueueCount, syncOfflineQueue } = useAttendanceStore();
+  const { offlineQueueCount, syncOfflineQueue, attendances, fetchHistory, historyPage, isLoading, error } = useAttendanceStore();
   const [search, setSearch] = useState('');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>('all');
   const [selectedType, setSelectedType] = useState<HistoryMeetingType>('all');
 
-  const filteredHistory = HISTORY_DATA.filter((h) => {
+  useEffect(() => { void fetchHistory(1); }, [fetchHistory]);
+  const historyData: HistoryItem[] = attendances.map((item) => {
+    const date = item.timestamp ? new Date(item.timestamp) : null;
+    return {
+      id: item.id, code: `Agenda #${item.agendaId ?? item.meetingId}`, title: item.meetingTitle,
+      statusText: 'Tercatat', time: date && !Number.isNaN(date.getTime()) ? date.toLocaleString('id-ID') : 'Waktu tidak tersedia',
+      room: 'Detail agenda tidak disertakan pada API riwayat', verificationMethod: 'Bukti tersimpan sesuai respons API',
+      meetingId: item.meetingId, periodKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` as HistoryPeriod : 'all',
+    };
+  });
+
+  const filteredHistory = historyData.filter((h) => {
     const matchesSearch =
       h.title.toLowerCase().includes(search.toLowerCase()) ||
       h.code.toLowerCase().includes(search.toLowerCase());
@@ -118,7 +68,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
       return false;
     }
 
-    if (selectedType !== 'all' && h.meetingType !== selectedType) {
+    if (selectedType !== 'all' && h.meetingType && h.meetingType !== selectedType) {
       return false;
     }
 
@@ -147,6 +97,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => void fetchHistory(1)} />}
       >
         {/* Title Section */}
         <View style={styles.titleSection}>
@@ -183,8 +134,8 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
 
           <View style={styles.bentoCard}>
             <Text style={styles.bentoLabel}>Tingkat Kehadiran</Text>
-            <Text style={[styles.bentoValue, { color: colors.success }]}>100%</Text>
-            <Text style={styles.bentoSub}>Presensi Terverifikasi</Text>
+            <Text style={[styles.bentoValue, { color: colors.success }]}>—</Text>
+            <Text style={styles.bentoSub}>Persentase tidak disediakan API</Text>
           </View>
 
           <View style={styles.bentoCard}>
@@ -251,12 +202,12 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
             DAFTAR KEHADIRAN RAPAT KEDINASAN
           </Text>
           <Text style={styles.listHeaderSub}>
-            Menampilkan {filteredHistory.length} dari {HISTORY_DATA.length}
+            Menampilkan {filteredHistory.length} dari {historyPage?.total ?? 0}
           </Text>
         </View>
 
         {/* ATTENDANCE HISTORY LIST CARDS OR EMPTY STATE */}
-        {filteredHistory.length > 0 ? (
+        {error && historyData.length === 0 ? <EmptyState icon="cloud-off" title="Riwayat tidak dapat dimuat" description={error} actionLabel="Coba Lagi" onAction={() => void fetchHistory(1)} /> : filteredHistory.length > 0 ? (
           <View style={styles.cardsContainer}>
             {filteredHistory.map((item) => (
               <View key={item.id} style={styles.historyCard}>
@@ -314,6 +265,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
                 </View>
               </View>
             ))}
+            {historyPage && historyPage.currentPage < historyPage.lastPage ? <Pressable onPress={() => void fetchHistory(historyPage.currentPage + 1, true)} style={styles.calendarFilterBtn}><Text style={styles.calendarFilterText}>{isLoading ? 'Memuat...' : 'Muat lebih banyak'}</Text></Pressable> : null}
           </View>
         ) : (
           <EmptyState
@@ -338,7 +290,10 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
         currentType={selectedType}
         onApply={(period, type) => {
           setSelectedPeriod(period);
-          setSelectedType(type);
+          if (type !== 'all') {
+            setSelectedType('all');
+            useFeedbackStore.getState().showToast({ type: 'info', message: 'API riwayat belum menyertakan tipe rapat; filter tipe belum dapat diterapkan.' });
+          } else setSelectedType(type);
         }}
         onReset={() => {
           setSelectedPeriod('all');

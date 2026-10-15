@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ASN } from '../../domain/entities/types';
 import { AuthRepositoryImpl } from '../../data/repositories/AuthRepositoryImpl';
+import { authTokenStore } from '../../data/datasources/authTokenStore';
 
 const authRepo = new AuthRepositoryImpl();
 
@@ -9,7 +10,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   checkSession: () => Promise<void>;
-  login: (nip: string, password?: string) => Promise<boolean>;
+  login: (nip: string, password: string, remember?: boolean) => Promise<boolean>;
   loginBiometric: () => Promise<boolean>;
   logout: () => Promise<void>;
   changePassword: (
@@ -38,10 +39,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  login: async (nip: string, password?: string) => {
+  login: async (nip: string, password: string, remember = true) => {
     set({ isLoading: true, error: null });
     try {
-      const user = await authRepo.loginWithNIP(nip, password);
+      const user = await authRepo.loginWithNIP(nip, password, remember);
       set({ user, isLoading: false });
       return true;
     } catch (err: unknown) {
@@ -70,8 +71,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     set({ isLoading: true });
-    await authRepo.logout();
-    set({ user: null, isLoading: false, error: null });
+    try { await authRepo.logout(); }
+    finally { set({ user: null, isLoading: false, error: null }); }
   },
 
   changePassword: async (currentPassword: string, newPassword: string) => {
@@ -90,3 +91,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+authTokenStore.setUnauthorizedHandler(() => {
+  useAuthStore.setState({ user: null, isLoading: false, error: 'Sesi berakhir. Silakan masuk kembali.' });
+});

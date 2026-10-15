@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import { FaceOvalOverlay } from '../components/attendance/FaceOvalOverlay';
 import { DigitalSignaturePad } from '../components/attendance/DigitalSignaturePad';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAttendanceStore } from '../store/useAttendanceStore';
-import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 
 interface PresensiScreenProps {
@@ -31,17 +30,14 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuthStore();
-  const { activeMeeting, meetings } = useMeetingStore();
-  const { submitAttendance, isSubmitting, error } = useAttendanceStore();
+  const { submitAttendance, isSubmitting, error, portal, fetchPortal, isLoading } = useAttendanceStore();
 
   const [selfieUri, setSelfieUri] = useState<string>('');
   const [signatureSvg, setSignatureSvg] = useState<string>('');
-  const [isAgreementChecked, setIsAgreementChecked] = useState(true);
+  const [isAgreementChecked, setIsAgreementChecked] = useState(false);
 
-  const meeting =
-    activeMeeting?.id === meetingId
-      ? activeMeeting
-      : meetings.find((m) => m.id === meetingId) ?? activeMeeting;
+  useEffect(() => { void fetchPortal(meetingId); }, [meetingId, fetchPortal]);
+  const meeting = portal?.agenda;
 
   const handleSubmit = async () => {
     if (!isAgreementChecked) {
@@ -52,26 +48,15 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
       return;
     }
 
-    const payload = {
-      meetingId: meeting?.id ?? 'meet-001',
-      meetingTitle:
-        meeting?.title ??
-        'Rapat Koordinasi Penjaminan Mutu & Akreditasi Program Studi PTS 2026',
-      asnNip: user?.nip ?? '197012051992032002',
-      asnName: user?.name ?? 'Afdalisma, SH, M.Pd',
-      asnJabatan: user?.jabatan ?? 'Kepala LLDIKTI Wilayah X',
-      asnUnitKerja: user?.unitKerja ?? 'LLDIKTI Wilayah X',
-      selfieUri: selfieUri || 'file:///data/cache/selfie.jpg',
-      signatureSvg: signatureSvg || 'M 40 75 Q 60 20, 85 65',
-      ipAddress: '180.252.164.218',
-      deviceInfo: 'Android Device (LLDIKTI X Authorized)',
-      latitude: meeting?.latitude ?? -0.92348,
-      longitude: meeting?.longitude ?? 100.36214,
-      distanceMeters: 12,
-      status: 'sah' as const,
-    };
-
-    const record = await submitAttendance(payload);
+    if (!portal?.isOngoing || !portal.isEligible || portal.hasAttended) {
+      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Presensi tidak tersedia untuk agenda ini menurut status dan hak akses server.' });
+      return;
+    }
+    if (!selfieUri.startsWith('data:image/') || !signatureSvg.startsWith('data:image/')) {
+      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Ambil foto dan bubuhkan tanda tangan sebelum mengirim presensi.' });
+      return;
+    }
+    const record = await submitAttendance(meetingId, { selfie_data: selfieUri, signature_data: signatureSvg });
     if (record) {
       onSuccess(record.id);
     }
@@ -98,7 +83,7 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>NIP Pegawai ASN</Text>
             <Text style={styles.metaValueMono}>
-              {user?.nip ?? '19701205 199203 2 002'}
+              {user?.nip ?? '—'}
             </Text>
           </View>
 
@@ -106,7 +91,7 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
 
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Waktu & IP Sesi</Text>
-            <Text style={styles.metaValue}>09:14:22 WIB • 180.252.164.218</Text>
+            <Text style={styles.metaValue}>Diisi oleh server</Text>
           </View>
 
           <View style={styles.metaDivider} />
@@ -114,9 +99,8 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Lokasi Presensi</Text>
             <View style={styles.geofenceValidRow}>
-              <MaterialIcons name="check-circle" size={14} color={colors.success} />
               <Text style={styles.metaValidText}>
-                LLDIKTI Wilayah X (Akurat 12m)
+                Validasi lokasi tidak disediakan API
               </Text>
             </View>
           </View>
@@ -153,7 +137,7 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
           size="lg"
           fullWidth
           isLoading={isSubmitting}
-          disabled={isSubmitting || !isAgreementChecked}
+          disabled={isSubmitting || isLoading || !isAgreementChecked || !portal?.isOngoing || !portal.isEligible || portal.hasAttended || !selfieUri || !signatureSvg}
           style={styles.submitBtn}
           icon={<MaterialIcons name="verified" size={20} color={colors.onPrimary} />}
         />

@@ -6,6 +6,8 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -14,6 +16,7 @@ import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
+import { ErrorState } from '../components/common/ErrorState';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { Meeting } from '../../domain/entities/types';
@@ -27,30 +30,26 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   onNavigateDetail,
   onNavigateCreate,
 }) => {
-  const { meetings, fetchMeetings, isLoading } = useMeetingStore();
+  const { meetings, fetchMeetings, isLoading, isLoadingMore, error, currentPage, lastPage } = useMeetingStore();
   const [filter, setFilter] = useState<'semua' | 'hybrid' | 'offline' | 'online'>('semua');
 
   useEffect(() => {
-    fetchMeetings();
-  }, [fetchMeetings]);
+    fetchMeetings(1, false, filter === 'semua' ? 'all' : filter);
+  }, [fetchMeetings, filter]);
 
   const filtered = meetings.filter((m) => {
     if (filter === 'semua') return true;
     return m.type === filter;
   });
 
-  const handlePdfView = (title: string) => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: `Membuka berkas surat undangan dinas untuk "${title}".`,
-    });
+  const handlePdfView = (url?: string) => {
+    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' }));
+    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
   };
 
   const handleJoinLink = (url?: string) => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: `Menghubungkan ke ruang sidang virtual: ${url || 'Meeting ID: 982 348 1239'}`,
-    });
+    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Tautan rapat tidak dapat dibuka.' }));
+    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Tautan rapat belum tersedia.' });
   };
 
   return (
@@ -112,7 +111,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
           <MeetingCard
             meeting={item}
             onPressDetail={() => onNavigateDetail(item.id)}
-            onPressPdf={() => handlePdfView(item.title)}
+            onPressPdf={() => handlePdfView(item.invitationPdfUrl)}
             onPressJoinLink={() => handleJoinLink(item.zoomUrl)}
           />
         )}
@@ -124,8 +123,11 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
             colors={[colors.primary]}
           />
         }
+        onEndReached={() => { if (currentPage < lastPage && !isLoadingMore) void fetchMeetings(currentPage + 1, true); }}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={isLoadingMore ? <ActivityIndicator color={colors.primary} /> : null}
         ListEmptyComponent={
-          <EmptyState
+          error ? <ErrorState message={error} onRetry={() => void fetchMeetings(1, false, filter === 'semua' ? 'all' : filter)} /> : <EmptyState
             title="Tidak Ada Jadwal Rapat"
             description="Tidak ada agenda yang sesuai dengan tipe pertemuan yang dipilih."
             actionLabel="Buat Agenda Baru"

@@ -28,8 +28,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onLoginSuccess,
   onNavigateForgotPassword,
 }) => {
-  const [identifier, setIdentifier] = useState('19701205 199203 2 002');
-  const [password, setPassword] = useState('lldikti2026');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(true);
 
@@ -51,7 +51,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   const handleLogin = async () => {
-    const success = await login(identifier, password);
+    const success = await login(identifier, password, rememberDevice);
     if (success) {
       onLoginSuccess();
     }

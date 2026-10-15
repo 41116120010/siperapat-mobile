@@ -17,7 +17,7 @@ export interface ASN {
   biometricEnabled: boolean;
 }
 
-export type MeetingStatus = 'ongoing' | 'upcoming' | 'completed' | 'cancelled';
+export type MeetingStatus = 'draft' | 'ongoing' | 'upcoming' | 'completed' | 'cancelled';
 export type MeetingType = 'hybrid' | 'offline' | 'online';
 
 export interface Meeting {
@@ -26,27 +26,31 @@ export interface Meeting {
   title: string;
   type: MeetingType;
   leader: string;
+  notulis?: string;
   date: string;
   startTime: string;
   endTime: string;
   venue: string;
   status: MeetingStatus;
-  geofenceRadiusMeters: number;
-  latitude: number;
-  longitude: number;
+  geofenceRadiusMeters?: number;
+  latitude?: number;
+  longitude?: number;
   agendaDescription: string;
   targetAudience: string;
   zoomUrl?: string;
   invitationPdfUrl?: string;
-  totalInvited: number;
+  totalInvited?: number;
   totalAttended: number;
+  minutesHtml?: string | null;
+  summaryHtml?: string | null;
 }
 
-export type AttendanceStatus = 'sah' | 'terlambat' | 'izin' | 'ditolak';
+export type AttendanceStatus = 'sah' | 'terlambat' | 'izin' | 'ditolak' | 'tercatat';
 
 export interface Attendance {
   id: string;
   meetingId: string;
+  agendaId?: string;
   meetingTitle: string;
   asnNip: string;
   asnName: string;
@@ -58,9 +62,12 @@ export interface Attendance {
   verificationToken: string;
   ipAddress: string;
   deviceInfo: string;
-  latitude: number;
-  longitude: number;
-  distanceMeters: number;
+  latitude?: number;
+  longitude?: number;
+  distanceMeters?: number;
+  selfieUrl?: string | null;
+  signatureUrl?: string | null;
+  userId?: string;
   status: AttendanceStatus;
   isSynced: boolean; // Durability: false when submitted offline, true when synced to central server
 }

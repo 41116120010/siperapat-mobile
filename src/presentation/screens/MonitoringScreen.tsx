@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Pressable,
   TextInput,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -15,6 +16,8 @@ import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Button } from '../components/common/Button';
 import { useFeedbackStore } from '../store/useFeedbackStore';
+import { useMeetingStore } from '../store/useMeetingStore';
+import { useAttendanceStore } from '../store/useAttendanceStore';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -29,99 +32,67 @@ interface Participant {
   nip: string;
   time: string;
   location: string;
+  unit?: string;
   isOnline?: boolean;
 }
 
-const VERIFIED_PARTICIPANTS: Participant[] = [
-  {
-    name: 'Afdalisma, SH, M.Pd',
-    role: 'Kepala LLDIKTI Wilayah X',
-    nip: '197012051992032002',
-    time: '09:14 WIB',
-    location: 'R. Sidang Utama',
-  },
-  {
-    name: 'Ely Susanti, SE, MM',
-    role: 'Pokja Akademik & Kemahasiswaan',
-    nip: '196708231991032001',
-    time: '09:18 WIB',
-    location: 'Gedung A',
-  },
-  {
-    name: 'Febrina Fitri, SE, M.Si',
-    role: 'Bagian Sumber Daya PT',
-    nip: '196502101991032002',
-    time: '09:25 WIB',
-    location: 'Daring (Zoom)',
-    isOnline: true,
-  },
-  {
-    name: 'Reri Anton, ST, MM',
-    role: 'Pokja Pendidik & Tenaga Kependidikan',
-    nip: '197003081991031001',
-    time: '09:32 WIB',
-    location: 'R. Sidang Utama',
-  },
-];
+function plainText(html?: string | null) {
+  return html?.replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').trim() || 'Notulensi belum tersedia di API.';
+}
 
-const UNVERIFIED_PARTICIPANTS: Participant[] = [
-  {
-    name: 'Dr. Hj. Syahril, M.Pd',
-    role: 'Sekretaris Lembaga',
-    nip: '196803151991031002',
-    time: 'Menunggu Presensi',
-    location: 'R. Sidang Utama',
-  },
-  {
-    name: 'Hendri Nova, S.Kom, M.Kom',
-    role: 'Pokja Sistem Informasi & PDDIKTI',
-    nip: '197509122001121001',
-    time: 'Menunggu Presensi',
-    location: 'Gedung A',
-  },
-];
-
-export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) => {
+export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meetingId }) => {
   const [activeTab, setActiveTab] = useState<TabType>('verified');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
+  const { getMeetingById } = useMeetingStore();
+  const { agendaAttendances, agendaAttendancePage, fetchAgendaAttendances, isLoading, error } = useAttendanceStore();
+  const [meeting, setMeeting] = useState<Awaited<ReturnType<typeof getMeetingById>> | null>(null);
+
+  useEffect(() => {
+    if (!meetingId) return;
+    void getMeetingById(meetingId).then(setMeeting).catch(() => setMeeting(null));
+    void fetchAgendaAttendances(meetingId, 1);
+  }, [meetingId, getMeetingById, fetchAgendaAttendances]);
 
   const handleCopyBANumber = () => {
     useFeedbackStore.getState().showToast({
-      type: 'success',
-      message: 'Nomor BA-RAPAT/2026/0142/LLDIKTI-X berhasil disalin ke clipboard.',
+      type: 'info',
+      message: 'Nomor berita acara tidak disediakan oleh API.',
     });
   };
 
   const handleDownloadPdf = () => {
     useFeedbackStore.getState().showToast({
-      type: 'success',
-      message: 'Dokumen Berita Acara Rapat resmi (PDF) berhasil diunduh.',
+      type: 'info',
+      message: 'Endpoint unduh berita acara belum tersedia di backend.',
     });
   };
 
   const handleDownloadWord = () => {
     useFeedbackStore.getState().showToast({
-      type: 'success',
-      message: 'Naskah dinas risalah sidang (DOCX) berhasil diunduh.',
+      type: 'info',
+      message: 'Endpoint ekspor notulensi belum tersedia di backend.',
     });
   };
 
   const handleDownloadExcel = () => {
     useFeedbackStore.getState().showToast({
-      type: 'success',
-      message: 'Data tabulasi rekapan presensi 79 ASN (Excel / CSV) berhasil diekspor.',
+      type: 'info',
+      message: 'Endpoint ekspor rekap kehadiran belum tersedia di backend.',
     });
   };
 
-  const displayList =
-    activeTab === 'verified' ? VERIFIED_PARTICIPANTS : UNVERIFIED_PARTICIPANTS;
+  const displayList: Participant[] = useMemo(() => activeTab === 'verified' ? agendaAttendances.map((record) => ({
+    name: record.asnName || 'Nama tidak disediakan', role: record.asnJabatan || 'Pegawai', nip: record.asnNip || '',
+    time: record.timestamp ? new Date(record.timestamp).toLocaleString('id-ID') : 'Waktu tidak tersedia',
+    location: 'Lokasi tidak disediakan API', unit: record.asnUnitKerja,
+  })) : [], [activeTab, agendaAttendances]);
 
   const filteredList = displayList.filter(
     (p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.nip.includes(searchQuery)
-  );
+  ).filter((p) => selectedPokja === 'Semua Unit' || p.unit === selectedPokja);
 
   return (
     <View style={styles.container}>
@@ -135,22 +106,23 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => meetingId && void fetchAgendaAttendances(meetingId, 1)} />}
       >
         {/* AGENDA SUMMARY & STATUS HERO CARD */}
         <View style={styles.heroCard}>
           <View style={styles.heroHeader}>
             <View style={styles.heroCodeRow}>
-              <Text style={styles.heroCode}>RPK-1026-X</Text>
-              <Text style={styles.heroType}>Rapat Dinas</Text>
+              <Text style={styles.heroCode}>{meeting?.code ?? `Agenda #${meetingId ?? '—'}`}</Text>
+              <Text style={styles.heroType}>{meeting?.type?.toUpperCase() ?? '—'}</Text>
             </View>
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
-              <Text style={styles.liveBadgeText}>Presensi Dibuka</Text>
+            <Text style={styles.liveBadgeText}>{meeting ? meeting.status === 'ongoing' ? 'Presensi Dibuka' : `Status: ${meeting.status}` : 'Memuat status agenda'}</Text>
             </View>
           </View>
 
           <Text style={styles.heroTitle}>
-            Rapat Koordinasi Penjaminan Mutu & Akreditasi Program Studi PTS 2026
+            {meeting?.title ?? (error ? 'Detail agenda tidak dapat dimuat' : 'Memuat detail agenda...')}
           </Text>
 
           {/* Clean 2-Column Metadata Grid */}
@@ -161,7 +133,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Jadwal</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    Kamis, 24 Okt 2026 • 09.00 - 12.00 WIB
+                    {meeting ? `${meeting.date} • ${meeting.startTime}–${meeting.endTime}` : '—'}
                   </Text>
                 </View>
               </View>
@@ -173,7 +145,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Format</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    Hybrid • Ruang Sidang Gedung A & Zoom
+                    {meeting ? `${meeting.type.toUpperCase()} • ${meeting.venue || meeting.zoomUrl || 'Lokasi tidak tersedia'}` : '—'}
                   </Text>
                 </View>
               </View>
@@ -185,7 +157,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Pimpinan Rapat</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    Afdalisma, SH, M.Pd
+                    {meeting?.leader || '—'}
                   </Text>
                 </View>
               </View>
@@ -195,7 +167,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Notulis</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    Rahmat Hidayat, S.Kom
+                    {meeting?.notulis || '—'}
                   </Text>
                 </View>
               </View>
@@ -214,29 +186,29 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Hadir Sah</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: colors.success }]}>68</Text>
+                <Text style={[styles.metricValue, { color: colors.success }]}>{agendaAttendancePage?.total ?? '—'}</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.success }]}>
-                86.1% Terverifikasi
+                Jumlah dari API
               </Text>
             </View>
 
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Belum Hadir</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: colors.error }]}>11</Text>
+                <Text style={[styles.metricValue, { color: colors.error }]}>—</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.error }]}>
-                13.9% Menunggu
+                Daftar undangan tidak tersedia
               </Text>
             </View>
 
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Target Undangan</Text>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>79</Text>
+                <Text style={styles.metricValue}>{meeting?.totalInvited ?? '—'}</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.onSurfaceVariant }]}>
@@ -249,10 +221,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
           <View style={styles.progressSection}>
             <View style={styles.progressLabelRow}>
               <Text style={styles.progressLabel}>Partisipasi Kehadiran</Text>
-              <Text style={styles.progressValue}>86.1% (68 / 79 ASN)</Text>
+              <Text style={styles.progressValue}>Rasio undangan tidak disediakan API</Text>
             </View>
             <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: '86.1%' }]} />
+              <View style={[styles.progressBarFill, { width: '0%' }]} />
             </View>
           </View>
         </View>
@@ -279,7 +251,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                   activeTab === 'verified' && styles.tabBtnTextActive,
                 ]}
               >
-                Terverifikasi Sah
+                Tercatat
               </Text>
               <View
                 style={[
@@ -297,7 +269,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                       : styles.tabBadgeTextInactive,
                   ]}
                 >
-                  68
+                  {agendaAttendancePage?.total ?? '—'}
                 </Text>
               </View>
             </Pressable>
@@ -335,7 +307,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                       : styles.tabBadgeTextInactive,
                   ]}
                 >
-                  11
+                  —
                 </Text>
               </View>
             </Pressable>
@@ -400,9 +372,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             >
               {[
                 'Semua Unit',
-                'Pimpinan',
-                'Akademik & Kemahasiswaan',
-                'Sumber Daya PT',
+                ...Array.from(new Set(agendaAttendances.map((record) => record.asnUnitKerja).filter(Boolean))),
               ].map((chip) => {
                 const active = selectedPokja === chip;
                 return (
@@ -430,7 +400,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
 
             {/* Clean Enterprise Participants Feed */}
             <View style={styles.participantFeed}>
-              {filteredList.map((p, idx) => (
+              {error ? <Text style={styles.pRole}>{error}</Text> : activeTab === 'unverified' ? <Text style={styles.pRole}>API tidak menyediakan daftar undangan yang belum presensi.</Text> : filteredList.length === 0 ? <Text style={styles.pRole}>{isLoading ? 'Memuat kehadiran...' : 'Belum ada data kehadiran.'}</Text> : filteredList.map((p, idx) => (
                 <View key={idx} style={styles.participantCard}>
                   <View style={styles.pAvatar}>
                     <MaterialIcons
@@ -448,20 +418,16 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                       <View
                         style={[
                           styles.pStatusBadge,
-                          activeTab === 'unverified'
-                            ? styles.pStatusBadgeWait
-                            : styles.pStatusBadgeValid,
+                          styles.pStatusBadgeValid,
                         ]}
                       >
                         <Text
                           style={[
                             styles.pStatusText,
-                            activeTab === 'unverified'
-                              ? styles.pStatusTextWait
-                              : styles.pStatusTextValid,
+                            styles.pStatusTextValid,
                           ]}
                         >
-                          {activeTab === 'verified' ? 'Hadir Sah' : 'Menunggu'}
+                          Tercatat
                         </Text>
                       </View>
                     </View>
@@ -482,6 +448,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                   </View>
                 </View>
               ))}
+              {activeTab === 'verified' && agendaAttendancePage && agendaAttendancePage.currentPage < agendaAttendancePage.lastPage ? <Pressable onPress={() => meetingId && void fetchAgendaAttendances(meetingId, agendaAttendancePage.currentPage + 1, true)}><Text style={styles.pRole}>Muat halaman berikutnya</Text></Pressable> : null}
             </View>
           </View>
         ) : null}
@@ -494,18 +461,14 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <MaterialIcons name="edit-note" size={20} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.minutesTitle}>Draf Risalah Sidang Rapat</Text>
+                <Text style={styles.minutesTitle}>Notulensi Rapat</Text>
                 <Text style={styles.minutesSubtitle}>
-                  Notulis: Rahmat Hidayat, S.Kom • Disunting 09:30 WIB
+                  {meeting ? `Agenda: ${meeting.code}` : 'Data notulensi dari agenda'}
                 </Text>
               </View>
             </View>
             <View style={styles.minutesDivider} />
-            <Text style={styles.minutesBody}>
-              1. Peningkatan kuota akreditasi program studi vokasi LLDIKTI X tahun 2026.{'\n\n'}
-              2. Penyelarasan format pelaporan PDDikti semester genap.{'\n\n'}
-              3. Alokasi anggaran pendampingan klinik mutu PT Wilayah Sumbar, Riau, Jambi, Kepri.
-            </Text>
+            <Text style={styles.minutesBody}>{plainText(meeting?.minutesHtml)}</Text>
           </View>
         ) : null}
 
@@ -526,7 +489,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             <Text style={styles.baNumberLabel}>NOMOR BERITA ACARA</Text>
             <View style={styles.baNumberRow}>
               <Text style={styles.baNumberValue}>
-                BA-RAPAT/2026/0142/LLDIKTI-X
+                Tidak disediakan API
               </Text>
               <Pressable
                 onPress={handleCopyBANumber}

@@ -1,53 +1,33 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IMeetingRepository } from '../../domain/repositories/interfaces';
 import { Meeting } from '../../domain/entities/types';
-import { MOCK_MEETINGS } from '../datasources/mockData';
-
-const MEETINGS_STORAGE_KEY = '@siperapat_meetings_data';
+import { agendaApi, AgendaFilters, CreateAgendaDto, UploadFileRef } from '../datasources/agendaApi';
+import { ApiAgendaDto } from '../datasources/apiTypes';
+import { toMeeting } from '../mappers/apiMappers';
 
 export class MeetingRepositoryImpl implements IMeetingRepository {
-  private async loadOrSeedMeetings(): Promise<Meeting[]> {
-    try {
-      const stored = await AsyncStorage.getItem(MEETINGS_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored) as Meeting[];
-      }
-    } catch {
-      // Ignore and fallback
-    }
-    // Seed default
-    await AsyncStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(MOCK_MEETINGS));
-    return MOCK_MEETINGS;
+  async getDashboard() {
+    const response = await agendaApi.dashboard();
+    if (!response.success) throw new Error(response.message || 'Gagal memuat dashboard.');
+    return { stats: response.data.stats, agendas: response.data.active_agendas.map(toMeeting) };
   }
 
-  async getMeetings(): Promise<Meeting[]> {
-    return this.loadOrSeedMeetings();
+  async getMeetings(page = 1, filters: AgendaFilters = {}) {
+    const response = await agendaApi.list(page, 50, filters);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat agenda.');
+    return { meetings: response.data.map(toMeeting), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total };
   }
 
   async getMeetingById(id: string): Promise<Meeting | null> {
-    const list = await this.loadOrSeedMeetings();
-    return list.find((m) => m.id === id) ?? null;
+    const response = await agendaApi.detail(id);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat detail agenda.');
+    return toMeeting(response.data);
   }
 
-  async createMeeting(meetingData: Omit<Meeting, 'id' | 'totalAttended'>): Promise<Meeting> {
-    const list = await this.loadOrSeedMeetings();
-    const newMeeting: Meeting = {
-      ...meetingData,
-      id: `meet-${Date.now()}`,
-      totalAttended: 0,
-    };
-    const updated = [newMeeting, ...list];
-    await AsyncStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(updated));
-    return newMeeting;
+  async createMeeting(input: CreateAgendaDto, suratEdaran?: UploadFileRef): Promise<Meeting> {
+    const response = await agendaApi.create(input, suratEdaran);
+    if (!response.success) throw new Error(response.message || 'Gagal membuat agenda.');
+    return toMeeting(response.data as ApiAgendaDto);
   }
 
-  async getUpcomingMeetings(): Promise<Meeting[]> {
-    const list = await this.loadOrSeedMeetings();
-    return list.filter((m) => m.status === 'upcoming');
-  }
-
-  async getActiveMeeting(): Promise<Meeting | null> {
-    const list = await this.loadOrSeedMeetings();
-    return list.find((m) => m.status === 'ongoing') ?? list[0] ?? null;
-  }
+  getAgendaFormOptions() { return agendaApi.formOptions(); }
 }

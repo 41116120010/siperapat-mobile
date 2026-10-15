@@ -18,11 +18,11 @@ import { useAuthStore } from '../store/useAuthStore';
 const { width, height } = Dimensions.get('window');
 
 interface SplashScreenProps {
-  onFinish: () => void;
+  onFinish: (hasSession: boolean) => void;
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const { user, checkSession } = useAuthStore();
+  const { user, checkSession, isLoading } = useAuthStore();
 
   useEffect(() => {
     checkSession();
@@ -84,7 +84,11 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           {/* Bottom Controls & System Status */}
           <View style={styles.footer}>
             <Pressable
-              onPress={onFinish}
+              onPress={async () => {
+                if (isLoading) return;
+                if (!user) await checkSession();
+                onFinish(Boolean(useAuthStore.getState().user));
+              }}
               style={({ pressed }) => [
                 styles.enterButton,
                 pressed && styles.enterButtonPressed,

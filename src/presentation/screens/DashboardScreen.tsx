@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
   Platform,
+  Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -16,6 +17,7 @@ import { Header } from '../components/common/Header';
 import { BentoGrid } from '../components/cards/BentoStatCard';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
+import { ErrorState } from '../components/common/ErrorState';
 import {
   MeetingFilterModal,
   FilterStatus,
@@ -38,24 +40,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 }) => {
   const { user } = useAuthStore();
   const {
-    meetings,
+    dashboardMeetings: meetings,
     activeMeeting,
+    dashboardStats,
     isLoading,
+    error,
     filterTab,
     setFilterTab,
-    fetchMeetings,
+    fetchDashboard,
   } = useMeetingStore();
 
   const [activeFilterOrder, setActiveFilterOrder] = useState<FilterOrder>('all');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
   useEffect(() => {
-    fetchMeetings();
-  }, [fetchMeetings]);
+    fetchDashboard();
+  }, [fetchDashboard]);
 
-  const ongoingCount = meetings.filter((m) => m.status === 'ongoing').length;
-  const upcomingMeetings = meetings.filter((m) => m.status === 'upcoming');
-  const completedMeetings = meetings.filter((m) => m.status === 'completed');
+  const ongoingCount = dashboardStats?.ongoing_agendas;
+  const upcomingCount = dashboardStats?.upcoming_agendas;
+  const agendaCount = dashboardStats?.total_agendas;
+  const attendanceCount = dashboardStats?.my_attendances ?? dashboardStats?.total_attendances;
 
   const filteredMeetings = meetings
     .filter((m) => {
@@ -75,25 +80,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       return true;
     });
 
-  const categoryTabs: { id: FilterStatus; label: string; count: number }[] = [
-    { id: 'all', label: 'Semua', count: meetings.length },
-    { id: 'ongoing', label: 'Berlangsung', count: ongoingCount },
-    { id: 'upcoming', label: 'Mendatang', count: upcomingMeetings.length },
-    { id: 'completed', label: 'Selesai', count: completedMeetings.length },
+  const categoryTabs: { id: FilterStatus; label: string; count: number | string }[] = [
+    { id: 'all', label: 'Semua', count: agendaCount ?? '—' },
+    { id: 'ongoing', label: 'Berlangsung', count: ongoingCount ?? '—' },
+    { id: 'upcoming', label: 'Mendatang', count: upcomingCount ?? '—' },
+    { id: 'completed', label: 'Selesai', count: dashboardStats?.completed_agendas ?? '—' },
   ];
 
-  const handlePdfView = (title: string) => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: `Membuka berkas surat undangan dinas untuk "${title}".`,
-    });
+  const handlePdfView = (url?: string) => {
+    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' }));
+    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
   };
 
   const handleJoinLink = (url?: string) => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: `Menghubungkan ke ruang sidang virtual: ${url || 'Meeting ID: 894 1205 9920'}`,
-    });
+    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Tautan rapat tidak dapat dibuka.' }));
+    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Tautan rapat belum tersedia pada agenda ini.' });
   };
 
   return (
@@ -105,7 +106,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         refreshControl={
           <RefreshControl
             refreshing={isLoading && meetings.length > 0}
-            onRefresh={fetchMeetings}
+            onRefresh={fetchDashboard}
             colors={[colors.primary]}
           />
         }
@@ -115,27 +116,27 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         <View style={styles.greetingSection}>
           <Text style={styles.greetingSub}>Selamat Pagi,</Text>
           <Text style={styles.greetingName}>
-            {user?.name ?? 'Afdalisma, SH, M.Pd'}
+            {user?.name ?? 'ASN'}
           </Text>
           <Text style={styles.greetingRole}>
-            {user?.jabatan ?? 'Kepala LLDIKTI Wilayah X'}
+            {user?.jabatan ?? 'SIPERAPAT'}
           </Text>
         </View>
 
         {/* Bento Telemetry Stats */}
         <BentoGrid
           stats={[
-            { label: 'Presensi Rapat', value: '18', subValue: 'Selesai' },
+            { label: 'Presensi Rapat', value: attendanceCount === undefined ? '—' : String(attendanceCount), subValue: 'Tercatat' },
             {
               label: 'Jadwal Mendatang',
-              value: upcomingMeetings.length.toString(),
+                value: String(upcomingCount ?? '—'),
               subValue: 'Agenda',
               isPrimary: true,
             },
             {
               label: 'Tingkat Kehadiran',
-              value: '96.8%',
-              subValue: 'Sah',
+              value: '—',
+              subValue: 'Tidak tersedia',
               subValueColor: colors.success,
             },
           ]}
@@ -237,6 +238,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           />
         ) : null}
 
+        {error ? <ErrorState message={error} onRetry={fetchDashboard} /> : null}
+
         {/* List of Meetings according to Filter */}
         {filteredMeetings.length > 0 ? (
           filteredMeetings
@@ -250,7 +253,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 key={meeting.id}
                 meeting={meeting}
                 onPressDetail={() => onNavigateDetail(meeting.id)}
-                onPressPdf={() => handlePdfView(meeting.title)}
+                onPressPdf={() => handlePdfView(meeting.invitationPdfUrl)}
                 onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
               />
             ))

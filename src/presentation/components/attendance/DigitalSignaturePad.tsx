@@ -6,6 +6,7 @@ import {
   Pressable,
   PanResponder,
   GestureResponderEvent,
+  Alert,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -22,6 +23,7 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
 }) => {
   const [paths, setPaths] = useState<string[]>([]);
   const currentPathRef = useRef<string>('');
+  const svgRef = useRef<Svg>(null);
 
   // ponytail: menggunakan PanResponder native React Native untuk kanvas TTD ringan tanpa library eksternal berlebih
   const panResponder = useRef(
@@ -43,7 +45,14 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
         });
       },
       onPanResponderRelease: () => {
-        onSignatureChange(currentPathRef.current);
+        setTimeout(() => svgRef.current?.toDataURL((base64) => {
+          if (Math.ceil(base64.length * 0.75) > 512 * 1024) {
+            Alert.alert('Tanda tangan terlalu besar', 'Bersihkan sebagian goresan atau ulangi tanda tangan. Batas API adalah 512 KB.');
+            onSignatureChange('');
+            return;
+          }
+          onSignatureChange(`data:image/png;base64,${base64}`);
+        }), 50);
       },
     })
   ).current;
@@ -75,7 +84,7 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
 
         {/* SVG Drawing Layer */}
         <View style={styles.touchArea} {...panResponder.panHandlers}>
-          <Svg style={StyleSheet.absoluteFill}>
+          <Svg ref={svgRef} style={StyleSheet.absoluteFill}>
             {paths.map((d, index) => (
               <Path
                 key={index}

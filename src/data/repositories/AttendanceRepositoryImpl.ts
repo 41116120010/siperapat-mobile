@@ -1,88 +1,68 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IAttendanceRepository } from '../../domain/repositories/interfaces';
 import { Attendance, AuditLog, ASNUnitMember } from '../../domain/entities/types';
-import { MOCK_ATTENDANCES, MOCK_AUDIT_LOGS, MOCK_UNIT_MEMBERS } from '../datasources/mockData';
+import { MOCK_AUDIT_LOGS, MOCK_UNIT_MEMBERS } from '../datasources/mockData';
+import { attendanceApi } from '../datasources/attendanceApi';
+import { ApiAttendanceDto } from '../datasources/apiTypes';
+import { toMeeting } from '../mappers/apiMappers';
 
-const ATTENDANCE_STORAGE_KEY = '@siperapat_attendance_records';
+function toAttendance(dto: ApiAttendanceDto): Attendance {
+  return {
+    id: String(dto.id), meetingId: String(dto.agenda_id), agendaId: String(dto.agenda_id),
+    meetingTitle: `Agenda #${dto.agenda_id}`, asnNip: dto.user?.nip ?? '', asnName: dto.user?.name ?? '',
+    asnJabatan: dto.user?.role?.label ?? '', asnUnitKerja: dto.user?.unit?.nama_unit ?? '', timestamp: dto.signed_at ?? '',
+    selfieUri: dto.selfie_url ?? undefined, signatureSvg: undefined, verificationToken: '', ipAddress: dto.ip_address ?? '',
+    deviceInfo: dto.user_agent ?? '', latitude: undefined, longitude: undefined, distanceMeters: undefined,
+    status: 'tercatat', isSynced: true, selfieUrl: dto.selfie_url, signatureUrl: dto.signature_url, userId: String(dto.user_id),
+  };
+}
+
 const AUDIT_STORAGE_KEY = '@siperapat_audit_logs';
 
 export class AttendanceRepositoryImpl implements IAttendanceRepository {
-  private async loadOrSeedAttendances(): Promise<Attendance[]> {
-    try {
-      const stored = await AsyncStorage.getItem(ATTENDANCE_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored) as Attendance[];
-      }
-    } catch {
-      // Fallback
-    }
-    await AsyncStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(MOCK_ATTENDANCES));
-    return MOCK_ATTENDANCES;
+  async getAttendancePortal(agendaId: string) {
+    const response = await attendanceApi.portal(agendaId);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat portal presensi.');
+    const value = response.data;
+    return { agenda: toMeeting(value.agenda), isOngoing: value.is_ongoing, isEligible: value.is_eligible, hasAttended: value.has_attended, attendance: value.my_attendance ? toAttendance(value.my_attendance) : null };
   }
 
-  async submitAttendance(
-    data: Omit<Attendance, 'id' | 'verificationToken' | 'timestamp' | 'isSynced'>
-  ): Promise<Attendance> {
-    const list = await this.loadOrSeedAttendances();
-    const tokenSuffix = Math.floor(1000 + Math.random() * 9000);
-    const verificationToken = `LLD10-PRES-2026-${tokenSuffix}`;
-    const timestamp = new Date().toISOString();
-
-    const newRecord: Attendance = {
-      ...data,
-      id: `att-${Date.now()}`,
-      verificationToken,
-      timestamp,
-      isSynced: true, // Mark synced or queued
-    };
-
-    const updated = [newRecord, ...list];
-    await AsyncStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(updated));
-
-    // Also record into audit log
-    await this.recordAuditLog({
-      id: `log-${Date.now()}`,
-      timestamp: new Date().toLocaleString('id-ID'),
-      nip: data.asnNip,
-      userName: data.asnName,
-      action: 'SUBMIT_PRESENSI_SAH',
-      status: 'SUCCESS',
-      ipAddress: data.ipAddress,
-      details: `Presensi ${data.meetingTitle} disahkan (Token: ${verificationToken}, Jarak: ${data.distanceMeters}m).`,
-    });
-
-    return newRecord;
+  async submitAttendance(agendaId: string, payload: { selfie_data?: string; signature_data?: string }): Promise<Attendance> {
+    const response = await attendanceApi.submit(agendaId, payload);
+    if (!response.success) throw new Error(response.message || 'Gagal mengirim presensi.');
+    return toAttendance(response.data);
   }
 
-  async getAttendanceHistory(nip: string): Promise<Attendance[]> {
-    const list = await this.loadOrSeedAttendances();
-    return list.filter((a) => a.asnNip === nip || !nip);
+  async getAttendanceHistory(page = 1, perPage = 15) {
+    const response = await attendanceApi.myHistory(page, perPage);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat riwayat presensi.');
+    return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total };
   }
 
+  async getAgendaAttendances(agendaId: string, page = 1, perPage = 50) {
+    const response = await attendanceApi.agendaAttendances(agendaId, page, perPage);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat kehadiran agenda.');
+    return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total };
+  }
   async getAttendanceReceipt(attendanceId: string): Promise<Attendance | null> {
-    const list = await this.loadOrSeedAttendances();
-    return list.find((a) => a.id === attendanceId) ?? null;
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const result = await this.getAttendanceHistory(page);
+      const found = result.records.find((record) => record.id === attendanceId);
+      if (found) return found;
+      lastPage = result.lastPage;
+      page += 1;
+    } while (page <= lastPage);
+    return null;
   }
 
   async getOfflineQueue(): Promise<Attendance[]> {
-    const list = await this.loadOrSeedAttendances();
-    return list.filter((a) => !a.isSynced);
+    return [];
   }
 
   async syncOfflineQueue(): Promise<number> {
-    const list = await this.loadOrSeedAttendances();
-    let syncedCount = 0;
-    const updated = list.map((item) => {
-      if (!item.isSynced) {
-        syncedCount += 1;
-        return { ...item, isSynced: true };
-      }
-      return item;
-    });
-    if (syncedCount > 0) {
-      await AsyncStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(updated));
-    }
-    return syncedCount;
+    return 0;
   }
 
   async getAuditLogs(): Promise<AuditLog[]> {
@@ -96,16 +76,6 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
     }
     await AsyncStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(MOCK_AUDIT_LOGS));
     return MOCK_AUDIT_LOGS;
-  }
-
-  private async recordAuditLog(log: AuditLog): Promise<void> {
-    try {
-      const logs = await this.getAuditLogs();
-      const updated = [log, ...logs];
-      await AsyncStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(updated));
-    } catch {
-      // Fail-safe
-    }
   }
 
   async getUnitMembers(unitKerja?: string): Promise<ASNUnitMember[]> {

@@ -26,15 +26,18 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
   onViewAgendaDetail,
 }) => {
   const { lastReceipt, fetchReceipt } = useAttendanceStore();
-  const [receipt, setReceipt] = useState<Attendance | null>(lastReceipt);
+  const [receipt, setReceipt] = useState<Attendance | null>(lastReceipt?.id === attendanceId ? lastReceipt : null);
 
   useEffect(() => {
-    if (!receipt) {
+    if (lastReceipt?.id === attendanceId) {
+      setReceipt(lastReceipt);
+    } else {
       fetchReceipt(attendanceId).then((res) => {
         if (res) setReceipt(res);
+        else setReceipt(null);
       });
     }
-  }, [attendanceId, fetchReceipt, receipt]);
+  }, [attendanceId, fetchReceipt, lastReceipt]);
 
   return (
     <View style={styles.container}>
