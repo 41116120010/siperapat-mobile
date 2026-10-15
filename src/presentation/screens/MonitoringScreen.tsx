@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,9 @@ import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Button } from '../components/common/Button';
 import { useFeedbackStore } from '../store/useFeedbackStore';
+import { useAttendanceStore } from '../store/useAttendanceStore';
+import { useMeetingStore } from '../store/useMeetingStore';
+import { Meeting } from '../../domain/entities/types';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -81,10 +84,15 @@ const UNVERIFIED_PARTICIPANTS: Participant[] = [
   },
 ];
 
-export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) => {
+export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ meetingId, onBack }) => {
   const [activeTab, setActiveTab] = useState<TabType>('verified');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
+  const { agendaRecords, agendaPage, fetchAgendaAttendances, isLoading, error } = useAttendanceStore();
+  const getMeetingById = useMeetingStore((state) => state.getMeetingById);
+  const [agenda, setAgenda] = useState<Meeting | null>(null);
+  useEffect(() => { if (meetingId) void fetchAgendaAttendances(meetingId, 1); }, [meetingId, fetchAgendaAttendances]);
+  useEffect(() => { if (meetingId) void getMeetingById(meetingId).then(setAgenda).catch(() => setAgenda(null)); }, [meetingId, getMeetingById]);
 
   const handleCopyBANumber = () => {
     useFeedbackStore.getState().showToast({
@@ -114,8 +122,13 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
     });
   };
 
-  const displayList =
-    activeTab === 'verified' ? VERIFIED_PARTICIPANTS : UNVERIFIED_PARTICIPANTS;
+  const displayList: Participant[] = activeTab === 'verified' ? agendaRecords.map((record) => ({
+    name: record.userName ?? `Pengguna #${record.userId}`,
+    role: record.unitName ?? 'Unit tidak tersedia',
+    nip: record.userNip ?? 'NIP tidak tersedia',
+    time: record.signedAt ? new Date(record.signedAt).toLocaleString('id-ID') : 'Waktu tidak tersedia',
+    location: 'Lokasi tidak disediakan API',
+  })) : [];
 
   const filteredList = displayList.filter(
     (p) =>
@@ -140,17 +153,17 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
         <View style={styles.heroCard}>
           <View style={styles.heroHeader}>
             <View style={styles.heroCodeRow}>
-              <Text style={styles.heroCode}>RPK-1026-X</Text>
-              <Text style={styles.heroType}>Rapat Dinas</Text>
+              <Text style={styles.heroCode}>{agenda?.code ?? (meetingId ? `Agenda #${meetingId}` : 'Agenda')}</Text>
+              <Text style={styles.heroType}>{agenda?.type ?? 'Tipe tidak tersedia'}</Text>
             </View>
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
-              <Text style={styles.liveBadgeText}>Presensi Dibuka</Text>
+              <Text style={styles.liveBadgeText}>Data API</Text>
             </View>
           </View>
 
           <Text style={styles.heroTitle}>
-            Rapat Koordinasi Penjaminan Mutu & Akreditasi Program Studi PTS 2026
+            {agenda?.title ?? 'Detail agenda tidak tersedia'}
           </Text>
 
           {/* Clean 2-Column Metadata Grid */}
@@ -161,7 +174,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Jadwal</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    Kamis, 24 Okt 2026 • 09.00 - 12.00 WIB
+                    {agenda ? `${agenda.date} · ${agenda.startTime}–${agenda.endTime}` : 'Jadwal tidak tersedia'}
                   </Text>
                 </View>
               </View>
@@ -173,7 +186,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Format</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    Hybrid • Ruang Sidang Gedung A & Zoom
+                    {agenda ? `${agenda.type} · ${agenda.venue || 'Lokasi tidak tersedia'}` : 'Format agenda tidak tersedia'}
                   </Text>
                 </View>
               </View>
@@ -185,7 +198,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Pimpinan Rapat</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    Afdalisma, SH, M.Pd
+                    {agenda?.leader ?? 'Pimpinan tidak tersedia'}
                   </Text>
                 </View>
               </View>
@@ -195,7 +208,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Notulis</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    Rahmat Hidayat, S.Kom
+                    Tidak disediakan ringkasan agenda
                   </Text>
                 </View>
               </View>
@@ -214,29 +227,29 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Hadir Sah</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: colors.success }]}>68</Text>
+                <Text style={[styles.metricValue, { color: colors.success }]}>{agendaPage?.total ?? 0}</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.success }]}>
-                86.1% Terverifikasi
+                Presensi tercatat
               </Text>
             </View>
 
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Belum Hadir</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: colors.error }]}>11</Text>
+                <Text style={[styles.metricValue, { color: colors.error }]}>—</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.error }]}>
-                13.9% Menunggu
+                Daftar belum hadir tidak tersedia
               </Text>
             </View>
 
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Target Undangan</Text>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>79</Text>
+                <Text style={styles.metricValue}>—</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.onSurfaceVariant }]}>
@@ -249,10 +262,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
           <View style={styles.progressSection}>
             <View style={styles.progressLabelRow}>
               <Text style={styles.progressLabel}>Partisipasi Kehadiran</Text>
-              <Text style={styles.progressValue}>86.1% (68 / 79 ASN)</Text>
+              <Text style={styles.progressValue}>{agendaPage?.total ?? 0} presensi tercatat · tidak ada data undangan</Text>
             </View>
             <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: '86.1%' }]} />
+              <View style={[styles.progressBarFill, { width: agendaPage?.total ? '100%' : '0%' }]} />
             </View>
           </View>
         </View>
@@ -297,7 +310,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                       : styles.tabBadgeTextInactive,
                   ]}
                 >
-                  68
+                  {agendaPage?.total ?? 0}
                 </Text>
               </View>
             </Pressable>
@@ -335,7 +348,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                       : styles.tabBadgeTextInactive,
                   ]}
                 >
-                  11
+                  —
                 </Text>
               </View>
             </Pressable>
@@ -429,6 +442,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
             </ScrollView>
 
             {/* Clean Enterprise Participants Feed */}
+            {activeTab === 'unverified' ? <Text style={styles.minutesBody}>API hanya menampilkan presensi yang sudah tercatat; daftar pegawai yang belum hadir tidak tersedia.</Text> : null}
+            {error ? <Text style={styles.minutesBody}>{error}</Text> : null}
+            {isLoading ? <Text style={styles.minutesBody}>Memuat data kehadiran…</Text> : null}
             <View style={styles.participantFeed}>
               {filteredList.map((p, idx) => (
                 <View key={idx} style={styles.participantCard}>
@@ -483,6 +499,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack }) =>
                 </View>
               ))}
             </View>
+            {activeTab === 'verified' && agendaPage && agendaPage.currentPage < agendaPage.lastPage ? <Pressable onPress={() => meetingId && void fetchAgendaAttendances(meetingId, agendaPage.currentPage + 1, true)}><Text style={styles.excelBtnText}>Muat halaman berikutnya ({agendaPage.total} catatan)</Text></Pressable> : null}
           </View>
         ) : null}
 

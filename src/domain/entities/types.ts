@@ -66,6 +66,28 @@ export interface Attendance {
   isSynced: boolean; // Durability: false when submitted offline, true when synced to central server
 }
 
+/** Attendance fields returned by the Laravel API; deliberately contains no inferred status/GPS/receipt token. */
+export interface AttendanceRecord {
+  id: string;
+  agendaId: string;
+  userId: string;
+  signedAt: string | null;
+  selfieUrl: string | null;
+  signatureUrl: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  userName?: string | null;
+  userNip?: string | null;
+  unitName?: string | null;
+}
+
+export interface AttendancePage {
+  records: AttendanceRecord[];
+  currentPage: number;
+  lastPage: number;
+  total: number;
+}
+
 export interface AuditLog {
   id: string;
   timestamp: string;

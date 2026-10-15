@@ -37,9 +37,6 @@ export interface AgendaFormOptions {
 }
 
 export interface IAttendanceRepository {
-  submitAttendance(attendance: Omit<Attendance, 'id' | 'verificationToken' | 'timestamp' | 'isSynced'>): Promise<Attendance>;
-  getAttendanceHistory(nip: string): Promise<Attendance[]>;
-  getAttendanceReceipt(attendanceId: string): Promise<Attendance | null>;
   getOfflineQueue(): Promise<Attendance[]>;
   syncOfflineQueue(): Promise<number>;
   getAuditLogs(): Promise<AuditLog[]>;
