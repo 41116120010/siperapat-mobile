@@ -60,4 +60,33 @@ export class EmployeeRepositoryImpl implements IEmployeeRepository {
   }
   async deleteEmployee(id: string): Promise<boolean> { await userApi.remove(id); return true; }
   async toggleEmployeeStatus(id: string): Promise<Employee> { return toEmployee((await userApi.toggleStatus(id)).data); }
+  async createUnit(payload: { kode_unit: string; nama_unit: string; deskripsi?: string | null; is_active?: boolean }): Promise<ApiUnitDto> {
+    const response = await userApi.createUnit(payload);
+    if (!response.success) throw new Error(response.message || 'Gagal menambahkan unit kerja.');
+    return response.data;
+  }
+  async updateUnit(id: number | string, payload: { kode_unit?: string; nama_unit?: string; deskripsi?: string | null; is_active?: boolean }): Promise<ApiUnitDto> {
+    const response = await userApi.updateUnit(id, payload);
+    if (!response.success) throw new Error(response.message || 'Gagal memperbarui unit kerja.');
+    return response.data;
+  }
+  async deleteUnit(id: number | string): Promise<boolean> {
+    await userApi.deleteUnit(id);
+    return true;
+  }
+  async getUnitById(id: number | string): Promise<ApiUnitDto | null> {
+    try {
+      const response = await userApi.unit(id);
+      if (response?.data) return response.data;
+    } catch {
+      // Fallback: search in units list
+    }
+    try {
+      const page = await userApi.units(1, undefined, 100);
+      const found = page.data.find((u) => u.id === Number(id) || String(u.id) === String(id));
+      return found || null;
+    } catch {
+      return null;
+    }
+  }
 }

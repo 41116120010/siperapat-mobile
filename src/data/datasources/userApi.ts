@@ -16,6 +16,13 @@ export const userApi = {
   remove: (id: string) => apiClient.delete<ApiEnvelope<never>>(`/users/${encodeURIComponent(id)}`),
   toggleStatus: (id: string) => apiClient.patch<ApiEnvelope<ApiUserDto>>(`/users/${encodeURIComponent(id)}/toggle-status`),
   units: (page = 1, search?: string, perPage = 10) => apiClient.get<ApiPaginated<ApiUnitDto>>(`/units?${query({ page, per_page: perPage, search })}`),
+  unit: (id: number | string) => apiClient.get<ApiEnvelope<ApiUnitDto>>(`/units/${encodeURIComponent(id)}`),
+  createUnit: (payload: { kode_unit: string; nama_unit: string; deskripsi?: string | null; is_active?: boolean }) =>
+    apiClient.post<ApiEnvelope<ApiUnitDto>>('/units', payload),
+  updateUnit: (id: number | string, payload: { kode_unit?: string; nama_unit?: string; deskripsi?: string | null; is_active?: boolean }) =>
+    apiClient.put<ApiEnvelope<ApiUnitDto>>(`/units/${encodeURIComponent(id)}`, payload),
+  deleteUnit: (id: number | string) =>
+    apiClient.delete<ApiEnvelope<never>>(`/units/${encodeURIComponent(id)}`),
 };
 
 export const activityLogApi = {

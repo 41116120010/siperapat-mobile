@@ -21,17 +21,22 @@ import { triggerPageTransition } from '../store/useTransitionStore';
 import { Employee } from '../../domain/entities/types';
 import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
+import { ApiUnitDto } from '../../data/datasources/apiTypes';
 
 interface EmployeeDirectoryScreenProps {
   onBack?: () => void;
   onNavigateAdd?: () => void;
   onNavigateEdit?: (employeeId: string) => void;
+  onNavigateAddUnit?: () => void;
+  onNavigateEditUnit?: (unitId: number | string) => void;
 }
 
 export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = ({
   onBack,
   onNavigateAdd,
   onNavigateEdit,
+  onNavigateAddUnit,
+  onNavigateEditUnit,
 }) => {
   const {
     employees,
@@ -49,6 +54,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     fetchEmployees,
     fetchUnits,
     deleteEmployee,
+    deleteUnit,
   } = useEmployeeStore();
   const [activeTab, setActiveTab] = useState<'asn' | 'units'>('asn');
   const [search, setSearch] = useState('');
@@ -114,6 +120,61 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
           useFeedbackStore.getState().showToast({
             type: 'error',
             message: 'Gagal menghapus pegawai. Silakan coba beberapa saat lagi.',
+          });
+        }
+      },
+    });
+  };
+
+  const handleAddUnit = () => {
+    if (onNavigateAddUnit) {
+      onNavigateAddUnit();
+    } else {
+      useFeedbackStore.getState().showToast({
+        type: 'info',
+        message: 'Membuka formulir pendaftaran unit kerja baru...',
+      });
+    }
+  };
+
+  const handleEditUnit = (unit: ApiUnitDto) => {
+    if (onNavigateEditUnit) {
+      onNavigateEditUnit(unit.id);
+    } else {
+      useFeedbackStore.getState().showToast({
+        type: 'info',
+        message: `Membuka formulir pembaruan data ${unit.nama_unit}...`,
+      });
+    }
+  };
+
+  const handleDeleteUnit = (unit: ApiUnitDto) => {
+    const hasUsers = typeof unit.users_count === 'number' && unit.users_count > 0;
+    useFeedbackStore.getState().showModal({
+      type: 'confirm',
+      confirmVariant: 'destructive',
+      title: 'Hapus Unit Kerja',
+      message: hasUsers
+        ? `Perhatian: Unit kerja "${unit.nama_unit}" (${unit.kode_unit}) memiliki ${unit.users_count} pegawai ASN terdaftar. Menghapus unit ini dapat mempengaruhi data pegawai terkait. Lanjutkan penghapusan?`
+        : `Apakah Anda yakin ingin menghapus unit kerja "${unit.nama_unit}" (${unit.kode_unit})? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: 'Hapus Unit',
+      cancelText: 'Batal',
+      onConfirm: async () => {
+        const success = await deleteUnit(unit.id);
+        if (success) {
+          useFeedbackStore.getState().showToast({
+            type: 'success',
+            message: `Unit kerja ${unit.nama_unit} berhasil dihapus.`,
+          });
+          const targetPage =
+            apiUnits.length <= 1 && unitsCurrentPage > 1
+              ? unitsCurrentPage - 1
+              : unitsCurrentPage;
+          void fetchUnits(targetPage);
+        } else {
+          useFeedbackStore.getState().showToast({
+            type: 'error',
+            message: 'Gagal menghapus unit kerja. Silakan coba beberapa saat lagi.',
           });
         }
       },
@@ -237,14 +298,28 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
 
         {/* PRIMARY OPERATIONAL ACTION BAR */}
         <Pressable
-          onPress={handleAddEmployee}
+          onPress={activeTab === 'asn' ? handleAddEmployee : handleAddUnit}
           style={({ pressed }) => [
             styles.primaryAddBtn,
             pressed && styles.btnPressed,
           ]}
+          accessibilityRole="button"
+          accessibilityLabel={
+            activeTab === 'asn'
+              ? 'Tambah Pegawai Baru'
+              : 'Tambah Unit Kerja Baru'
+          }
         >
-          <MaterialIcons name="person-add" size={18} color={colors.onPrimary} />
-          <Text style={styles.primaryAddBtnText}>Tambah Pegawai Baru</Text>
+          <MaterialIcons
+            name={activeTab === 'asn' ? 'person-add' : 'domain-add'}
+            size={18}
+            color={colors.onPrimary}
+          />
+          <Text style={styles.primaryAddBtnText}>
+            {activeTab === 'asn'
+              ? 'Tambah Pegawai Baru'
+              : 'Tambah Unit Kerja Baru'}
+          </Text>
         </Pressable>
 
         {activeTab === 'asn' ? (
@@ -469,19 +544,92 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
             {unitsLoading && apiUnits.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
             {apiUnits.map((unit) => (
               <View key={unit.id} style={styles.unitMasterCard}>
-                <View style={styles.unitMasterIcon}>
-                  <MaterialIcons
-                    name="account-tree"
-                    size={20}
-                    color={colors.primary}
-                  />
+                <View style={styles.unitMasterCardTop}>
+                  <View style={styles.unitMasterIcon}>
+                    <MaterialIcons
+                      name="domain"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  </View>
+                  <View style={styles.unitMasterMainInfo}>
+                    <View style={styles.unitCodeRow}>
+                      <Text style={styles.unitMasterCode}>{unit.kode_unit}</Text>
+                      <View
+                        style={[
+                          styles.unitStatusBadge,
+                          unit.is_active ? styles.unitStatusActive : styles.unitStatusInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.unitStatusText,
+                            unit.is_active ? styles.unitStatusTextActive : styles.unitStatusTextInactive,
+                          ]}
+                        >
+                          {unit.is_active ? 'Aktif' : 'Nonaktif'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.unitMasterName}>{unit.nama_unit}</Text>
+                    {unit.deskripsi ? (
+                      <Text style={styles.unitDescription} numberOfLines={2}>
+                        {unit.deskripsi}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.unitMasterCountBadge}>
+                    <MaterialIcons name="people" size={12} color={colors.primary} />
+                    <Text style={styles.unitMasterCountText}>{unit.users_count ?? 0} ASN</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.unitMasterCode}>{unit.kode_unit}</Text>
-                  <Text style={styles.unitMasterName}>{unit.nama_unit}</Text>
-                </View>
-                <View style={styles.unitMasterCountBadge}>
-                  <Text style={styles.unitMasterCountText}>{unit.users_count ?? 0} ASN</Text>
+
+                <View style={styles.unitCardBottom}>
+                  <Text style={styles.cardBottomMeta}>
+                    ID: {unit.id}
+                  </Text>
+
+                  <View style={styles.cardActions}>
+                    <Pressable
+                      onPress={() => handleDeleteUnit(unit)}
+                      style={({ pressed }) => [
+                        styles.cardActionDeleteBtn,
+                        pressed && styles.btnPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Hapus unit kerja ${unit.nama_unit}`}
+                    >
+                      <MaterialIcons
+                        name="delete-outline"
+                        size={14}
+                        color={colors.error}
+                      />
+                      <Text style={styles.cardActionDeleteBtnText}>Hapus</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleEditUnit(unit)}
+                      style={({ pressed }) => [
+                        styles.cardActionBtn,
+                        pressed && styles.btnPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit unit kerja ${unit.nama_unit}`}
+                    >
+                      <MaterialIcons
+                        name="edit"
+                        size={14}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.cardActionBtnText,
+                          { color: colors.primary },
+                        ]}
+                      >
+                        Edit
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             ))}
@@ -887,14 +1035,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   unitMasterCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.sm + 2,
     backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.md,
+    borderRadius: rounded.lg,
+    padding: spacing.sm + 2,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-    gap: 10,
+    borderColor: 'rgba(197, 197, 211, 0.45)',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -908,26 +1053,78 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  unitMasterCardTop: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
   unitMasterIcon: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: rounded.sm,
     backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.4)',
+  },
+  unitMasterMainInfo: {
+    flex: 1,
+  },
+  unitCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   unitMasterCode: {
     ...typography.labelMono,
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.primary,
   },
+  unitStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  unitStatusActive: {
+    backgroundColor: 'rgba(5, 150, 105, 0.08)',
+    borderColor: 'rgba(5, 150, 105, 0.25)',
+  },
+  unitStatusInactive: {
+    backgroundColor: 'rgba(186, 26, 26, 0.08)',
+    borderColor: 'rgba(186, 26, 26, 0.25)',
+  },
+  unitStatusText: {
+    ...typography.labelSm,
+    fontSize: 9.5,
+    fontWeight: '600',
+  },
+  unitStatusTextActive: {
+    color: colors.success,
+  },
+  unitStatusTextInactive: {
+    color: colors.error,
+  },
   unitMasterName: {
-    ...typography.bodyMd,
-    fontSize: 12,
+    ...typography.headlineSm,
+    fontSize: 12.5,
+    fontWeight: '600',
     color: colors.onSurface,
+    marginTop: 2,
+  },
+  unitDescription: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 3,
+    lineHeight: 15,
   },
   unitMasterCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: colors.surfaceContainerLow,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -940,6 +1137,15 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: colors.primary,
     fontWeight: '600',
+  },
+  unitCardBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(197, 197, 211, 0.3)',
+    marginTop: 8,
+    paddingTop: 8,
   },
   btnPressed: {
     opacity: 0.8,

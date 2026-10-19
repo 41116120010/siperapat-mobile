@@ -11,6 +11,8 @@ export type RootStackParamList = {
   EmployeeDirectory: undefined;
   AddEmployee: undefined;
   EditEmployee: { employeeId: string };
+  AddUnit: undefined;
+  EditUnit: { unitId: number | string };
   AuditLog: undefined;
   ChangePassword: undefined;
 };

@@ -38,4 +38,8 @@ export interface IEmployeeRepository {
   updateEmployee(id: string, employee: Partial<Employee>): Promise<Employee>;
   deleteEmployee(id: string): Promise<boolean>;
   toggleEmployeeStatus(id: string): Promise<Employee>;
+  createUnit(unit: { kode_unit: string; nama_unit: string; deskripsi?: string | null; is_active?: boolean }): Promise<ApiUnitDto>;
+  updateUnit(id: number | string, unit: { kode_unit?: string; nama_unit?: string; deskripsi?: string | null; is_active?: boolean }): Promise<ApiUnitDto>;
+  deleteUnit(id: number | string): Promise<boolean>;
+  getUnitById(id: number | string): Promise<ApiUnitDto | null>;
 }

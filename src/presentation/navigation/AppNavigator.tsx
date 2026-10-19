@@ -25,6 +25,8 @@ import { MonitoringScreen } from '../screens/MonitoringScreen';
 import { EmployeeDirectoryScreen } from '../screens/EmployeeDirectoryScreen';
 import { AddEmployeeScreen } from '../screens/AddEmployeeScreen';
 import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
+import { AddUnitScreen } from '../screens/AddUnitScreen';
+import { EditUnitScreen } from '../screens/EditUnitScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import { GlobalFeedbackHost } from '../components/common/GlobalFeedbackHost';
@@ -299,6 +301,14 @@ export const AppNavigator: React.FC = () => {
               triggerPageTransition();
               navigation.navigate('EditEmployee', { employeeId });
             }}
+            onNavigateAddUnit={() => {
+              triggerPageTransition();
+              navigation.navigate('AddUnit');
+            }}
+            onNavigateEditUnit={(unitId) => {
+              triggerPageTransition();
+              navigation.navigate('EditUnit', { unitId });
+            }}
           />
         )}
       </Stack.Screen>
@@ -316,6 +326,25 @@ export const AppNavigator: React.FC = () => {
         {({ navigation, route }) => (
           <EditEmployeeScreen
             employeeId={route.params.employeeId}
+            onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
+            onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="AddUnit">
+        {({ navigation }) => (
+          <AddUnitScreen
+            onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
+            onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="EditUnit">
+        {({ navigation, route }) => (
+          <EditUnitScreen
+            unitId={route.params.unitId}
             onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
             onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
           />

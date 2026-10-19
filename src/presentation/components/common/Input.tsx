@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TextInputProps,
   ViewStyle,
+  Platform,
 } from 'react-native';
 import { colors } from '../../../core/theme/colors';
 import { typography } from '../../../core/theme/typography';
@@ -18,6 +19,7 @@ export interface InputProps extends TextInputProps {
   leftIcon?: React.ReactNode;
   rightAction?: React.ReactNode;
   containerStyle?: ViewStyle;
+  inputContainerStyle?: ViewStyle;
   isMono?: boolean;
 }
 
@@ -28,11 +30,13 @@ export const Input: React.FC<InputProps> = ({
   leftIcon,
   rightAction,
   containerStyle,
+  inputContainerStyle,
   isMono = false,
   style,
   ...rest
 }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const isMultiline = Boolean(rest.multiline);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -40,14 +44,26 @@ export const Input: React.FC<InputProps> = ({
       <View
         style={[
           styles.inputContainer,
+          isMultiline && styles.inputContainerMultiline,
           isFocused && styles.inputFocused,
           Boolean(error) && styles.inputError,
+          inputContainerStyle,
         ]}
       >
-        {leftIcon ? <View style={styles.leftIcon}>{leftIcon}</View> : null}
+        {leftIcon ? (
+          <View
+            style={[
+              styles.leftIcon,
+              isMultiline && styles.leftIconMultiline,
+            ]}
+          >
+            {leftIcon}
+          </View>
+        ) : null}
         <TextInput
           style={[
             styles.input,
+            isMultiline && styles.inputMultiline,
             isMono && Boolean(rest.value) && styles.inputMono,
             Boolean(leftIcon) && styles.inputWithLeftIcon,
             Boolean(rightAction) && styles.inputWithRightAction,
@@ -56,9 +72,19 @@ export const Input: React.FC<InputProps> = ({
           placeholderTextColor={colors.outline}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
+          textAlignVertical={isMultiline ? 'top' : (rest.textAlignVertical ?? 'center')}
           {...rest}
         />
-        {rightAction ? <View style={styles.rightAction}>{rightAction}</View> : null}
+        {rightAction ? (
+          <View
+            style={[
+              styles.rightAction,
+              isMultiline && styles.rightActionMultiline,
+            ]}
+          >
+            {rightAction}
+          </View>
+        ) : null}
       </View>
       {error ? (
         <Text style={styles.errorText}>{error}</Text>
@@ -83,12 +109,17 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
+    minHeight: 48,
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     overflow: 'hidden',
+  },
+  inputContainerMultiline: {
+    minHeight: 88,
+    alignItems: 'flex-start',
+    paddingVertical: 4,
   },
   inputFocused: {
     borderColor: colors.secondaryAccent,
@@ -103,12 +134,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  leftIconMultiline: {
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    alignSelf: 'flex-start',
+  },
   input: {
     flex: 1,
     height: '100%',
     paddingHorizontal: spacing.md,
     ...typography.bodyMd,
     color: colors.onSurface,
+  },
+  inputMultiline: {
+    height: undefined,
+    minHeight: 76,
+    textAlignVertical: 'top',
+    paddingTop: Platform.OS === 'ios' ? 8 : 6,
+    paddingBottom: 8,
   },
   inputMono: {
     ...typography.labelMono,
@@ -123,6 +165,10 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  rightActionMultiline: {
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    alignSelf: 'flex-start',
   },
   errorText: {
     ...typography.bodySm,
