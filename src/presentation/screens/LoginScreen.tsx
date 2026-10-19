@@ -44,7 +44,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   const handleLogin = async () => {
-    const success = await login(identifier, password, rememberDevice);
+    const success = await login(identifier, password);
     if (success) {
       onLoginSuccess();
     }

@@ -5,11 +5,12 @@ export interface ApiDashboardDto {
   stats: { total_agendas: number; ongoing_agendas: number; completed_agendas: number; upcoming_agendas: number; total_users?: number; total_units?: number; total_attendances?: number; my_attendances?: number };
   active_agendas: ApiAgendaDto[]; recent_attendances: unknown[];
 }
-export interface ApiUnitDto { id: number; nama_unit: string; kode_unit: string; deskripsi: string | null; is_active: boolean }
+export interface ApiUnitDto { id: number; nama_unit: string; kode_unit: string; deskripsi: string | null; is_active: boolean; users_count?: number; agendas_count?: number }
 export interface ApiUserDto {
   id: number; name: string; nip: string | null; username: string; email: string | null; phone: string | null;
-  avatar_url: string | null; role: { value: string; label: string }; is_active: boolean; unit_id: number | null; unit?: ApiUnitDto | null;
+  avatar_url: string | null; role: { value: string; label: string }; is_active: boolean; unit_id: number | null; unit?: ApiUnitDto | null; created_at?: string | null; updated_at?: string | null;
 }
+export interface ApiActivityLogDto { id: number; user_id: number | null; user?: ApiUserDto | null; activity_type: string; description: string; target_model: string | null; target_id: number | null; properties: Record<string, unknown> | null; ip_address: string | null; user_agent: string | null; created_at: string | null }
 export interface ApiAgendaDto {
   id: number; judul_rapat: string; slug: string; jenis_rapat: string; tipe_rapat: 'hybrid' | 'offline' | 'online';
   lokasi_ruang: string | null; link_meeting: string | null; waktu_mulai: string; waktu_selesai: string | null;

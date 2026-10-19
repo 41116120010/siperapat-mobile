@@ -1,159 +1,63 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IEmployeeRepository } from '../../domain/repositories/interfaces';
 import { Employee } from '../../domain/entities/types';
-
-const EMPLOYEE_STORAGE_KEY = '@siperapat_employees_data';
+import { ApiPaginated, ApiUnitDto, ApiUserDto } from '../datasources/apiTypes';
+import { userApi } from '../datasources/userApi';
 
 export const computeInitials = (fullName: string): string => {
-  const nameWithoutSuffix = fullName.replace(/,.*$/, '').trim();
-  const nameParts = nameWithoutSuffix.split(/\s+/).filter(Boolean);
-  if (nameParts.length >= 2) {
-    return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
-  }
-  if (nameParts.length === 1 && nameParts[0].length >= 2) {
-    return nameParts[0].substring(0, 2).toUpperCase();
-  }
-  return 'AS';
+  const parts = fullName.replace(/,.*$/, '').trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? `${parts[0][0]}${parts[1][0]}`.toUpperCase() : (parts[0]?.slice(0, 2) || 'AS').toUpperCase();
 };
 
-const SEED_EMPLOYEES: Employee[] = [
-  {
-    id: 'asn-01',
-    initials: 'AF',
-    name: 'Afdalisma, SH, M.Pd',
-    role: 'Administrator',
-    nip: '197012051992032002',
-    username: '@afdalisma',
-    unit: 'Pimpinan & Lintas Unit (Pusat)',
-    status: 'Aktif',
-    jabatan: 'Kepala Bagian Umum',
-    pangkatGolongan: 'Pembina Utama Muda (IV/c)',
-    email: 'afdalisma@lldikti10.kemdikbud.go.id',
-    phone: '081266001122',
-    lastLogin: 'Hari ini, 08:14 WIB',
-  },
-  {
-    id: 'asn-02',
-    initials: 'ES',
-    name: 'Ely Susanti, SE, MM',
-    role: 'Admin Unit',
-    nip: '196708231991032001',
-    username: '@ely_susanti',
-    unit: 'Bagian Akademik & Kemahasiswaan',
-    status: 'Aktif',
-    jabatan: 'Ketua Tim Kerja Akademik',
-    pangkatGolongan: 'Pembina (IV/a)',
-    email: 'ely.susanti@lldikti10.kemdikbud.go.id',
-    phone: '081267882233',
-    attendanceRate: '98%',
-    totalMeetings: 24,
-  },
-  {
-    id: 'asn-03',
-    initials: 'FF',
-    name: 'Febrina Fitri, SE, M.Si',
-    role: 'Staff',
-    nip: '196502101991032002',
-    username: '@febrina_fitri',
-    unit: 'Bagian Sumber Daya Perguruan Tinggi',
-    status: 'Aktif',
-    jabatan: 'Analis Kepegawaian Ahli Muda',
-    pangkatGolongan: 'Pembina (IV/a)',
-    email: 'febrina.fitri@lldikti10.kemdikbud.go.id',
-    phone: '081374556677',
-    regDate: 'Jan 2023 · Gol. IV/a',
-  },
-  {
-    id: 'asn-04',
-    initials: 'RA',
-    name: 'Reri Anton, ST, MM',
-    role: 'Staff',
-    nip: '197003081991031001',
-    username: '@reri_anton',
-    unit: 'Pokja Pendidik & Tenaga Kependidikan',
-    status: 'Aktif',
-    jabatan: 'Pranata Komputer Ahli Muda',
-    pangkatGolongan: 'Penata Tk. I (III/d)',
-    email: 'reri.anton@lldikti10.kemdikbud.go.id',
-    phone: '081266889900',
-    regDate: 'Mar 2023 · Gol. III/d',
-  },
-];
+export function toEmployee(user: ApiUserDto): Employee {
+  const role = user.role.value === 'administrator' ? 'Administrator' : user.role.value === 'admin' ? 'Admin Unit' : 'Staff';
+  return {
+    id: String(user.id), initials: computeInitials(user.name), name: user.name, role,
+    nip: user.nip ?? '', username: user.username.startsWith('@') ? user.username : `@${user.username}`,
+    unit: user.unit?.nama_unit ?? '', unitId: user.unit_id, status: user.is_active ? 'Aktif' : 'Nonaktif',
+    email: user.email ?? '', phone: user.phone ?? '', jabatan: '', pangkatGolongan: '',
+  };
+}
 
 export class EmployeeRepositoryImpl implements IEmployeeRepository {
-  private async loadFromStorage(): Promise<Employee[]> {
-    try {
-      const data = await AsyncStorage.getItem(EMPLOYEE_STORAGE_KEY);
-      if (data) {
-        return JSON.parse(data) as Employee[];
-      }
-    } catch {
-      // Fallback to seeds on storage error
-    }
-    // Seed initial data to persistent storage if empty
-    await AsyncStorage.setItem(EMPLOYEE_STORAGE_KEY, JSON.stringify(SEED_EMPLOYEES));
-    return SEED_EMPLOYEES;
+  async getEmployeePage(page = 1, filters: { search?: string; role?: string; status?: string; unitId?: number } = {}) {
+    const result = await userApi.users(page, filters);
+    return { employees: result.data.map(toEmployee), currentPage: result.meta.current_page, lastPage: result.meta.last_page, total: result.meta.total };
   }
-
-  private async saveToStorage(employees: Employee[]): Promise<void> {
-    await AsyncStorage.setItem(EMPLOYEE_STORAGE_KEY, JSON.stringify(employees));
+  async getUnits(page = 1): Promise<{ units: ApiUnitDto[]; currentPage: number; lastPage: number; total: number }> {
+    const result: ApiPaginated<ApiUnitDto> = await userApi.units(page);
+    return { units: result.data, currentPage: result.meta.current_page, lastPage: result.meta.last_page, total: result.meta.total };
   }
-
-  async getEmployees(): Promise<Employee[]> {
-    return await this.loadFromStorage();
-  }
-
+  async getEmployees(): Promise<Employee[]> { return (await this.getEmployeePage()).employees; }
   async getEmployeeById(id: string): Promise<Employee | null> {
-    const list = await this.loadFromStorage();
-    return list.find((item) => item.id === id) || null;
+    const response = await userApi.user(id);
+    return response.success ? toEmployee(response.data) : null;
   }
-
-  async createEmployee(employee: Omit<Employee, 'id' | 'initials'>): Promise<Employee> {
-    const list = await this.loadFromStorage();
-    const initials = computeInitials(employee.name);
-    const newId = `asn-${Date.now().toString().slice(-4)}`;
-
-    const newEmployee: Employee = {
-      ...employee,
-      id: newId,
-      initials,
-      regDate: employee.regDate || 'Baru didaftarkan',
-    };
-
-    const updated = [newEmployee, ...list];
-    await this.saveToStorage(updated);
-    return newEmployee;
+  async createEmployee(_employee: Omit<Employee, 'id' | 'initials'>): Promise<Employee> {
+    throw new Error('Pembuatan akun memerlukan password awal, sedangkan formulir mobile belum menyediakan field tersebut.');
   }
-
   async updateEmployee(id: string, employee: Partial<Employee>): Promise<Employee> {
-    const list = await this.loadFromStorage();
-    const index = list.findIndex((item) => item.id === id);
-
-    if (index === -1) {
-      throw new Error(`Pegawai dengan ID ${id} tidak ditemukan.`);
+    const current = await this.getEmployeeById(id);
+    if (!current) throw new Error('Pegawai tidak ditemukan.');
+    const username = employee.username ?? current.username;
+    const role = employee.role ?? current.role;
+    let unitId = employee.unitId ?? current.unitId;
+    if (employee.unit && employee.unit !== current.unit && unitId === current.unitId) {
+      const page = await userApi.units(1);
+      const allUnits = [...page.data];
+      for (let next = 2; next <= page.meta.last_page; next += 1) allUnits.push(...(await userApi.units(next)).data);
+      const selected = allUnits.find((unit) => unit.nama_unit === employee.unit);
+      if (!selected) throw new Error('Unit yang dipilih tidak ditemukan pada daftar unit API.');
+      unitId = selected.id;
     }
-
-    const current = list[index];
-    const updatedEmployee: Employee = {
-      ...current,
-      ...employee,
-      id: current.id, // Preserves original id
-      nip: current.nip, // Preserves immutable official NIP
-      initials: employee.name ? computeInitials(employee.name) : current.initials,
-    };
-
-    list[index] = updatedEmployee;
-    await this.saveToStorage(list);
-    return updatedEmployee;
+    const response = await userApi.update(id, {
+      name: employee.name ?? current.name, nip: current.nip,
+      username: username.replace(/^@/, ''), email: employee.email ?? current.email,
+      phone: (employee.phone ?? current.phone) || null,
+      role: role === 'Administrator' ? 'administrator' : role === 'Admin Unit' ? 'admin' : 'staff',
+      unit_id: unitId, is_active: (employee.status ?? current.status) === 'Aktif',
+    });
+    return toEmployee(response.data);
   }
-
-  async deleteEmployee(id: string): Promise<boolean> {
-    const list = await this.loadFromStorage();
-    const filtered = list.filter((item) => item.id !== id);
-    if (filtered.length === list.length) {
-      return false;
-    }
-    await this.saveToStorage(filtered);
-    return true;
-  }
+  async deleteEmployee(id: string): Promise<boolean> { await userApi.remove(id); return true; }
+  async toggleEmployeeStatus(id: string): Promise<Employee> { return toEmployee((await userApi.toggleStatus(id)).data); }
 }

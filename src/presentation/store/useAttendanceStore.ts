@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Attendance, AuditLog, ASNUnitMember } from '../../domain/entities/types';
+import { Attendance } from '../../domain/entities/types';
 import { AttendanceRepositoryImpl } from '../../data/repositories/AttendanceRepositoryImpl';
 
 const attendanceRepo = new AttendanceRepositoryImpl();
@@ -10,18 +10,18 @@ type AgendaAttendancePage = Awaited<ReturnType<typeof attendanceRepo.getAgendaAt
 interface AttendanceState {
   attendances: Attendance[]; lastReceipt: Attendance | null; historyPage: AttendancePage | null;
   agendaAttendances: Attendance[]; agendaAttendancePage: AgendaAttendancePage | null; portal: AttendancePortal | null;
-  auditLogs: AuditLog[]; unitMembers: ASNUnitMember[]; isLoading: boolean; isSubmitting: boolean; error: string | null; offlineQueueCount: number;
+  isLoading: boolean; isSubmitting: boolean; error: string | null; offlineQueueCount: number;
   fetchHistory: (page?: number, append?: boolean) => Promise<void>; fetchAgendaAttendances: (agendaId: string, page?: number, append?: boolean) => Promise<void>;
   fetchPortal: (agendaId: string) => Promise<void>; fetchReceipt: (id: string) => Promise<Attendance | null>;
   submitAttendance: (agendaId: string, payload: { selfie_data?: string; signature_data?: string }) => Promise<Attendance | null>;
-  fetchAuditLogs: () => Promise<void>; fetchUnitMembers: (unitKerja?: string) => Promise<void>; syncOfflineQueue: () => Promise<number>; clearError: () => void;
+  syncOfflineQueue: () => Promise<number>; clearError: () => void;
 }
 
 function errorMessage(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
 
 export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   attendances: [], lastReceipt: null, historyPage: null, agendaAttendances: [], agendaAttendancePage: null, portal: null,
-  auditLogs: [], unitMembers: [], isLoading: false, isSubmitting: false, error: null, offlineQueueCount: 0,
+  isLoading: false, isSubmitting: false, error: null, offlineQueueCount: 0,
 
   fetchPortal: async (agendaId) => {
     set({ isLoading: true, error: null });
@@ -72,8 +72,6 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     finally { set({ isSubmitting: false }); }
   },
 
-  fetchAuditLogs: async () => { try { set({ auditLogs: await attendanceRepo.getAuditLogs() }); } catch { /* prototype module */ } },
-  fetchUnitMembers: async (unit) => { try { set({ unitMembers: await attendanceRepo.getUnitMembers(unit) }); } catch { /* prototype module */ } },
   syncOfflineQueue: async () => { try { const count = await attendanceRepo.syncOfflineQueue(); set({ offlineQueueCount: (await attendanceRepo.getOfflineQueue()).length }); return count; } catch { return 0; } },
   clearError: () => set({ error: null }),
 }));

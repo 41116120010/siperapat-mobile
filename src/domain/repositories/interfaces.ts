@@ -1,4 +1,4 @@
-import { ASN, Meeting, Attendance, AuditLog, ASNUnitMember, Employee } from '../entities/types';
+import { ASN, Meeting, Attendance, Employee } from '../entities/types';
 import { AgendaFilters, CreateAgendaDto, UploadFileRef } from '../../data/datasources/agendaApi';
 import { ApiAttendanceDto, ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 
@@ -27,14 +27,15 @@ export interface IAttendanceRepository {
   getAttendanceReceipt(attendanceId: string): Promise<Attendance | null>;
   getOfflineQueue(): Promise<Attendance[]>;
   syncOfflineQueue(): Promise<number>;
-  getAuditLogs(): Promise<AuditLog[]>;
-  getUnitMembers(unitKerja?: string): Promise<ASNUnitMember[]>;
 }
 
 export interface IEmployeeRepository {
   getEmployees(): Promise<Employee[]>;
+  getEmployeePage(page?: number, filters?: { search?: string; role?: string; status?: string; unitId?: number }): Promise<{ employees: Employee[]; currentPage: number; lastPage: number; total: number }>;
+  getUnits(page?: number): Promise<{ units: ApiUnitDto[]; currentPage: number; lastPage: number; total: number }>;
   getEmployeeById(id: string): Promise<Employee | null>;
   createEmployee(employee: Omit<Employee, 'id' | 'initials'>): Promise<Employee>;
   updateEmployee(id: string, employee: Partial<Employee>): Promise<Employee>;
   deleteEmployee(id: string): Promise<boolean>;
+  toggleEmployeeStatus(id: string): Promise<Employee>;
 }

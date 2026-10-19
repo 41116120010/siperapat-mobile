@@ -1,4 +1,4 @@
-import { ASN, Meeting, Attendance, AuditLog, ASNUnitMember } from '../../domain/entities/types';
+import { ASN, Meeting, Attendance } from '../../domain/entities/types';
 
 export const MOCK_ASN_USER: ASN = {
   id: 'asn-001',
@@ -131,96 +131,5 @@ export const MOCK_ATTENDANCES: Attendance[] = [
     distanceMeters: 14,
     status: 'sah',
     isSynced: true,
-  },
-];
-
-export const MOCK_AUDIT_LOGS: AuditLog[] = [
-  {
-    id: 'log-001',
-    timestamp: '2026-10-06 08:52:10 WIB',
-    nip: '197012051992032002',
-    userName: 'Afdalisma, SH, M.Pd',
-    action: 'LOGIN_BIOMETRIC_SUCCESS',
-    status: 'SUCCESS',
-    ipAddress: '180.252.164.218',
-    details: 'Autentikasi biometrik berhasil pada perangkat Android terdaftar.',
-  },
-  {
-    id: 'log-002',
-    timestamp: '2026-10-01 08:24:10 WIB',
-    nip: '197012051992032002',
-    userName: 'Afdalisma, SH, M.Pd',
-    action: 'SUBMIT_PRESENSI_SAH',
-    status: 'SUCCESS',
-    ipAddress: '180.252.164.218',
-    details: 'Presensi RPT-PLENO-02 tervalidasi dengan swafoto & TTD digital (Radius 8m).',
-  },
-  {
-    id: 'log-003',
-    timestamp: '2026-09-28 14:02:19 WIB',
-    nip: '198205142008121001',
-    userName: 'Rahmat Hidayat, S.Kom',
-    action: 'CREATE_MEETING_AGENDA',
-    status: 'SUCCESS',
-    ipAddress: '180.252.160.102',
-    details: 'Pembuatan agenda RPT-PDDIKTI-09 berhasil disimpan.',
-  },
-  {
-    id: 'log-004',
-    timestamp: '2026-09-24 09:11:42 WIB',
-    nip: '197012051992032002',
-    userName: 'Afdalisma, SH, M.Pd',
-    action: 'SUBMIT_PRESENSI_SAH',
-    status: 'SUCCESS',
-    ipAddress: '180.252.164.218',
-    details: 'Presensi SIVIL tervalidasi (Token: LLD10-PRES-2026-7712).',
-  },
-];
-
-export const MOCK_UNIT_MEMBERS: ASNUnitMember[] = [
-  {
-    id: 'mem-001',
-    nip: '197012051992032002',
-    name: 'Afdalisma, SH, M.Pd',
-    jabatan: 'Kepala LLDIKTI Wilayah X',
-    unitKerja: 'Pimpinan Lembaga',
-    pangkatGolongan: 'Pembina Utama Madya / IV/d',
-    statusPresensiTerakhir: 'Hadir',
-  },
-  {
-    id: 'mem-002',
-    nip: '197804152003121002',
-    name: 'Dr. Suryani, M.Si',
-    jabatan: 'Subkoordinator Kelembagaan & Akademik',
-    unitKerja: 'Pokja Kelembagaan',
-    pangkatGolongan: 'Pembina / IV/a',
-    statusPresensiTerakhir: 'Hadir',
-  },
-  {
-    id: 'mem-003',
-    nip: '198506212009122003',
-    name: 'Fitri Handayani, SE, MM',
-    jabatan: 'Analis Kebijakan Ahli Muda',
-    unitKerja: 'Pokja Perencanaan & Penganggaran',
-    pangkatGolongan: 'Penata Tk. I / III/d',
-    statusPresensiTerakhir: 'Hadir',
-  },
-  {
-    id: 'mem-004',
-    nip: '199101182015031001',
-    name: 'Rahmat Hidayat, S.Kom, M.CIO',
-    jabatan: 'Pranata Komputer Ahli Pertama',
-    unitKerja: 'Subbagian Sistem Informasi & Kerjasama',
-    pangkatGolongan: 'Penata / III/c',
-    statusPresensiTerakhir: 'Belum Presensi',
-  },
-  {
-    id: 'mem-005',
-    nip: '198909122014022002',
-    name: 'Nurhasanah, S.Sos',
-    jabatan: 'Pengadministrasi Kepegawaian',
-    unitKerja: 'Subbagian Tata Usaha & Kepegawaian',
-    pangkatGolongan: 'Penata Muda Tk. I / III/b',
-    statusPresensiTerakhir: 'Tugas Luar',
   },
 ];

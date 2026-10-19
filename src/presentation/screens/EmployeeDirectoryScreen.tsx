@@ -7,6 +7,8 @@ import {
   Pressable,
   TextInput,
   Platform,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -15,78 +17,7 @@ import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
-
-interface ASNItem {
-  id: string;
-  initials: string;
-  name: string;
-  role: 'Administrator' | 'Admin Unit' | 'Staff';
-  nip: string;
-  username: string;
-  unit: string;
-  status: 'Aktif' | 'Nonaktif';
-  attendanceRate?: string;
-  totalMeetings?: number;
-  lastLogin?: string;
-  regDate?: string;
-}
-
-const ASN_DATA: ASNItem[] = [
-  {
-    id: 'asn-01',
-    initials: 'AF',
-    name: 'Afdalisma, SH, M.Pd',
-    role: 'Administrator',
-    nip: '197012051992032002',
-    username: '@afdalisma',
-    unit: 'Pimpinan & Lintas Unit (Pusat)',
-    status: 'Aktif',
-    lastLogin: 'Hari ini, 08:14 WIB',
-  },
-  {
-    id: 'asn-02',
-    initials: 'ES',
-    name: 'Ely Susanti, SE, MM',
-    role: 'Admin Unit',
-    nip: '196708231991032001',
-    username: '@ely_susanti',
-    unit: 'Bagian Akademik & Kemahasiswaan',
-    status: 'Aktif',
-    attendanceRate: '98%',
-    totalMeetings: 24,
-  },
-  {
-    id: 'asn-03',
-    initials: 'FF',
-    name: 'Febrina Fitri, SE, M.Si',
-    role: 'Staff',
-    nip: '196502101991032002',
-    username: '@febrina_fitri',
-    unit: 'Bagian Sumber Daya Perguruan Tinggi',
-    status: 'Aktif',
-    regDate: 'Jan 2023 · Gol. IV/a',
-  },
-  {
-    id: 'asn-04',
-    initials: 'RA',
-    name: 'Reri Anton, ST, MM',
-    role: 'Staff',
-    nip: '197003081991031001',
-    username: '@reri_anton',
-    unit: 'Pokja Pendidik & Tenaga Kependidikan',
-    status: 'Aktif',
-    regDate: 'Mar 2023 · Gol. III/d',
-  },
-];
-
-const MASTER_UNITS = [
-  { code: 'BAG-AKM', name: 'Bagian Akademik & Kemahasiswaan', count: '14 ASN' },
-  { code: 'BAG-SDPT', name: 'Bagian Sumber Daya Perguruan Tinggi', count: '12 ASN' },
-  { code: 'POKJA-PTK', name: 'Pokja Pendidik & Tenaga Kependidikan', count: '10 ASN' },
-  { code: 'SUBBAG-HKTL', name: 'Subbag Hukum, Kepegawaian & Tata Laksana', count: '15 ASN' },
-  { code: 'SUBBAG-TU', name: 'Subbag Tata Usaha & BMN', count: '18 ASN' },
-  { code: 'POKJA-MUTU', name: 'Pokja Penjaminan Mutu & Akreditasi', count: '10 ASN' },
-];
+import { ErrorState } from '../components/common/ErrorState';
 
 interface EmployeeDirectoryScreenProps {
   onBack?: () => void;
@@ -99,18 +30,28 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
   onNavigateAdd,
   onNavigateEdit,
 }) => {
-  const { employees, fetchEmployees } = useEmployeeStore();
+  const { employees, units: apiUnits, total, currentPage, lastPage, unitsCurrentPage, unitsLastPage, unitsTotal, employeesLoading, employeesError, unitsLoading, unitsError, fetchEmployees, fetchUnits } = useEmployeeStore();
   const [activeTab, setActiveTab] = useState<'asn' | 'units'>('asn');
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('Semua Role');
   const [selectedUnit, setSelectedUnit] = useState('Semua Unit');
 
   useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
+    void fetchUnits(1);
+  }, [fetchUnits]);
 
-  const employeeList = employees.length > 0 ? employees : ASN_DATA;
-  const totalCount = employeeList.length;
+  const selectedUnitId = apiUnits.find((item) => item.nama_unit === selectedUnit)?.id;
+  const apiRole = selectedRole === 'Semua Role' ? undefined : selectedRole === 'Administrator' ? 'administrator' : selectedRole === 'Admin Unit' ? 'admin' : 'staff';
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchEmployees(1, { search, role: apiRole, unitId: selectedUnitId });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, apiRole, selectedUnitId, fetchEmployees]);
+
+  const employeeList = employees;
+  const totalCount = total;
   const adminCount = employeeList.filter(
     (e) => e.role === 'Administrator' || e.role === 'Admin Unit'
   ).length;
@@ -119,14 +60,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
   const inactiveCount = employeeList.filter((e) => e.status === 'Nonaktif').length;
 
   const roles = ['Semua Role', 'Administrator', 'Admin Unit', 'Staff'];
-  const units = [
-    'Semua Unit',
-    'Lintas Unit (1)',
-    'Bagian Akademik (14)',
-    'Sumber Daya PT (12)',
-    'Pokja PTK (10)',
-    'Hukum & TU (15)',
-  ];
+  const units = ['Semua Unit', ...apiUnits.map((unit) => unit.nama_unit)];
 
   const handleAddEmployee = () => {
     if (onNavigateAdd) {
@@ -141,37 +75,18 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
 
   const handleResetPassword = (name: string) => {
     useFeedbackStore.getState().showToast({
-      type: 'success',
-      message: `Tautan setel ulang kata sandi dikirim ke email kedinasan ${name}.`,
+      type: 'info',
+      message: `API reset kata sandi belum tersedia untuk ${name}.`,
     });
   };
 
-  const filteredASN = employeeList.filter((item) => {
-    const matchSearch =
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.nip.includes(search) ||
-      item.username.toLowerCase().includes(search.toLowerCase());
-    const matchRole =
-      selectedRole === 'Semua Role' || item.role === selectedRole;
-    const matchUnit =
-      selectedUnit === 'Semua Unit' ||
-      (selectedUnit === 'Lintas Unit (1)' && item.unit.includes('Lintas Unit')) ||
-      (selectedUnit === 'Bagian Akademik (14)' &&
-        item.unit.includes('Akademik')) ||
-      (selectedUnit === 'Sumber Daya PT (12)' &&
-        item.unit.includes('Sumber Daya')) ||
-      (selectedUnit === 'Pokja PTK (10)' && item.unit.includes('Pendidik')) ||
-      (selectedUnit === 'Hukum & TU (15)' &&
-        (item.unit.includes('Tata Usaha') || item.unit.includes('Hukum')));
-
-    return matchSearch && matchRole && matchUnit;
-  });
+  const filteredASN = employeeList;
 
   return (
     <View style={styles.container}>
       <Header
         title="Kelola Pegawai & Unit Kerja"
-        subtitle={`Administrasi ${totalCount} ASN & 11 Unit Kerja`}
+        subtitle={`Administrasi ${totalCount} ASN & ${unitsTotal} Unit Kerja`}
         showBack={Boolean(onBack)}
         onBack={onBack}
       />
@@ -179,6 +94,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={activeTab === 'asn' ? employeesLoading : unitsLoading} onRefresh={() => activeTab === 'asn' ? fetchEmployees(1, { search, role: apiRole, unitId: selectedUnitId }) : fetchUnits(1)} />}
       >
         {/* 4 BENTO STATS CARDS */}
         <View style={styles.bentoGrid}>
@@ -188,7 +104,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               <MaterialIcons name="group" size={16} color={colors.outline} />
             </View>
             <Text style={styles.bentoValue}>{totalCount}</Text>
-            <Text style={styles.bentoSub}>{staffCount} Staf · {adminCount} Admin</Text>
+            <Text style={styles.bentoSub}>{staffCount} Staf · {adminCount} Admin (halaman ini)</Text>
           </View>
 
           <View style={styles.bentoCol}>
@@ -200,8 +116,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                 color={colors.outline}
               />
             </View>
-            <Text style={styles.bentoValue}>11</Text>
-            <Text style={styles.bentoSub}>Pokja & Bagian</Text>
+            <Text style={styles.bentoValue}>{apiUnits.length ? apiUnits.filter((unit) => unit.is_active).length : '—'}</Text>
+            <Text style={styles.bentoSub}>Unit aktif dimuat</Text>
           </View>
 
           <View style={styles.bentoCol}>
@@ -210,7 +126,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               <MaterialIcons name="badge" size={16} color={colors.outline} />
             </View>
             <Text style={styles.bentoValue}>{activeCount}</Text>
-            <Text style={styles.bentoSub}>{inactiveCount} Nonaktif / Cuti</Text>
+            <Text style={styles.bentoSub}>{inactiveCount} Nonaktif (halaman ini)</Text>
           </View>
 
           <View style={styles.bentoCol}>
@@ -222,8 +138,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                 color={colors.outline}
               />
             </View>
-            <Text style={styles.bentoValue}>96.4%</Text>
-            <Text style={styles.bentoSub}>Triwulan Berjalan</Text>
+            <Text style={styles.bentoValue}>—</Text>
+            <Text style={styles.bentoSub}>Belum tersedia di API</Text>
           </View>
         </View>
 
@@ -259,7 +175,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                 activeTab === 'units' && styles.segmentedBtnTextActive,
               ]}
             >
-              Master Unit Kerja (11)
+              Master Unit Kerja ({unitsTotal})
             </Text>
           </Pressable>
         </View>
@@ -376,6 +292,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               </View>
             </View>
 
+            {employeesError ? <ErrorState message={employeesError} onRetry={() => fetchEmployees(1, { search, role: apiRole, unitId: selectedUnitId })} /> : null}
+            {!employeesError && employeesLoading && employees.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
             {/* ASN CARDS */}
             <View style={styles.cardsContainer}>
               {filteredASN.map((item) => (
@@ -420,7 +338,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                         ? `Login: ${item.lastLogin}`
                         : item.attendanceRate
                         ? `Presensi: ${item.attendanceRate} (${item.totalMeetings} Rapat)`
-                        : `Status: ASN Aktif`}
+                        : `Status: ${item.status}`}
                     </Text>
 
                     <View style={styles.cardActions}>
@@ -472,13 +390,17 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                   </View>
                 </View>
               ))}
+              {!employeesLoading && !employeesError && filteredASN.length === 0 ? <Text style={styles.emptyDirectory}>Tidak ada pegawai yang cocok.</Text> : null}
             </View>
+            {currentPage < lastPage ? <Pressable style={styles.loadMore} onPress={() => fetchEmployees(currentPage + 1, { search, role: apiRole, unitId: selectedUnitId }, true)}><Text style={styles.loadMoreText}>{employeesLoading ? 'Memuat...' : 'Muat lainnya'}</Text></Pressable> : null}
           </>
         ) : (
           /* MASTER UNIT KERJA LIST */
           <View style={styles.cardsContainer}>
-            {MASTER_UNITS.map((unit) => (
-              <View key={unit.code} style={styles.unitMasterCard}>
+            {unitsError ? <ErrorState message={unitsError} onRetry={() => fetchUnits(1)} /> : null}
+            {unitsLoading && apiUnits.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
+            {apiUnits.map((unit) => (
+              <View key={unit.id} style={styles.unitMasterCard}>
                 <View style={styles.unitMasterIcon}>
                   <MaterialIcons
                     name="account-tree"
@@ -487,14 +409,16 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.unitMasterCode}>{unit.code}</Text>
-                  <Text style={styles.unitMasterName}>{unit.name}</Text>
+                  <Text style={styles.unitMasterCode}>{unit.kode_unit}</Text>
+                  <Text style={styles.unitMasterName}>{unit.nama_unit}</Text>
                 </View>
                 <View style={styles.unitMasterCountBadge}>
-                  <Text style={styles.unitMasterCountText}>{unit.count}</Text>
+                  <Text style={styles.unitMasterCountText}>{unit.users_count ?? 0} ASN</Text>
                 </View>
               </View>
             ))}
+            {!unitsLoading && !unitsError && apiUnits.length === 0 ? <Text style={styles.emptyDirectory}>Belum ada unit kerja.</Text> : null}
+            {unitsCurrentPage < unitsLastPage ? <Pressable style={styles.loadMore} onPress={() => fetchUnits(unitsCurrentPage + 1, true)}><Text style={styles.loadMoreText}>{unitsLoading ? 'Memuat...' : 'Muat lainnya'}</Text></Pressable> : null}
           </View>
         )}
       </ScrollView>
@@ -728,6 +652,9 @@ const styles = StyleSheet.create({
   cardsContainer: {
     gap: 8,
   },
+  emptyDirectory: { textAlign: 'center', color: colors.onSurfaceVariant, padding: spacing.md },
+  loadMore: { marginVertical: spacing.sm, padding: spacing.sm, alignItems: 'center' },
+  loadMoreText: { ...typography.labelMd, color: colors.primary, fontWeight: '700' },
   asnCard: {
     backgroundColor: colors.surfaceCard,
     borderRadius: rounded.lg,

@@ -1,7 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IAttendanceRepository } from '../../domain/repositories/interfaces';
-import { Attendance, AuditLog, ASNUnitMember } from '../../domain/entities/types';
-import { MOCK_AUDIT_LOGS, MOCK_UNIT_MEMBERS } from '../datasources/mockData';
+import { Attendance } from '../../domain/entities/types';
 import { attendanceApi } from '../datasources/attendanceApi';
 import { ApiAttendanceDto } from '../datasources/apiTypes';
 import { toMeeting } from '../mappers/apiMappers';
@@ -16,8 +14,6 @@ function toAttendance(dto: ApiAttendanceDto): Attendance {
     status: 'tercatat', isSynced: true, selfieUrl: dto.selfie_url, signatureUrl: dto.signature_url, userId: String(dto.user_id),
   };
 }
-
-const AUDIT_STORAGE_KEY = '@siperapat_audit_logs';
 
 export class AttendanceRepositoryImpl implements IAttendanceRepository {
   async getAttendancePortal(agendaId: string) {
@@ -65,23 +61,4 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
     return 0;
   }
 
-  async getAuditLogs(): Promise<AuditLog[]> {
-    try {
-      const stored = await AsyncStorage.getItem(AUDIT_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored) as AuditLog[];
-      }
-    } catch {
-      // Fallback
-    }
-    await AsyncStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(MOCK_AUDIT_LOGS));
-    return MOCK_AUDIT_LOGS;
-  }
-
-  async getUnitMembers(unitKerja?: string): Promise<ASNUnitMember[]> {
-    if (!unitKerja || unitKerja === 'Semua') {
-      return MOCK_UNIT_MEMBERS;
-    }
-    return MOCK_UNIT_MEMBERS.filter((m) => m.unitKerja.includes(unitKerja));
-  }
 }

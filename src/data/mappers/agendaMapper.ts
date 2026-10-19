@@ -1,5 +1,5 @@
 import { Meeting, MeetingStatus } from '../../domain/entities/types';
-import { ApiAgendaDto } from '../datasources/agendaApi';
+import { ApiAgendaDto } from '../datasources/apiTypes';
 
 function localDatePart(value: string): string {
   return value.slice(0, 10);
@@ -32,7 +32,7 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     code: agenda.slug,
     title: agenda.judul_rapat,
     type: agenda.tipe_rapat,
-    leader: agenda.pimpinan?.name || agenda.creator?.name || '—',
+    leader: agenda.pimpinan?.name || '—',
     date: startDate,
     startTime: localTime(agenda.waktu_mulai),
     endTime: localTime(agenda.waktu_selesai),

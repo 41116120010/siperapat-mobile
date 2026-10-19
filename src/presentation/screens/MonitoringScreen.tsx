@@ -47,10 +47,14 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
   const { getMeetingById } = useMeetingStore();
   const { agendaAttendances, agendaAttendancePage, fetchAgendaAttendances, isLoading, error } = useAttendanceStore();
   const [meeting, setMeeting] = useState<Awaited<ReturnType<typeof getMeetingById>> | null>(null);
+  const [agendaError, setAgendaError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!meetingId) return;
-    void getMeetingById(meetingId).then(setMeeting).catch(() => setMeeting(null));
+    void getMeetingById(meetingId).then((agenda) => { setMeeting(agenda); setAgendaError(null); }).catch((requestError: unknown) => {
+      setMeeting(null);
+      setAgendaError(requestError instanceof Error ? requestError.message : 'Gagal memuat detail agenda.');
+    });
     void fetchAgendaAttendances(meetingId, 1);
   }, [meetingId, getMeetingById, fetchAgendaAttendances]);
 
@@ -122,7 +126,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
           </View>
 
           <Text style={styles.heroTitle}>
-            {meeting?.title ?? (error ? 'Detail agenda tidak dapat dimuat' : 'Memuat detail agenda...')}
+            {meeting?.title ?? (agendaError ? 'Detail agenda tidak dapat dimuat' : 'Memuat detail agenda...')}
           </Text>
 
           {/* Clean 2-Column Metadata Grid */}
@@ -167,7 +171,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                 <View style={styles.metaTextGroup}>
                   <Text style={styles.metaLabel}>Notulis</Text>
                   <Text style={styles.metaValue} numberOfLines={1}>
-                    {meeting?.notulis || '—'}
+                    {meeting ? meeting.notulis?.trim() || 'Belum ditugaskan' : agendaError ? 'Tidak dapat dimuat' : 'Memuat...'}
                   </Text>
                 </View>
               </View>

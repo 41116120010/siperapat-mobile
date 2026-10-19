@@ -123,6 +123,7 @@ export interface Employee {
   nip: string; // 18 Digits
   role: 'Administrator' | 'Admin Unit' | 'Staff';
   unit: string;
+  unitId?: number | null;
   status: 'Aktif' | 'Nonaktif';
   username: string;
   email: string;

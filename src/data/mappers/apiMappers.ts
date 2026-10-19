@@ -6,7 +6,7 @@ export function toAsn(user: ApiUserDto): ASN {
     id: String(user.id), nip: user.nip ?? '', name: user.name,
     pangkatGolongan: '', jabatan: user.role.label, unitKerja: user.unit?.nama_unit ?? '',
     email: user.email ?? '', phone: user.phone ?? '', avatarUrl: user.avatar_url ?? undefined,
-    username: user.username, biometricEnabled: false,
+    username: user.username, role: user.role.value, biometricEnabled: false,
   };
 }
 
@@ -26,7 +26,7 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
   const units = agenda.units?.map((unit) => unit.nama_unit) ?? [];
   return {
     id: String(agenda.id), code: agenda.slug, title: agenda.judul_rapat, type: agenda.tipe_rapat,
-    leader: agenda.pimpinan?.name ?? agenda.creator?.name ?? '', notulis: agenda.notulis?.name ?? '', date: agenda.waktu_mulai.slice(0, 10),
+    leader: agenda.pimpinan?.name ?? '', notulis: agenda.notulis?.name ?? '', date: agenda.waktu_mulai.slice(0, 10),
     startTime: timePart(agenda.waktu_mulai), endTime: timePart(agenda.waktu_selesai), venue,
     status: toMeetingStatus(agenda.status.value), agendaDescription: agenda.jenis_rapat,
     targetAudience: agenda.is_all_units ? 'Semua unit kerja' : units.join(', '),

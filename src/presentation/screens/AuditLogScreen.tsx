@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TextInput,
   Pressable,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -14,93 +16,10 @@ import { typography } from '../../core/theme/typography';
 import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { EmptyState } from '../components/common/EmptyState';
-
-interface AuditItem {
-  id: string;
-  tag: string;
-  time: string;
-  status: string;
-  statusType: 'success' | 'info' | 'warning';
-  actorName: string;
-  actorNip: string;
-  description: string;
-  ip: string;
-  meta: string;
-  category: 'Login' | 'Agenda' | 'Presensi' | 'User';
-}
-
-const AUDIT_DATA: AuditItem[] = [
-  {
-    id: 'log-01',
-    tag: 'AUTH_LOGIN',
-    time: 'Hari Ini, 09:14 WIB',
-    status: 'Berhasil',
-    statusType: 'success',
-    actorName: 'Afdalisma, SH, M.Pd',
-    actorNip: '197012051992032002',
-    description:
-      'Masuk ke dalam sistem melalui portal administrasi pusat dengan otentikasi NIP ASN resmi.',
-    ip: '180.252.164.218',
-    meta: 'Chrome / Android',
-    category: 'Login',
-  },
-  {
-    id: 'log-02',
-    tag: 'RECORD_PRESENSI',
-    time: 'Hari Ini, 09:18 WIB',
-    status: 'Terverifikasi',
-    statusType: 'success',
-    actorName: 'Ely Susanti, SE, MM',
-    actorNip: '196708231991032001',
-    description:
-      'Merekam kehadiran pada Rapat Koordinasi Penjaminan Mutu (Agenda #1026) lengkap dengan swafoto & tanda tangan digital.',
-    ip: '180.252.164.218',
-    meta: 'Radius Geofence: 22m (Sesuai)',
-    category: 'Presensi',
-  },
-  {
-    id: 'log-03',
-    tag: 'EXPORT_DOKUMEN',
-    time: 'Hari Ini, 09:40 WIB',
-    status: 'Unduh PDF',
-    statusType: 'info',
-    actorName: 'Afdalisma, SH, M.Pd',
-    actorNip: '197012051992032002',
-    description:
-      'Mengunduh Berita Acara & Daftar Hadir resmi bertanda tangan elektronik untuk Agenda #1026.',
-    ip: '180.252.164.218',
-    meta: 'Format: BA-RAPAT/2026/0142',
-    category: 'Agenda',
-  },
-  {
-    id: 'log-04',
-    tag: 'CREATE_AGENDA',
-    time: '23 Okt 2026, 16:05 WIB',
-    status: 'Agenda Baru',
-    statusType: 'info',
-    actorName: 'Ely Susanti, SE, MM',
-    actorNip: '196708231991032001',
-    description:
-      "Menjadwalkan agenda rapat dinas 'Sosialisasi Kebijakan Beban Kerja Dosen (BKD)' dengan metode Daring Zoom.",
-    ip: '180.252.164.218',
-    meta: 'Target: Agenda #1027',
-    category: 'Agenda',
-  },
-  {
-    id: 'log-05',
-    tag: 'SECURITY_RATE_LIMIT',
-    time: '23 Okt 2026, 14:12 WIB',
-    status: 'Terproteksi',
-    statusType: 'warning',
-    actorName: 'Sistem Proteksi Otomatis',
-    actorNip: 'Proteksi Brute-Force',
-    description:
-      'Penangguhan akses login sementara (60 detik) pada akun NIP 198205142010121003 akibat 5 kali salah kata sandi.',
-    ip: '36.72.115.94',
-    meta: 'Jaringan Eksternal',
-    category: 'Login',
-  },
-];
+import { ErrorState } from '../components/common/ErrorState';
+import { activityLogApi } from '../../data/datasources/userApi';
+import { ApiActivityLogDto } from '../../data/datasources/apiTypes';
+import { useAuthStore } from '../store/useAuthStore';
 
 interface AuditLogScreenProps {
   onBack?: () => void;
@@ -109,25 +28,53 @@ interface AuditLogScreenProps {
 export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
+  const [logs, setLogs] = useState<ApiActivityLogDto[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [lastPage, setLastPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdministrator = currentUser?.role === 'administrator';
+
+  const loadLogs = useCallback(async (nextPage = 1, append = false, query = search) => {
+    setIsLoading(true); setError(null);
+    try {
+      const response = isAdministrator
+        ? await activityLogApi.system(nextPage, query)
+        : await activityLogApi.personal(nextPage, query);
+      setLogs((current) => append ? [...current, ...response.data] : response.data);
+      setTotal(response.meta.total); setPage(response.meta.current_page); setLastPage(response.meta.last_page);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Gagal memuat log aktivitas.');
+    } finally { setIsLoading(false); }
+  }, [isAdministrator, search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { void loadLogs(1, false, search); }, 350);
+    return () => clearTimeout(timer);
+  }, [loadLogs, search]);
 
   const categories = ['Semua', 'Login', 'Agenda', 'Presensi', 'User'];
 
-  const filteredLogs = AUDIT_DATA.filter((log) => {
-    const matchSearch =
-      log.tag.toLowerCase().includes(search.toLowerCase()) ||
-      log.actorName.toLowerCase().includes(search.toLowerCase()) ||
-      log.actorNip.includes(search) ||
-      log.description.toLowerCase().includes(search.toLowerCase());
-    const matchCategory =
-      selectedCategory === 'Semua' || log.category === selectedCategory;
-    return matchSearch && matchCategory;
-  });
+  const toCategory = (type: string): string => {
+    if (type.startsWith('AUTH_')) return 'Login';
+    if (type.includes('ATTENDANCE')) return 'Presensi';
+    if (type.includes('AGENDA') || type.includes('EXPORT_') || type.includes('REPORT')) return 'Agenda';
+    if (type.includes('USER') || type.includes('UNIT') || type.includes('PROFILE')) return 'User';
+    return 'Lainnya';
+  };
+  const filteredLogs = logs.filter((log) => selectedCategory === 'Semua' || toCategory(log.activity_type) === selectedCategory).map((log) => ({
+    id: String(log.id), tag: log.activity_type, time: log.created_at ? new Date(log.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }) : '-',
+    status: 'Tercatat', statusType: 'info' as 'success' | 'info' | 'warning', actorName: log.user?.name ?? currentUser?.name ?? 'Pengguna tidak tersedia', actorNip: log.user?.nip ?? currentUser?.nip ?? '-', description: log.description,
+    ip: log.ip_address ?? '-', meta: log.target_model ? `${log.target_model}${log.target_id ? ` #${log.target_id}` : ''}` : log.user_agent ?? '-', category: toCategory(log.activity_type),
+  }));
 
   return (
     <View style={styles.container}>
       <Header
-        title="Log Aktivitas Sistem"
-        subtitle="Audit Trail & Rekam Jejak Kedinasan LLDIKTI X"
+        title={isAdministrator ? 'Log Aktivitas Sistem' : 'Log Aktivitas Saya'}
+        subtitle={isAdministrator ? 'Audit Trail & Rekam Jejak Kedinasan LLDIKTI X' : 'Riwayat aktivitas akun Anda'}
         showBack={Boolean(onBack)}
         onBack={onBack}
       />
@@ -135,6 +82,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => loadLogs(1)} />}
       >
         {/* RINGKASAN AKTIVITAS */}
         <View style={styles.integrityCard}>
@@ -149,15 +97,15 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
 
           <View style={styles.metricsRow}>
             <View style={styles.metricCol}>
-              <Text style={styles.metricNumber}>1.482</Text>
+                <Text style={styles.metricNumber}>{total.toLocaleString('id-ID')}</Text>
               <Text style={styles.metricLabel}>Total Log</Text>
             </View>
             <View style={styles.metricCol}>
-              <Text style={styles.metricNumber}>100%</Text>
+                <Text style={styles.metricNumber}>-</Text>
               <Text style={styles.metricLabel}>Otentikasi Sah</Text>
             </View>
             <View style={styles.metricCol}>
-              <Text style={styles.metricNumber}>0</Text>
+                <Text style={styles.metricNumber}>-</Text>
               <Text style={styles.metricLabel}>Insiden</Text>
             </View>
           </View>
@@ -168,7 +116,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
           <MaterialIcons name="search" size={20} color={colors.outline} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Cari NIP, nama, atau aktivitas..."
+            placeholder="Cari deskripsi aktivitas atau alamat IP..."
             placeholderTextColor={colors.outline}
             value={search}
             onChangeText={setSearch}
@@ -226,6 +174,8 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
         </View>
 
         {/* LOG ITEMS */}
+        {error ? <ErrorState message={error} onRetry={() => loadLogs(1)} /> : null}
+        {!error && isLoading && logs.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
         {filteredLogs.length > 0 ? (
           <View style={styles.logsList}>
             {filteredLogs.map((item) => (
@@ -275,7 +225,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
           <EmptyState
             icon="manage-search"
             title="Tidak Ada Log Ditemukan"
-            description="Tidak ada catatan aktivitas yang cocok dengan kata kunci atau filter kategori yang dipilih."
+            description={page < lastPage ? 'Tidak ada catatan yang cocok pada halaman ini. Muat halaman berikutnya untuk melanjutkan pencarian.' : 'Tidak ada catatan aktivitas yang cocok dengan kata kunci atau filter kategori yang dipilih.'}
             actionLabel="Atur Ulang Filter"
             onAction={() => {
               setSearch('');
@@ -283,6 +233,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
             }}
           />
         )}
+        {page < lastPage ? <Pressable onPress={() => loadLogs(page + 1, true)} style={styles.loadMore}><Text style={styles.loadMoreText}>{isLoading ? 'Memuat...' : 'Muat lainnya'}</Text></Pressable> : null}
       </ScrollView>
     </View>
   );
@@ -431,6 +382,8 @@ const styles = StyleSheet.create({
   logsList: {
     gap: 8,
   },
+  loadMore: { padding: spacing.sm, alignItems: 'center' },
+  loadMoreText: { ...typography.labelMd, color: colors.primary, fontWeight: '700' },
   logCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
