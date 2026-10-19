@@ -13,6 +13,7 @@ interface EmployeeState {
   fetchEmployeeById: (id: string) => Promise<Employee | null>;
   addEmployee: (employeeData: Omit<Employee, 'id' | 'initials'>) => Promise<Employee | null>;
   updateEmployee: (id: string, employeeData: Partial<Employee>) => Promise<Employee | null>;
+  deleteEmployee: (id: string) => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -55,6 +56,22 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       return updated;
     } catch (error) { set({ error: error instanceof Error ? error.message : 'Gagal memperbarui data pegawai.' }); return null; }
     finally { set({ isLoading: false }); }
+  },
+  deleteEmployee: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await employeeRepo.deleteEmployee(id);
+      set((state) => ({
+        employees: state.employees.filter((item) => item.id !== id),
+        total: Math.max(0, state.total - 1),
+      }));
+      return true;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Gagal menghapus data pegawai.' });
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
   },
   clearError: () => set({ error: null }),
 }));
