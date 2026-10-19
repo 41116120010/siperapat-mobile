@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
 import { rounded, spacing, elevations } from '../../core/theme/tokens';
 import { useAuthStore } from '../store/useAuthStore';
+import { triggerPageTransition } from '../store/useTransitionStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,10 +24,19 @@ interface SplashScreenProps {
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   const { user, checkSession, isLoading } = useAuthStore();
+  const [isEntering, setIsEntering] = useState(false);
 
   useEffect(() => {
     checkSession();
   }, [checkSession]);
+
+  const handleEnter = async () => {
+    if (isLoading || isEntering) return;
+    setIsEntering(true);
+    triggerPageTransition(650);
+    if (!user) await checkSession();
+    onFinish(Boolean(useAuthStore.getState().user));
+  };
 
   return (
     <View style={styles.container}>
@@ -84,14 +94,12 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           {/* Bottom Controls & System Status */}
           <View style={styles.footer}>
             <Pressable
-              onPress={async () => {
-                if (isLoading) return;
-                if (!user) await checkSession();
-                onFinish(Boolean(useAuthStore.getState().user));
-              }}
+              onPress={handleEnter}
+              disabled={isLoading || isEntering}
               style={({ pressed }) => [
                 styles.enterButton,
                 pressed && styles.enterButtonPressed,
+                isEntering && { opacity: 0.8 },
               ]}
               accessibilityRole="button"
               accessibilityLabel="Masuk ke Sistem"

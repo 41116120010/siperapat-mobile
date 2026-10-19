@@ -28,6 +28,8 @@ import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import { GlobalFeedbackHost } from '../components/common/GlobalFeedbackHost';
+import { PageTransitionOverlay } from '../components/transitions/PageTransitionOverlay';
+import { triggerPageTransition } from '../store/useTransitionStore';
 import { useAuthStore } from '../store/useAuthStore';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -59,6 +61,7 @@ const CustomBottomTabBar: React.FC<MaterialTopTabBarProps> = ({
           });
 
           if (!isFocused && !event.defaultPrevented) {
+            triggerPageTransition();
             navigation.navigate(route.name);
           }
         };
@@ -112,9 +115,18 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
       <Tab.Screen name="Beranda">
         {({ navigation: tabNav }) => (
           <DashboardScreen
-            onNavigatePresensi={(id) => rootStackNav.navigate('Presensi', { meetingId: id })}
-            onNavigateDetail={(id) => rootStackNav.navigate('Monitoring', { meetingId: id })}
-            onNavigateAgenda={() => tabNav.navigate('Agenda')}
+            onNavigatePresensi={(id) => {
+              triggerPageTransition();
+              rootStackNav.navigate('Presensi', { meetingId: id });
+            }}
+            onNavigateDetail={(id) => {
+              triggerPageTransition();
+              rootStackNav.navigate('Monitoring', { meetingId: id });
+            }}
+            onNavigateAgenda={() => {
+              triggerPageTransition();
+              tabNav.navigate('Agenda');
+            }}
           />
         )}
       </Tab.Screen>
@@ -122,8 +134,14 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
       <Tab.Screen name="Agenda">
         {() => (
           <AgendaScreen
-            onNavigateDetail={(id) => rootStackNav.navigate('Monitoring', { meetingId: id })}
-            onNavigateCreate={() => rootStackNav.navigate('CreateMeeting')}
+            onNavigateDetail={(id) => {
+              triggerPageTransition();
+              rootStackNav.navigate('Monitoring', { meetingId: id });
+            }}
+            onNavigateCreate={() => {
+              triggerPageTransition();
+              rootStackNav.navigate('CreateMeeting');
+            }}
           />
         )}
       </Tab.Screen>
@@ -131,7 +149,10 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
       <Tab.Screen name="Riwayat">
         {() => (
           <RiwayatScreen
-            onSelectReceipt={(id) => rootStackNav.navigate('Receipt', { attendanceId: id })}
+            onSelectReceipt={(id) => {
+              triggerPageTransition();
+              rootStackNav.navigate('Receipt', { attendanceId: id });
+            }}
           />
         )}
       </Tab.Screen>
@@ -139,10 +160,22 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
       <Tab.Screen name="Profil">
         {() => (
           <ProfileScreen
-            onLogout={() => rootStackNav.replace('Login')}
-            onNavigateAuditLog={() => rootStackNav.navigate('AuditLog')}
-            onNavigatePegawai={() => rootStackNav.navigate('EmployeeDirectory')}
-            onNavigateChangePassword={() => rootStackNav.navigate('ChangePassword')}
+            onLogout={() => {
+              triggerPageTransition();
+              rootStackNav.replace('Login');
+            }}
+            onNavigateAuditLog={() => {
+              triggerPageTransition();
+              rootStackNav.navigate('AuditLog');
+            }}
+            onNavigatePegawai={() => {
+              triggerPageTransition();
+              rootStackNav.navigate('EmployeeDirectory');
+            }}
+            onNavigateChangePassword={() => {
+              triggerPageTransition();
+              rootStackNav.navigate('ChangePassword');
+            }}
           />
         )}
       </Tab.Screen>
@@ -151,6 +184,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
 };
 
 const safeGoBack = (navigation: any, fallbackRoute = 'MainTabs') => {
+  triggerPageTransition(450);
   if (navigation.canGoBack()) {
     navigation.goBack();
   } else {
@@ -170,15 +204,26 @@ export const AppNavigator: React.FC = () => {
     >
       <Stack.Screen name="Splash">
         {({ navigation }) => (
-          <SplashScreen onFinish={(hasSession) => navigation.replace(hasSession ? 'MainTabs' : 'Login')} />
+          <SplashScreen
+            onFinish={(hasSession) => {
+              triggerPageTransition(650);
+              navigation.replace(hasSession ? 'MainTabs' : 'Login');
+            }}
+          />
         )}
       </Stack.Screen>
 
       <Stack.Screen name="Login">
         {({ navigation }) => (
           <LoginScreen
-            onLoginSuccess={() => navigation.replace('MainTabs')}
-            onNavigateForgotPassword={() => navigation.navigate('ForgotPassword')}
+            onLoginSuccess={() => {
+              triggerPageTransition();
+              navigation.replace('MainTabs');
+            }}
+            onNavigateForgotPassword={() => {
+              triggerPageTransition();
+              navigation.navigate('ForgotPassword');
+            }}
           />
         )}
       </Stack.Screen>
@@ -187,7 +232,10 @@ export const AppNavigator: React.FC = () => {
         {({ navigation }) => (
           <ForgotPasswordScreen
             onBack={() => safeGoBack(navigation, 'Login')}
-            onSuccessLogin={() => navigation.navigate('Login')}
+            onSuccessLogin={() => {
+              triggerPageTransition();
+              navigation.navigate('Login');
+            }}
           />
         )}
       </Stack.Screen>
@@ -243,10 +291,14 @@ export const AppNavigator: React.FC = () => {
         {({ navigation }) => (
           <EmployeeDirectoryScreen
             onBack={() => safeGoBack(navigation, 'MainTabs')}
-            onNavigateAdd={() => navigation.navigate('AddEmployee')}
-            onNavigateEdit={(employeeId) =>
-              navigation.navigate('EditEmployee', { employeeId })
-            }
+            onNavigateAdd={() => {
+              triggerPageTransition();
+              navigation.navigate('AddEmployee');
+            }}
+            onNavigateEdit={(employeeId) => {
+              triggerPageTransition();
+              navigation.navigate('EditEmployee', { employeeId });
+            }}
           />
         )}
       </Stack.Screen>
@@ -286,6 +338,7 @@ export const AppNavigator: React.FC = () => {
       </Stack.Screen>
     </Stack.Navigator>
     <GlobalFeedbackHost />
+    <PageTransitionOverlay />
     </>
   );
 };
