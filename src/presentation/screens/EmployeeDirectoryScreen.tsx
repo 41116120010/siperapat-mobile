@@ -20,25 +20,13 @@ import { useFeedbackStore } from '../store/useFeedbackStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
 import { Employee } from '../../domain/entities/types';
 import { ErrorState } from '../components/common/ErrorState';
+import { PaginationBar } from '../components/common/PaginationBar';
 
 interface EmployeeDirectoryScreenProps {
   onBack?: () => void;
   onNavigateAdd?: () => void;
   onNavigateEdit?: (employeeId: string) => void;
 }
-
-const getPaginationRange = (current: number, last: number): (number | string)[] => {
-  if (last <= 5) {
-    return Array.from({ length: Math.max(1, last) }, (_, i) => i + 1);
-  }
-  if (current <= 3) {
-    return [1, 2, 3, 4, '...', last];
-  }
-  if (current >= last - 2) {
-    return [1, '...', last - 3, last - 2, last - 1, last];
-  }
-  return [1, '...', current - 1, current, current + 1, '...', last];
-};
 
 export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = ({
   onBack,
@@ -464,85 +452,14 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
 
             {/* PAGINATION CONTROLS (PEGAWAI ASN) */}
             {totalCount > 0 ? (
-              <View style={styles.paginationContainer}>
-                <View style={styles.paginationControls}>
-                  <Pressable
-                    disabled={currentPage <= 1 || employeesLoading}
-                    onPress={() => handlePageChange(currentPage - 1)}
-                    style={({ pressed }) => [
-                      styles.paginationNavBtn,
-                      (currentPage <= 1 || employeesLoading) && styles.paginationNavBtnDisabled,
-                      pressed && styles.btnPressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Halaman sebelumnya"
-                  >
-                    <MaterialIcons
-                      name="chevron-left"
-                      size={20}
-                      color={currentPage <= 1 || employeesLoading ? colors.outlineVariant : colors.onSurface}
-                    />
-                  </Pressable>
-
-                  <View style={styles.paginationPillsRow}>
-                    {getPaginationRange(currentPage, lastPage).map((p, idx) => {
-                      if (typeof p === 'string') {
-                        return (
-                          <Text key={`asn-ellipsis-${idx}`} style={styles.paginationEllipsis}>
-                            ...
-                          </Text>
-                        );
-                      }
-                      const isActive = p === currentPage;
-                      return (
-                        <Pressable
-                          key={`asn-page-${p}`}
-                          onPress={() => handlePageChange(p)}
-                          disabled={isActive || employeesLoading}
-                          style={({ pressed }) => [
-                            styles.paginationPill,
-                            isActive && styles.paginationPillActive,
-                            pressed && !isActive && styles.btnPressed,
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Halaman ${p}`}
-                        >
-                          <Text
-                            style={[
-                              styles.paginationPillText,
-                              isActive && styles.paginationPillTextActive,
-                            ]}
-                          >
-                            {p}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  <Pressable
-                    disabled={currentPage >= lastPage || employeesLoading}
-                    onPress={() => handlePageChange(currentPage + 1)}
-                    style={({ pressed }) => [
-                      styles.paginationNavBtn,
-                      (currentPage >= lastPage || employeesLoading) && styles.paginationNavBtnDisabled,
-                      pressed && styles.btnPressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Halaman berikutnya"
-                  >
-                    <MaterialIcons
-                      name="chevron-right"
-                      size={20}
-                      color={currentPage >= lastPage || employeesLoading ? colors.outlineVariant : colors.onSurface}
-                    />
-                  </Pressable>
-                </View>
-
-                <Text style={styles.paginationInfoText}>
-                  Menampilkan halaman {currentPage} dari {lastPage} • Total {totalCount} Pegawai
-                </Text>
-              </View>
+              <PaginationBar
+                currentPage={currentPage}
+                lastPage={lastPage}
+                total={totalCount}
+                label="Pegawai"
+                isLoading={employeesLoading}
+                onPageChange={handlePageChange}
+              />
             ) : null}
           </>
         ) : (
@@ -572,85 +489,14 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
 
             {/* PAGINATION CONTROLS (UNIT KERJA) */}
             {unitsTotal > 0 ? (
-              <View style={styles.paginationContainer}>
-                <View style={styles.paginationControls}>
-                  <Pressable
-                    disabled={unitsCurrentPage <= 1 || unitsLoading}
-                    onPress={() => handleUnitsPageChange(unitsCurrentPage - 1)}
-                    style={({ pressed }) => [
-                      styles.paginationNavBtn,
-                      (unitsCurrentPage <= 1 || unitsLoading) && styles.paginationNavBtnDisabled,
-                      pressed && styles.btnPressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Halaman sebelumnya"
-                  >
-                    <MaterialIcons
-                      name="chevron-left"
-                      size={20}
-                      color={unitsCurrentPage <= 1 || unitsLoading ? colors.outlineVariant : colors.onSurface}
-                    />
-                  </Pressable>
-
-                  <View style={styles.paginationPillsRow}>
-                    {getPaginationRange(unitsCurrentPage, unitsLastPage).map((p, idx) => {
-                      if (typeof p === 'string') {
-                        return (
-                          <Text key={`unit-ellipsis-${idx}`} style={styles.paginationEllipsis}>
-                            ...
-                          </Text>
-                        );
-                      }
-                      const isActive = p === unitsCurrentPage;
-                      return (
-                        <Pressable
-                          key={`unit-page-${p}`}
-                          onPress={() => handleUnitsPageChange(p)}
-                          disabled={isActive || unitsLoading}
-                          style={({ pressed }) => [
-                            styles.paginationPill,
-                            isActive && styles.paginationPillActive,
-                            pressed && !isActive && styles.btnPressed,
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Halaman ${p}`}
-                        >
-                          <Text
-                            style={[
-                              styles.paginationPillText,
-                              isActive && styles.paginationPillTextActive,
-                            ]}
-                          >
-                            {p}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  <Pressable
-                    disabled={unitsCurrentPage >= unitsLastPage || unitsLoading}
-                    onPress={() => handleUnitsPageChange(unitsCurrentPage + 1)}
-                    style={({ pressed }) => [
-                      styles.paginationNavBtn,
-                      (unitsCurrentPage >= unitsLastPage || unitsLoading) && styles.paginationNavBtnDisabled,
-                      pressed && styles.btnPressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Halaman berikutnya"
-                  >
-                    <MaterialIcons
-                      name="chevron-right"
-                      size={20}
-                      color={unitsCurrentPage >= unitsLastPage || unitsLoading ? colors.outlineVariant : colors.onSurface}
-                    />
-                  </Pressable>
-                </View>
-
-                <Text style={styles.paginationInfoText}>
-                  Menampilkan halaman {unitsCurrentPage} dari {unitsLastPage} • Total {unitsTotal} Unit Kerja
-                </Text>
-              </View>
+              <PaginationBar
+                currentPage={unitsCurrentPage}
+                lastPage={unitsLastPage}
+                total={unitsTotal}
+                label="Unit Kerja"
+                isLoading={unitsLoading}
+                onPageChange={handleUnitsPageChange}
+              />
             ) : null}
           </View>
         )}
@@ -1039,74 +885,6 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: colors.error,
     fontWeight: '600',
-  },
-  paginationContainer: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    alignItems: 'center',
-    gap: 8,
-  },
-  paginationControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  paginationPillsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  paginationNavBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paginationNavBtnDisabled: {
-    backgroundColor: colors.surfaceContainerLow,
-    borderColor: 'rgba(197, 197, 211, 0.3)',
-    opacity: 0.5,
-  },
-  paginationPill: {
-    minWidth: 32,
-    height: 32,
-    paddingHorizontal: 6,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paginationPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  paginationPillText: {
-    ...typography.labelSm,
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: colors.onSurface,
-  },
-  paginationPillTextActive: {
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
-  paginationEllipsis: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    paddingHorizontal: 2,
-  },
-  paginationInfoText: {
-    ...typography.labelSm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
   },
   unitMasterCard: {
     flexDirection: 'row',

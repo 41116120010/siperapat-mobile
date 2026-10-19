@@ -19,6 +19,6 @@ export const userApi = {
 };
 
 export const activityLogApi = {
-  personal: (page = 1, search?: string) => apiClient.get<ApiPaginated<ApiActivityLogDto>>(`/profile/logs?${query({ page, per_page: 50, search })}`),
-  system: (page = 1, search?: string) => apiClient.get<ApiPaginated<ApiActivityLogDto>>(`/activity-logs?${query({ page, per_page: 50, search })}`),
+  personal: (page = 1, search?: string, perPage = 10) => apiClient.get<ApiPaginated<ApiActivityLogDto>>(`/profile/logs?${query({ page, per_page: perPage, search })}`),
+  system: (page = 1, search?: string, perPage = 10) => apiClient.get<ApiPaginated<ApiActivityLogDto>>(`/activity-logs?${query({ page, per_page: perPage, search })}`),
 };

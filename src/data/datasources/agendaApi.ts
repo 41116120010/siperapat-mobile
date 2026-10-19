@@ -15,7 +15,7 @@ function queryString(values: Record<string, string | number | undefined>) {
 }
 export const agendaApi = {
   dashboard: () => apiClient.get<ApiEnvelope<ApiDashboardDto>>('/dashboard'),
-  list: (page = 1, perPage = 15, filters: AgendaFilters = {}) => {
+  list: (page = 1, perPage = 10, filters: AgendaFilters = {}) => {
     const query = queryString({ page, per_page: perPage, status: filters.status, tipe_rapat: filters.type, search: filters.search, unit_id: filters.unitId });
     return apiClient.get<ApiPaginated<ApiAgendaDto>>(`/agendas?${query}`);
   },

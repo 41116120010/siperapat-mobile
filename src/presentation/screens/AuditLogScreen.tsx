@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,9 +17,11 @@ import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
+import { PaginationBar } from '../components/common/PaginationBar';
 import { activityLogApi } from '../../data/datasources/userApi';
 import { ApiActivityLogDto } from '../../data/datasources/apiTypes';
 import { useAuthStore } from '../store/useAuthStore';
+import { triggerPageTransition } from '../store/useTransitionStore';
 
 interface AuditLogScreenProps {
   onBack?: () => void;
@@ -36,6 +38,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   const [error, setError] = useState<string | null>(null);
   const currentUser = useAuthStore((state) => state.user);
   const isAdministrator = currentUser?.role === 'administrator';
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const loadLogs = useCallback(async (nextPage = 1, append = false, query = search) => {
     setIsLoading(true); setError(null);
@@ -49,6 +52,13 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
       setError(requestError instanceof Error ? requestError.message : 'Gagal memuat log aktivitas.');
     } finally { setIsLoading(false); }
   }, [isAdministrator, search]);
+
+  const handlePageChange = (nextPage: number) => {
+    if (nextPage < 1 || nextPage > lastPage || nextPage === page || isLoading) return;
+    triggerPageTransition(400);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    void loadLogs(nextPage, false, search);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => { void loadLogs(1, false, search); }, 350);
@@ -80,6 +90,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
       />
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => loadLogs(1)} />}
@@ -233,7 +244,16 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
             }}
           />
         )}
-        {page < lastPage ? <Pressable onPress={() => loadLogs(page + 1, true)} style={styles.loadMore}><Text style={styles.loadMoreText}>{isLoading ? 'Memuat...' : 'Muat lainnya'}</Text></Pressable> : null}
+        {total > 0 ? (
+          <PaginationBar
+            currentPage={page}
+            lastPage={lastPage}
+            total={total}
+            label="Log Aktivitas"
+            isLoading={isLoading}
+            onPageChange={handlePageChange}
+          />
+        ) : null}
       </ScrollView>
     </View>
   );

@@ -12,8 +12,7 @@ export class MeetingRepositoryImpl implements IMeetingRepository {
   }
 
   async getMeetings(page = 1, filters: AgendaFilters = {}) {
-    const response = await agendaApi.list(page, 50, filters);
-    if (!response.success) throw new Error(response.message || 'Gagal memuat agenda.');
+    const response = await agendaApi.list(page, 10, filters);
     return { meetings: response.data.map(toMeeting), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total };
   }
 

@@ -29,7 +29,7 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
     return toAttendance(response.data);
   }
 
-  async getAttendanceHistory(page = 1, perPage = 15) {
+  async getAttendanceHistory(page = 1, perPage = 10) {
     const response = await attendanceApi.myHistory(page, perPage);
     if (!response.success) throw new Error(response.message || 'Gagal memuat riwayat presensi.');
     return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total };

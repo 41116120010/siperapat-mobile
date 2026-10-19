@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
-  ActivityIndicator,
   Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -17,8 +16,10 @@ import { Header } from '../components/common/Header';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
+import { PaginationBar } from '../components/common/PaginationBar';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
+import { triggerPageTransition } from '../store/useTransitionStore';
 import { Meeting } from '../../domain/entities/types';
 
 interface AgendaScreenProps {
@@ -30,8 +31,9 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   onNavigateDetail,
   onNavigateCreate,
 }) => {
-  const { meetings, fetchMeetings, isLoading, isLoadingMore, error, currentPage, lastPage } = useMeetingStore();
+  const { meetings, fetchMeetings, isLoading, error, currentPage, lastPage, total } = useMeetingStore();
   const [filter, setFilter] = useState<'semua' | 'hybrid' | 'offline' | 'online'>('semua');
+  const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
     fetchMeetings(1, false, filter === 'semua' ? 'all' : filter);
@@ -41,6 +43,13 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
     if (filter === 'semua') return true;
     return m.type === filter;
   });
+
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > lastPage || page === currentPage || isLoading) return;
+    triggerPageTransition(400);
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    void fetchMeetings(page, false, filter === 'semua' ? 'all' : filter);
+  };
 
   const handlePdfView = (url?: string) => {
     if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' }));
@@ -80,7 +89,10 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
         {(['semua', 'hybrid', 'offline', 'online'] as const).map((tab) => (
           <Pressable
             key={tab}
-            onPress={() => setFilter(tab)}
+            onPress={() => {
+              setFilter(tab);
+              flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+            }}
             style={[
               styles.filterTab,
               filter === tab && styles.filterTabActive,
@@ -105,6 +117,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
       </View>
 
       <FlatList
+        ref={flatListRef}
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={({ item }: { item: Meeting }) => (
@@ -119,13 +132,22 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
         refreshControl={
           <RefreshControl
             refreshing={isLoading && meetings.length > 0}
-            onRefresh={fetchMeetings}
+            onRefresh={() => void fetchMeetings(1, false, filter === 'semua' ? 'all' : filter)}
             colors={[colors.primary]}
           />
         }
-        onEndReached={() => { if (currentPage < lastPage && !isLoadingMore) void fetchMeetings(currentPage + 1, true); }}
-        onEndReachedThreshold={0.4}
-        ListFooterComponent={isLoadingMore ? <ActivityIndicator color={colors.primary} /> : null}
+        ListFooterComponent={
+          filtered.length > 0 ? (
+            <PaginationBar
+              currentPage={currentPage}
+              lastPage={lastPage}
+              total={total}
+              label="Rapat Kedinasan"
+              isLoading={isLoading}
+              onPageChange={handlePageChange}
+            />
+          ) : null
+        }
         ListEmptyComponent={
           error ? <ErrorState message={error} onRetry={() => void fetchMeetings(1, false, filter === 'semua' ? 'all' : filter)} /> : <EmptyState
             title="Tidak Ada Jadwal Rapat"

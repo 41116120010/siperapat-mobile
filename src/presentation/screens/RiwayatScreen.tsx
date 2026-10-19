@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { typography } from '../../core/theme/typography';
 import { rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { EmptyState } from '../components/common/EmptyState';
+import { PaginationBar } from '../components/common/PaginationBar';
 import {
   DateFilterModal,
   HistoryPeriod,
@@ -22,6 +23,7 @@ import {
 } from '../components/modals/DateFilterModal';
 import { useAttendanceStore } from '../store/useAttendanceStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
+import { triggerPageTransition } from '../store/useTransitionStore';
 
 interface RiwayatScreenProps {
   onSelectReceipt: (id: string) => void;
@@ -46,8 +48,16 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>('all');
   const [selectedType, setSelectedType] = useState<HistoryMeetingType>('all');
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => { void fetchHistory(1); }, [fetchHistory]);
+
+  const handlePageChange = (page: number) => {
+    if (!historyPage || page < 1 || page > historyPage.lastPage || page === historyPage.currentPage || isLoading) return;
+    triggerPageTransition(400);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    void fetchHistory(page, false);
+  };
   const historyData: HistoryItem[] = attendances.map((item) => {
     const date = item.timestamp ? new Date(item.timestamp) : null;
     return {
@@ -95,6 +105,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
       <Header />
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => void fetchHistory(1)} />}
@@ -265,7 +276,16 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
                 </View>
               </View>
             ))}
-            {historyPage && historyPage.currentPage < historyPage.lastPage ? <Pressable onPress={() => void fetchHistory(historyPage.currentPage + 1, true)} style={styles.calendarFilterBtn}><Text style={styles.calendarFilterText}>{isLoading ? 'Memuat...' : 'Muat lebih banyak'}</Text></Pressable> : null}
+            {historyPage && historyPage.total > 0 ? (
+              <PaginationBar
+                currentPage={historyPage.currentPage}
+                lastPage={historyPage.lastPage}
+                total={historyPage.total}
+                label="Riwayat Presensi"
+                isLoading={isLoading}
+                onPageChange={handlePageChange}
+              />
+            ) : null}
           </View>
         ) : (
           <EmptyState
