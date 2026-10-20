@@ -97,7 +97,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <View style={styles.perfCol}>
                 <Text style={styles.perfLabel}>Total Agenda</Text>
                 <Text style={styles.perfValue}>{user?.attendanceStats?.totalAgendas ?? '—'}</Text>
-                <Text style={styles.perfSub}>{user?.attendanceStats?.periodLabel ?? 'Rapat & Sidang'}</Text>
+                <Text style={styles.perfSub}>Agenda yang dapat diakses</Text>
               </View>
 
               <View style={styles.perfCol}>

@@ -191,7 +191,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Hadir Sah</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: colors.success }]}>{agendaAttendancePage?.summary?.total_attended ?? agendaAttendancePage?.total ?? '—'}</Text>
+                <Text style={[styles.metricValue, { color: colors.success }]}>{agendaAttendancePage?.summary.total_attended ?? '—'}</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.success }]}>
@@ -274,7 +274,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                       : styles.tabBadgeTextInactive,
                   ]}
                 >
-                  {agendaAttendancePage?.summary?.total_attended ?? agendaAttendancePage?.total ?? '—'}
+                  {agendaAttendancePage?.summary.total_attended ?? '—'}
                 </Text>
               </View>
             </Pressable>
@@ -312,7 +312,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                       : styles.tabBadgeTextInactive,
                   ]}
                 >
-                  {agendaAttendancePage?.summary?.unattended_count ?? '—'}
+                  {agendaAttendancePage?.summary.unattended_count ?? '—'}
                 </Text>
               </View>
             </Pressable>

@@ -38,8 +38,8 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     status: toMeetingStatus(agenda.status.value), agendaDescription: agenda.jenis_rapat,
     targetAudience: agenda.is_all_units ? 'Semua unit kerja' : units.join(', '),
     zoomUrl: agenda.link_meeting ?? undefined, invitationPdfUrl: agenda.surat_edaran?.url ?? undefined,
-    totalAttended: agenda.attendances_count ?? 0,
-    totalInvited: undefined, geofenceRadiusMeters: undefined, latitude: undefined, longitude: undefined,
+    totalAttended: agenda.total_attended ?? agenda.attendances_count ?? 0,
+    totalInvited: agenda.total_invited, geofenceRadiusMeters: undefined, latitude: undefined, longitude: undefined,
     minutesHtml: agenda.notulensi_html ?? null, summaryHtml: agenda.kesimpulan_html ?? null,
   };
 }

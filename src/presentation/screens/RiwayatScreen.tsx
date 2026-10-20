@@ -37,7 +37,6 @@ interface HistoryItem {
   room: string;
   verificationMethod: string;
   meetingId: string;
-  periodKey: HistoryPeriod;
   meetingType?: 'hybrid' | 'offline' | 'online';
 }
 
@@ -66,26 +65,12 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
       id: item.id, code: `Agenda #${item.agendaId ?? item.meetingId}`, title: item.meetingTitle,
       statusText: 'Tercatat', time: date && !Number.isNaN(date.getTime()) ? date.toLocaleString('id-ID') : 'Waktu tidak tersedia',
       room: 'Detail agenda tersedia pada receipt', verificationMethod: 'Bukti tersimpan sesuai respons API', meetingType: item.meetingType,
-      meetingId: item.meetingId, periodKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` as HistoryPeriod : 'all',
+      meetingId: item.meetingId,
     };
   });
-
-  const filteredHistory = historyData.filter((h) => {
-    const matchesSearch =
-      h.title.toLowerCase().includes(search.toLowerCase()) ||
-      h.code.toLowerCase().includes(search.toLowerCase());
-    if (!matchesSearch) return false;
-
-    if (selectedPeriod !== 'all' && h.periodKey !== selectedPeriod) {
-      return false;
-    }
-
-    if (selectedType !== 'all' && h.meetingType && h.meetingType !== selectedType) {
-      return false;
-    }
-
-    return true;
-  });
+  // Search, period, and meeting type are applied by the API. Re-filtering this page
+  // locally can hide valid server matches (for example location matches) and distort counts.
+  const filteredHistory = historyData;
 
   const getPeriodButtonLabel = (period: HistoryPeriod): string => {
     switch (period) {
@@ -136,12 +121,10 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
         {/* SUMMARY OVERVIEW BENTO CARDS */}
         <View style={styles.bentoGrid}>
           <View style={styles.bentoCard}>
-            <Text style={styles.bentoLabel}>Total Rapat</Text>
-            <Text style={styles.bentoValue}>{historySummary?.total_attended ?? filteredHistory.length}</Text>
+            <Text style={styles.bentoLabel}>Total Presensi</Text>
+            <Text style={styles.bentoValue}>{historySummary?.total_attended ?? '—'}</Text>
             <Text style={styles.bentoSub}>
-              {selectedPeriod === 'all'
-                ? 'Tahun Anggaran 2026'
-                : getPeriodButtonLabel(selectedPeriod)}
+              {historySummary?.period_label ?? 'Periode dari API'}
             </Text>
           </View>
 

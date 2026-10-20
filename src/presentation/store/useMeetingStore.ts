@@ -33,7 +33,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   },
 
   fetchDashboard: async () => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, dashboardStats: null });
     try {
       const result = await repository.getDashboard();
       set({ dashboardStats: result.stats, dashboardMeetings: result.agendas, activeMeeting: result.agendas.find((meeting) => meeting.status === 'ongoing') ?? null });

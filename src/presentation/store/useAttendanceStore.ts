@@ -31,10 +31,10 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   },
 
   fetchHistory: async (page = 1, append = false, filters = {}) => {
-    set({ isLoading: true, error: null });
+    set(append ? { isLoading: true, error: null } : { isLoading: true, error: null, attendances: [], historyPage: null, historySummary: null });
     try {
       const result = await attendanceRepo.getAttendanceHistory(page, 10, filters);
-      set((state) => ({ attendances: append ? [...state.attendances, ...result.records] : result.records, historyPage: result, historySummary: result.summary ?? null }));
+      set((state) => ({ attendances: append ? [...state.attendances, ...result.records] : result.records, historyPage: result, historySummary: result.summary }));
       const queue = await attendanceRepo.getOfflineQueue();
       set({ offlineQueueCount: queue.length });
     } catch (error) { set({ error: errorMessage(error, 'Gagal memuat riwayat presensi.') }); }
@@ -42,7 +42,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   },
 
   fetchAgendaAttendances: async (agendaId, page = 1, append = false, filters = {}) => {
-    set({ isLoading: true, error: null });
+    set(append ? { isLoading: true, error: null } : { isLoading: true, error: null, agendaAttendances: [], agendaAttendancePage: null });
     try {
       const result = await attendanceRepo.getAgendaAttendances(agendaId, page, 50, filters);
       set((state) => ({ agendaAttendances: append ? [...state.agendaAttendances, ...result.records] : result.records, agendaAttendancePage: result }));
