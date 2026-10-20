@@ -40,6 +40,9 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     zoomUrl: agenda.link_meeting ?? undefined, invitationPdfUrl: agenda.surat_edaran?.url ?? undefined,
     totalAttended: agenda.total_attended ?? agenda.attendances_count ?? 0,
     totalInvited: agenda.total_invited, geofenceRadiusMeters: undefined, latitude: undefined, longitude: undefined,
+    suratEdaran: agenda.surat_edaran, baNumber: agenda.nomor_ba ?? null,
+    totalAttended: agenda.attendances_count ?? 0,
+    totalInvited: agenda.total_invited ?? undefined, geofenceRadiusMeters: undefined, latitude: undefined, longitude: undefined,
     minutesHtml: agenda.notulensi_html ?? null, summaryHtml: agenda.kesimpulan_html ?? null,
   };
 }

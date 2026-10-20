@@ -8,6 +8,7 @@ import {
   TextInput,
   Platform,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -69,11 +70,21 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
     return () => clearTimeout(timer);
   }, [meetingId, activeTab, searchQuery, fetchAgendaAttendances]);
 
-  const handleCopyBANumber = () => {
-    useFeedbackStore.getState().showToast({
-      type: meeting?.baNumber ? 'success' : 'info',
-      message: meeting?.baNumber ? `Nomor berita acara: ${meeting.baNumber}` : 'Nomor berita acara belum tersedia pada agenda ini.',
-    });
+  const handlePreviewSuratEdaran = () => {
+    const url = meeting?.invitationPdfUrl;
+    if (url) {
+      void Linking.openURL(url).catch(() => {
+        useFeedbackStore.getState().showToast({
+          type: 'error',
+          message: 'Berkas surat edaran tidak dapat dibuka pada perangkat ini.',
+        });
+      });
+    } else {
+      useFeedbackStore.getState().showToast({
+        type: 'info',
+        message: 'Berkas surat edaran belum tersedia pada agenda ini.',
+      });
+    }
   };
 
   const handleExport = async (format: AgendaExportFormat) => {
@@ -477,33 +488,78 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
           </View>
         ) : null}
 
+        {/* SECTION: PRATINJAU SURAT EDARAN RAPAT */}
+        <View style={styles.edaranCard}>
+          <View style={styles.edaranHeader}>
+            <View style={styles.edaranIconCircle}>
+              <MaterialIcons name="mail-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.edaranTitle}>Surat Edaran Rapat</Text>
+              <Text style={styles.edaranSubtitle}>
+                Dokumen kedinasan pemanggilan peserta dan agenda kerja
+              </Text>
+            </View>
+          </View>
+
+          {meeting?.invitationPdfUrl ? (
+            <View style={styles.edaranContent}>
+              <View style={styles.edaranDocPreview}>
+                <View style={styles.edaranPdfBadge}>
+                  <MaterialIcons name="picture-as-pdf" size={22} color="#DC2626" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.edaranDocName} numberOfLines={1} ellipsizeMode="tail">
+                    Surat-Edaran_{meeting.code || 'Agenda'}.pdf
+                  </Text>
+                  <Text style={styles.edaranDocMeta}>
+                    Dokumen Resmi LLDIKTI Wilayah X
+                  </Text>
+                </View>
+                <View style={styles.edaranStatusBadge}>
+                  <Text style={styles.edaranStatusText}>Tersedia</Text>
+                </View>
+              </View>
+
+              <Button
+                title="Buka / Pratinjau Surat Edaran"
+                onPress={handlePreviewSuratEdaran}
+                variant="outline"
+                size="md"
+                fullWidth
+                icon={
+                  <MaterialIcons
+                    name="visibility"
+                    size={18}
+                    color={colors.primary}
+                  />
+                }
+              />
+            </View>
+          ) : (
+            <View style={styles.edaranEmptyBox}>
+              <MaterialIcons name="info-outline" size={20} color={colors.outline} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.edaranEmptyTitle}>Berkas Belum Dilampirkan</Text>
+                <Text style={styles.edaranEmptySub}>
+                  Sekretariat LLDIKTI X belum mengunggah dokumen digital surat edaran pada agenda ini.
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
         {/* SECTION: EKSPOR DOKUMEN RAPAT */}
         <View style={styles.baCard}>
           <View style={styles.baHeader}>
-            <MaterialIcons name="download" size={20} color={colors.primary} />
+            <View style={styles.baIconCircle}>
+              <MaterialIcons name="download" size={18} color={colors.primary} />
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.baTitle}>Ekspor Dokumen Rapat</Text>
               <Text style={styles.baSubtitle}>
                 Unduh berita acara dan berkas rekapitulasi resmi
               </Text>
-            </View>
-          </View>
-
-          {/* BA Number Box */}
-          <View style={styles.baNumberBox}>
-            <Text style={styles.baNumberLabel}>NOMOR BERITA ACARA</Text>
-            <View style={styles.baNumberRow}>
-              <Text style={styles.baNumberValue}>
-                {meeting?.baNumber || 'Nomor belum tersedia'}
-              </Text>
-              <Pressable
-                onPress={handleCopyBANumber}
-                style={styles.copyBtn}
-                hitSlop={8}
-                accessibilityLabel="Salin nomor berita acara"
-              >
-                <MaterialIcons name="content-copy" size={16} color={colors.primary} />
-              </Pressable>
             </View>
           </View>
 
@@ -1084,6 +1140,122 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     lineHeight: 18,
   },
+  edaranCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: rounded.xl,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.45)',
+    gap: spacing.sm,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+  },
+  edaranHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  edaranIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  edaranTitle: {
+    ...typography.headlineSm,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.onSurface,
+  },
+  edaranSubtitle: {
+    ...typography.labelSm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 1,
+  },
+  edaranContent: {
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  edaranDocPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    padding: spacing.sm + 2,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.35)',
+  },
+  edaranPdfBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: rounded.sm,
+    backgroundColor: 'rgba(220, 38, 38, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  edaranDocName: {
+    ...typography.bodySm,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  edaranDocMeta: {
+    ...typography.labelSm,
+    fontSize: 10.5,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+  },
+  edaranStatusBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.full,
+  },
+  edaranStatusText: {
+    ...typography.labelSm,
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: colors.success,
+  },
+  edaranEmptyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
+    padding: spacing.sm + 2,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.3)',
+    borderStyle: 'dashed',
+    marginTop: 2,
+  },
+  edaranEmptyTitle: {
+    ...typography.labelSm,
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  edaranEmptySub: {
+    ...typography.labelSm,
+    fontSize: 10.5,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+    lineHeight: 15,
+  },
   baCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
@@ -1107,7 +1279,15 @@ const styles = StyleSheet.create({
   baHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
+  },
+  baIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   baTitle: {
     ...typography.headlineSm,
@@ -1119,40 +1299,11 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-  },
-  baNumberBox: {
-    backgroundColor: colors.surfaceContainerLow,
-    padding: spacing.sm,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.3)',
-    overflow: 'hidden',
-  },
-  baNumberLabel: {
-    ...typography.labelSm,
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.outline,
-    letterSpacing: 0.5,
-  },
-  baNumberRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  baNumberValue: {
-    ...typography.labelMono,
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.onSurface,
-  },
-  copyBtn: {
-    padding: 4,
+    marginTop: 1,
   },
   baActionGrid: {
     gap: spacing.xs + 2,
-    paddingTop: 4,
+    paddingTop: 2,
   },
   excelBtn: {
     flexDirection: 'row',

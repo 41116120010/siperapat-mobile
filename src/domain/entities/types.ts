@@ -41,6 +41,12 @@ export interface Meeting {
   targetAudience: string;
   zoomUrl?: string;
   invitationPdfUrl?: string;
+  suratEdaran?: {
+    url: string | null;
+    extension?: string | null;
+    is_pdf?: boolean;
+    is_image?: boolean;
+  };
   totalInvited?: number;
   totalAttended: number;
   baNumber?: string | null;
