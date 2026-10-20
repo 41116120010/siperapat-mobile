@@ -25,16 +25,19 @@ export const BentoStatCard: React.FC<BentoStatCardProps> = ({
 }) => {
   return (
     <View style={styles.card}>
-      <Text style={styles.label} numberOfLines={1}>
+      <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
         {label}
       </Text>
-      <View style={styles.valueRow}>
+      <View style={styles.metricContainer}>
         <Text
           style={[
             styles.value,
             isPrimary && { color: colors.primary },
             valueColor ? { color: valueColor } : null,
           ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
         >
           {value}
         </Text>
@@ -43,6 +46,8 @@ export const BentoStatCard: React.FC<BentoStatCardProps> = ({
             styles.subValue,
             subValueColor ? { color: subValueColor } : null,
           ]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
         >
           {subValue}
         </Text>
@@ -74,14 +79,15 @@ export const BentoGrid: React.FC<{
 const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: 6,
     marginVertical: spacing.sm,
   },
   card: {
     flex: 1,
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.md,
-    padding: spacing.sm + 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.4)',
     justifyContent: 'space-between',
@@ -103,23 +109,24 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
     fontSize: 11,
+    fontWeight: '500',
   },
-  valueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+  metricContainer: {
     marginTop: spacing.xs,
+    justifyContent: 'flex-end',
   },
   value: {
     ...typography.headlineMd,
     color: colors.onSurface,
     fontWeight: '700',
-    fontSize: 20,
+    fontSize: 19,
+    lineHeight: 23,
   },
   subValue: {
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
-    marginLeft: 4,
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '500',
+    marginTop: 2,
   },
 });

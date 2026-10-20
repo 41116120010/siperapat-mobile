@@ -126,17 +126,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         {/* Bento Telemetry Stats */}
         <BentoGrid
           stats={[
-            { label: 'Presensi Rapat', value: attendanceCount === undefined ? '—' : String(attendanceCount), subValue: 'Tercatat' },
+            {
+              label: 'Presensi Rapat',
+              value: attendanceCount === undefined ? '—' : String(attendanceCount),
+              subValue: 'Tercatat',
+            },
             {
               label: 'Jadwal Mendatang',
-                value: String(upcomingCount ?? '—'),
+              value: upcomingCount === undefined ? '—' : String(upcomingCount),
               subValue: 'Agenda',
               isPrimary: true,
             },
             {
               label: 'Tingkat Kehadiran',
-              value: dashboardStats?.attendance_rate_label ?? '—',
-              subValue: dashboardStats?.attendance_rate_subtext ?? 'Belum tersedia',
+              value: dashboardStats?.attendance_rate_label || '—',
+              subValue:
+                dashboardStats?.attendance_rate_subtext ||
+                (dashboardStats?.attendance_rate_label ? 'Rata-rata' : 'Belum ada data'),
               subValueColor: colors.success,
             },
           ]}
