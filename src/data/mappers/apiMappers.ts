@@ -4,9 +4,16 @@ import { ApiAgendaDto, ApiUserDto } from '../datasources/apiTypes';
 export function toAsn(user: ApiUserDto): ASN {
   return {
     id: String(user.id), nip: user.nip ?? '', name: user.name,
-    pangkatGolongan: '', jabatan: user.role.label, unitKerja: user.unit?.nama_unit ?? '',
+    pangkatGolongan: user.pangkat_golongan ?? '', jabatan: user.jabatan ?? user.role.label, unitKerja: user.unit?.nama_unit ?? '',
     email: user.email ?? '', phone: user.phone ?? '', avatarUrl: user.avatar_url ?? undefined,
     username: user.username, role: user.role.value, biometricEnabled: false,
+    attendanceStats: user.attendance_stats ? {
+      totalAgendas: user.attendance_stats.total_agendas,
+      totalAttended: user.attendance_stats.total_attended,
+      attendanceRateLabel: user.attendance_stats.attendance_rate_label,
+      onTimeRateLabel: user.attendance_stats.on_time_rate_label,
+      periodLabel: user.attendance_stats.period_label,
+    } : undefined,
   };
 }
 

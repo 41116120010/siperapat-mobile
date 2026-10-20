@@ -24,6 +24,14 @@ export const authTokenStore = {
       else await SecureStore.deleteItemAsync(TOKEN_KEY);
     }
   },
+  async replace(token: string): Promise<void> {
+    const wasPersisted = Platform.OS !== 'web' && Boolean(await SecureStore.getItemAsync(TOKEN_KEY).catch(() => null));
+    memoryToken = token;
+    if (Platform.OS !== 'web') {
+      if (wasPersisted) await SecureStore.setItemAsync(TOKEN_KEY, token);
+      else await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => undefined);
+    }
+  },
   async clear(): Promise<void> {
     memoryToken = null;
     if (Platform.OS !== 'web') await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => undefined);

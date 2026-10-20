@@ -16,6 +16,7 @@ export interface ASN {
   username?: string;
   role?: string;
   biometricEnabled: boolean;
+  attendanceStats?: { totalAgendas?: number; totalAttended?: number; attendanceRateLabel?: string; onTimeRateLabel?: string; periodLabel?: string };
 }
 
 export type MeetingStatus = 'draft' | 'ongoing' | 'upcoming' | 'completed' | 'cancelled';
@@ -42,6 +43,7 @@ export interface Meeting {
   invitationPdfUrl?: string;
   totalInvited?: number;
   totalAttended: number;
+  baNumber?: string | null;
   minutesHtml?: string | null;
   summaryHtml?: string | null;
 }
@@ -53,6 +55,11 @@ export interface Attendance {
   meetingId: string;
   agendaId?: string;
   meetingTitle: string;
+  meetingType?: MeetingType;
+  meetingLocation?: string | null;
+  meetingFormat?: string | null;
+  baNumber?: string | null;
+  institutionalHeader?: { kementerian: string; instansi: string; alamat: string };
   asnNip: string;
   asnName: string;
   asnJabatan: string;

@@ -135,8 +135,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             },
             {
               label: 'Tingkat Kehadiran',
-              value: '—',
-              subValue: 'Tidak tersedia',
+              value: dashboardStats?.attendance_rate_label ?? '—',
+              subValue: dashboardStats?.attendance_rate_subtext ?? 'Belum tersedia',
               subValueColor: colors.success,
             },
           ]}

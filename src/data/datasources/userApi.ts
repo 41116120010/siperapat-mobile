@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { ApiActivityLogDto, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
+import { ApiActivityLogPage, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
 
 function query(values: Record<string, string | number | undefined>) {
   const params = new URLSearchParams();
@@ -26,6 +26,6 @@ export const userApi = {
 };
 
 export const activityLogApi = {
-  personal: (page = 1, search?: string, perPage = 10) => apiClient.get<ApiPaginated<ApiActivityLogDto>>(`/profile/logs?${query({ page, per_page: perPage, search })}`),
-  system: (page = 1, search?: string, perPage = 10) => apiClient.get<ApiPaginated<ApiActivityLogDto>>(`/activity-logs?${query({ page, per_page: perPage, search })}`),
+  personal: (page = 1, search?: string, perPage = 10, filters: { category?: string; startDate?: string; endDate?: string } = {}) => apiClient.get<ApiActivityLogPage>(`/profile/logs?${query({ page, per_page: perPage, search, category: filters.category, start_date: filters.startDate, end_date: filters.endDate })}`),
+  system: (page = 1, search?: string, perPage = 10, filters: { category?: string; startDate?: string; endDate?: string } = {}) => apiClient.get<ApiActivityLogPage>(`/activity-logs?${query({ page, per_page: perPage, search, category: filters.category, start_date: filters.startDate, end_date: filters.endDate })}`),
 };

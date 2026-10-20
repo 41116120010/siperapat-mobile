@@ -7,9 +7,13 @@ import { toMeeting } from '../mappers/apiMappers';
 function toAttendance(dto: ApiAttendanceDto): Attendance {
   return {
     id: String(dto.id), meetingId: String(dto.agenda_id), agendaId: String(dto.agenda_id),
-    meetingTitle: `Agenda #${dto.agenda_id}`, asnNip: dto.user?.nip ?? '', asnName: dto.user?.name ?? '',
-    asnJabatan: dto.user?.role?.label ?? '', asnUnitKerja: dto.user?.unit?.nama_unit ?? '', timestamp: dto.signed_at ?? '',
-    selfieUri: dto.selfie_url ?? undefined, signatureSvg: undefined, verificationToken: '', ipAddress: dto.ip_address ?? '',
+    meetingTitle: dto.receipt?.meeting?.judul_rapat ?? dto.agenda?.judul_rapat ?? `Agenda #${dto.agenda_id}`, meetingType: dto.agenda?.tipe_rapat, asnNip: dto.receipt?.participant?.nip ?? dto.user?.nip ?? '', asnName: dto.receipt?.participant?.name ?? dto.user?.name ?? '',
+    meetingLocation: dto.receipt?.meeting?.lokasi_ruang ?? dto.receipt?.meeting?.link_meeting ?? dto.agenda?.lokasi_ruang ?? null,
+    meetingFormat: dto.receipt?.meeting?.format_kedinasan ?? dto.receipt?.meeting?.tipe_rapat ?? dto.agenda?.tipe_rapat ?? null,
+    baNumber: dto.receipt?.meeting?.nomor_ba ?? dto.agenda?.nomor_ba ?? null,
+    institutionalHeader: dto.receipt?.institutional_header,
+    asnJabatan: dto.receipt?.participant?.jabatan ?? dto.user?.jabatan ?? dto.user?.role?.label ?? '', asnUnitKerja: dto.receipt?.participant?.unit_kerja ?? dto.user?.unit?.nama_unit ?? '', timestamp: dto.receipt?.validation?.signed_at ?? dto.signed_at ?? '',
+    selfieUri: dto.selfie_url ?? undefined, signatureSvg: undefined, verificationToken: dto.receipt?.nomor_bukti ?? dto.verification_token ?? '', ipAddress: dto.receipt?.validation?.ip_address ?? dto.ip_address ?? '',
     deviceInfo: dto.user_agent ?? '', latitude: undefined, longitude: undefined, distanceMeters: undefined,
     status: 'tercatat', isSynced: true, selfieUrl: dto.selfie_url, signatureUrl: dto.signature_url, userId: String(dto.user_id),
   };
@@ -29,28 +33,21 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
     return toAttendance(response.data);
   }
 
-  async getAttendanceHistory(page = 1, perPage = 10) {
-    const response = await attendanceApi.myHistory(page, perPage);
+  async getAttendanceHistory(page = 1, perPage = 10, filters: { search?: string; period?: string; tipeRapat?: string } = {}) {
+    const response = await attendanceApi.myHistory(page, perPage, filters);
     if (!response.success) throw new Error(response.message || 'Gagal memuat riwayat presensi.');
-    return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total };
+    return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total, summary: response.summary };
   }
 
-  async getAgendaAttendances(agendaId: string, page = 1, perPage = 50) {
-    const response = await attendanceApi.agendaAttendances(agendaId, page, perPage);
+  async getAgendaAttendances(agendaId: string, page = 1, perPage = 50, filters: { status?: 'attended' | 'unattended'; search?: string } = {}) {
+    const response = await attendanceApi.agendaAttendances(agendaId, page, perPage, filters);
     if (!response.success) throw new Error(response.message || 'Gagal memuat kehadiran agenda.');
-    return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total };
+    return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total, summary: response.summary };
   }
   async getAttendanceReceipt(attendanceId: string): Promise<Attendance | null> {
-    let page = 1;
-    let lastPage = 1;
-    do {
-      const result = await this.getAttendanceHistory(page);
-      const found = result.records.find((record) => record.id === attendanceId);
-      if (found) return found;
-      lastPage = result.lastPage;
-      page += 1;
-    } while (page <= lastPage);
-    return null;
+    const response = await attendanceApi.receipt(attendanceId);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat tanda terima presensi.');
+    return toAttendanceReceipt(response.data);
   }
 
   async getOfflineQueue(): Promise<Attendance[]> {
@@ -61,4 +58,9 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
     return 0;
   }
 
+}
+
+function toAttendanceReceipt(dto: ApiAttendanceDto): Attendance {
+  if (!dto.receipt) throw new Error('Respons receipt dari API tidak memiliki objek tanda terima.');
+  return toAttendance(dto);
 }

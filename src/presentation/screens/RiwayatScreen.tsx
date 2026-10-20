@@ -22,7 +22,6 @@ import {
   HistoryMeetingType,
 } from '../components/modals/DateFilterModal';
 import { useAttendanceStore } from '../store/useAttendanceStore';
-import { useFeedbackStore } from '../store/useFeedbackStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
 
 interface RiwayatScreenProps {
@@ -43,27 +42,30 @@ interface HistoryItem {
 }
 
 export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt }) => {
-  const { offlineQueueCount, syncOfflineQueue, attendances, fetchHistory, historyPage, isLoading, error } = useAttendanceStore();
+  const { offlineQueueCount, syncOfflineQueue, attendances, fetchHistory, historyPage, historySummary, isLoading, error } = useAttendanceStore();
   const [search, setSearch] = useState('');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>('all');
   const [selectedType, setSelectedType] = useState<HistoryMeetingType>('all');
   const scrollViewRef = useRef<ScrollView>(null);
 
-  useEffect(() => { void fetchHistory(1); }, [fetchHistory]);
+  useEffect(() => {
+    const timer = setTimeout(() => void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType }), 300);
+    return () => clearTimeout(timer);
+  }, [fetchHistory, search, selectedPeriod, selectedType]);
 
   const handlePageChange = (page: number) => {
     if (!historyPage || page < 1 || page > historyPage.lastPage || page === historyPage.currentPage || isLoading) return;
     triggerPageTransition(400);
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-    void fetchHistory(page, false);
+    void fetchHistory(page, false, { search, period: selectedPeriod, tipeRapat: selectedType });
   };
   const historyData: HistoryItem[] = attendances.map((item) => {
     const date = item.timestamp ? new Date(item.timestamp) : null;
     return {
       id: item.id, code: `Agenda #${item.agendaId ?? item.meetingId}`, title: item.meetingTitle,
       statusText: 'Tercatat', time: date && !Number.isNaN(date.getTime()) ? date.toLocaleString('id-ID') : 'Waktu tidak tersedia',
-      room: 'Detail agenda tidak disertakan pada API riwayat', verificationMethod: 'Bukti tersimpan sesuai respons API',
+      room: 'Detail agenda tersedia pada receipt', verificationMethod: 'Bukti tersimpan sesuai respons API', meetingType: item.meetingType,
       meetingId: item.meetingId, periodKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` as HistoryPeriod : 'all',
     };
   });
@@ -108,7 +110,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
         ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => void fetchHistory(1)} />}
+    refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType })} />}
       >
         {/* Title Section */}
         <View style={styles.titleSection}>
@@ -135,7 +137,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
         <View style={styles.bentoGrid}>
           <View style={styles.bentoCard}>
             <Text style={styles.bentoLabel}>Total Rapat</Text>
-            <Text style={styles.bentoValue}>{filteredHistory.length}</Text>
+            <Text style={styles.bentoValue}>{historySummary?.total_attended ?? filteredHistory.length}</Text>
             <Text style={styles.bentoSub}>
               {selectedPeriod === 'all'
                 ? 'Tahun Anggaran 2026'
@@ -145,8 +147,8 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
 
           <View style={styles.bentoCard}>
             <Text style={styles.bentoLabel}>Tingkat Kehadiran</Text>
-            <Text style={[styles.bentoValue, { color: colors.success }]}>—</Text>
-            <Text style={styles.bentoSub}>Persentase tidak disediakan API</Text>
+          <Text style={[styles.bentoValue, { color: colors.success }]}>{historySummary?.attendance_rate_label ?? '—'}</Text>
+            <Text style={styles.bentoSub}>{historySummary?.period_label ?? 'Ringkasan dari API'}</Text>
           </View>
 
           <View style={styles.bentoCard}>
@@ -218,7 +220,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
         </View>
 
         {/* ATTENDANCE HISTORY LIST CARDS OR EMPTY STATE */}
-        {error && historyData.length === 0 ? <EmptyState icon="cloud-off" title="Riwayat tidak dapat dimuat" description={error} actionLabel="Coba Lagi" onAction={() => void fetchHistory(1)} /> : filteredHistory.length > 0 ? (
+        {error && historyData.length === 0 ? <EmptyState icon="cloud-off" title="Riwayat tidak dapat dimuat" description={error} actionLabel="Coba Lagi" onAction={() => void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType })} /> : filteredHistory.length > 0 ? (
           <View style={styles.cardsContainer}>
             {filteredHistory.map((item) => (
               <View key={item.id} style={styles.historyCard}>
@@ -308,13 +310,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
         onClose={() => setIsFilterModalVisible(false)}
         currentPeriod={selectedPeriod}
         currentType={selectedType}
-        onApply={(period, type) => {
-          setSelectedPeriod(period);
-          if (type !== 'all') {
-            setSelectedType('all');
-            useFeedbackStore.getState().showToast({ type: 'info', message: 'API riwayat belum menyertakan tipe rapat; filter tipe belum dapat diterapkan.' });
-          } else setSelectedType(type);
-        }}
+        onApply={(period, type) => { setSelectedPeriod(period); setSelectedType(type); }}
         onReset={() => {
           setSelectedPeriod('all');
           setSelectedType('all');

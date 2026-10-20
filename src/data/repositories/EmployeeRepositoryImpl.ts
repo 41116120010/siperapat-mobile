@@ -14,7 +14,7 @@ export function toEmployee(user: ApiUserDto): Employee {
     id: String(user.id), initials: computeInitials(user.name), name: user.name, role,
     nip: user.nip ?? '', username: user.username.startsWith('@') ? user.username : `@${user.username}`,
     unit: user.unit?.nama_unit ?? '', unitId: user.unit_id, status: user.is_active ? 'Aktif' : 'Nonaktif',
-    email: user.email ?? '', phone: user.phone ?? '', jabatan: '', pangkatGolongan: '',
+    email: user.email ?? '', phone: user.phone ?? '', jabatan: user.jabatan ?? '', pangkatGolongan: user.pangkat_golongan ?? '',
   };
 }
 
@@ -53,6 +53,8 @@ export class EmployeeRepositoryImpl implements IEmployeeRepository {
       name: employee.name ?? current.name, nip: current.nip,
       username: username.replace(/^@/, ''), email: employee.email ?? current.email,
       phone: (employee.phone ?? current.phone) || null,
+      jabatan: employee.jabatan ?? current.jabatan,
+      pangkat_golongan: employee.pangkatGolongan ?? current.pangkatGolongan,
       role: role === 'Administrator' ? 'administrator' : role === 'Admin Unit' ? 'admin' : 'staff',
       unit_id: unitId, is_active: (employee.status ?? current.status) === 'Aktif',
     });

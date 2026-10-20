@@ -9,9 +9,9 @@ type AgendaAttendancePage = Awaited<ReturnType<typeof attendanceRepo.getAgendaAt
 
 interface AttendanceState {
   attendances: Attendance[]; lastReceipt: Attendance | null; historyPage: AttendancePage | null;
-  agendaAttendances: Attendance[]; agendaAttendancePage: AgendaAttendancePage | null; portal: AttendancePortal | null;
+  agendaAttendances: Attendance[]; agendaAttendancePage: AgendaAttendancePage | null; portal: AttendancePortal | null; historySummary: AttendancePage['summary'] | null;
   isLoading: boolean; isSubmitting: boolean; error: string | null; offlineQueueCount: number;
-  fetchHistory: (page?: number, append?: boolean) => Promise<void>; fetchAgendaAttendances: (agendaId: string, page?: number, append?: boolean) => Promise<void>;
+  fetchHistory: (page?: number, append?: boolean, filters?: { search?: string; period?: string; tipeRapat?: string }) => Promise<void>; fetchAgendaAttendances: (agendaId: string, page?: number, append?: boolean, filters?: { status?: 'attended' | 'unattended'; search?: string }) => Promise<void>;
   fetchPortal: (agendaId: string) => Promise<void>; fetchReceipt: (id: string) => Promise<Attendance | null>;
   submitAttendance: (agendaId: string, payload: { selfie_data?: string; signature_data?: string }) => Promise<Attendance | null>;
   syncOfflineQueue: () => Promise<number>; clearError: () => void;
@@ -20,7 +20,7 @@ interface AttendanceState {
 function errorMessage(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
 
 export const useAttendanceStore = create<AttendanceState>((set, get) => ({
-  attendances: [], lastReceipt: null, historyPage: null, agendaAttendances: [], agendaAttendancePage: null, portal: null,
+  attendances: [], lastReceipt: null, historyPage: null, agendaAttendances: [], agendaAttendancePage: null, portal: null, historySummary: null,
   isLoading: false, isSubmitting: false, error: null, offlineQueueCount: 0,
 
   fetchPortal: async (agendaId) => {
@@ -30,21 +30,21 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     finally { set({ isLoading: false }); }
   },
 
-  fetchHistory: async (page = 1, append = false) => {
+  fetchHistory: async (page = 1, append = false, filters = {}) => {
     set({ isLoading: true, error: null });
     try {
-      const result = await attendanceRepo.getAttendanceHistory(page);
-      set((state) => ({ attendances: append ? [...state.attendances, ...result.records] : result.records, historyPage: result }));
+      const result = await attendanceRepo.getAttendanceHistory(page, 10, filters);
+      set((state) => ({ attendances: append ? [...state.attendances, ...result.records] : result.records, historyPage: result, historySummary: result.summary ?? null }));
       const queue = await attendanceRepo.getOfflineQueue();
       set({ offlineQueueCount: queue.length });
     } catch (error) { set({ error: errorMessage(error, 'Gagal memuat riwayat presensi.') }); }
     finally { set({ isLoading: false }); }
   },
 
-  fetchAgendaAttendances: async (agendaId, page = 1, append = false) => {
+  fetchAgendaAttendances: async (agendaId, page = 1, append = false, filters = {}) => {
     set({ isLoading: true, error: null });
     try {
-      const result = await attendanceRepo.getAgendaAttendances(agendaId, page);
+      const result = await attendanceRepo.getAgendaAttendances(agendaId, page, 50, filters);
       set((state) => ({ agendaAttendances: append ? [...state.agendaAttendances, ...result.records] : result.records, agendaAttendancePage: result }));
     } catch (error) { set({ error: errorMessage(error, 'Gagal memuat daftar kehadiran agenda.') }); }
     finally { set({ isLoading: false }); }
@@ -52,8 +52,6 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
 
   fetchReceipt: async (id) => {
     try {
-      const cached = get().attendances.find((item) => item.id === id) ?? get().lastReceipt;
-      if (cached?.id === id) return cached;
       const record = await attendanceRepo.getAttendanceReceipt(id);
       if (record) set({ lastReceipt: record });
       return record;

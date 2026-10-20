@@ -18,6 +18,8 @@ import { Button } from '../components/common/Button';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useAttendanceStore } from '../store/useAttendanceStore';
+import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
+import { AgendaExportFormat } from '../../data/datasources/reportApi';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -41,6 +43,7 @@ function plainText(html?: string | null) {
 }
 
 export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meetingId }) => {
+  const exportRepository = useMemo(() => new AgendaExportRepository(), []);
   const [activeTab, setActiveTab] = useState<TabType>('verified');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
@@ -48,6 +51,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
   const { agendaAttendances, agendaAttendancePage, fetchAgendaAttendances, isLoading, error } = useAttendanceStore();
   const [meeting, setMeeting] = useState<Awaited<ReturnType<typeof getMeetingById>> | null>(null);
   const [agendaError, setAgendaError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<AgendaExportFormat | null>(null);
 
   useEffect(() => {
     if (!meetingId) return;
@@ -55,40 +59,37 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
       setMeeting(null);
       setAgendaError(requestError instanceof Error ? requestError.message : 'Gagal memuat detail agenda.');
     });
-    void fetchAgendaAttendances(meetingId, 1);
-  }, [meetingId, getMeetingById, fetchAgendaAttendances]);
+  }, [meetingId, getMeetingById]);
+
+  useEffect(() => {
+    if (!meetingId || activeTab === 'minutes') return;
+    const timer = setTimeout(() => void fetchAgendaAttendances(meetingId, 1, false, {
+      status: activeTab === 'unverified' ? 'unattended' : 'attended', search: searchQuery,
+    }), 250);
+    return () => clearTimeout(timer);
+  }, [meetingId, activeTab, searchQuery, fetchAgendaAttendances]);
 
   const handleCopyBANumber = () => {
     useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: 'Nomor berita acara tidak disediakan oleh API.',
+      type: meeting?.baNumber ? 'success' : 'info',
+      message: meeting?.baNumber ? `Nomor berita acara: ${meeting.baNumber}` : 'Nomor berita acara belum tersedia pada agenda ini.',
     });
   };
 
-  const handleDownloadPdf = () => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: 'Endpoint unduh berita acara belum tersedia di backend.',
-    });
+  const handleExport = async (format: AgendaExportFormat) => {
+    if (!meetingId || exporting) return;
+    setExporting(format);
+    try {
+      const filename = await exportRepository.downloadAndShare(meetingId, format);
+      useFeedbackStore.getState().showToast({ type: 'success', message: `Berkas ${filename} siap dibagikan.` });
+    } catch (requestError) {
+      useFeedbackStore.getState().showToast({ type: 'error', message: requestError instanceof Error ? requestError.message : 'Gagal mengunduh berkas agenda.' });
+    } finally { setExporting(null); }
   };
 
-  const handleDownloadWord = () => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: 'Endpoint ekspor notulensi belum tersedia di backend.',
-    });
-  };
-
-  const handleDownloadExcel = () => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: 'Endpoint ekspor rekap kehadiran belum tersedia di backend.',
-    });
-  };
-
-  const displayList: Participant[] = useMemo(() => activeTab === 'verified' ? agendaAttendances.map((record) => ({
+  const displayList: Participant[] = useMemo(() => activeTab !== 'minutes' ? agendaAttendances.map((record) => ({
     name: record.asnName || 'Nama tidak disediakan', role: record.asnJabatan || 'Pegawai', nip: record.asnNip || '',
-    time: record.timestamp ? new Date(record.timestamp).toLocaleString('id-ID') : 'Waktu tidak tersedia',
+    time: activeTab === 'unverified' ? 'Belum melakukan presensi' : record.timestamp ? new Date(record.timestamp).toLocaleString('id-ID') : 'Waktu tidak tersedia',
     location: 'Lokasi tidak disediakan API', unit: record.asnUnitKerja,
   })) : [], [activeTab, agendaAttendances]);
 
@@ -110,7 +111,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => meetingId && void fetchAgendaAttendances(meetingId, 1)} />}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => meetingId && void fetchAgendaAttendances(meetingId, 1, false, { status: activeTab === 'unverified' ? 'unattended' : 'attended', search: searchQuery })} />}
       >
         {/* AGENDA SUMMARY & STATUS HERO CARD */}
         <View style={styles.heroCard}>
@@ -190,7 +191,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Hadir Sah</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: colors.success }]}>{agendaAttendancePage?.total ?? '—'}</Text>
+                <Text style={[styles.metricValue, { color: colors.success }]}>{agendaAttendancePage?.summary?.total_attended ?? agendaAttendancePage?.total ?? '—'}</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.success }]}>
@@ -201,11 +202,11 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Belum Hadir</Text>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: colors.error }]}>—</Text>
+                <Text style={[styles.metricValue, { color: colors.error }]}>{agendaAttendancePage?.summary?.unattended_count ?? '—'}</Text>
                 <Text style={styles.metricUnit}>ASN</Text>
               </View>
               <Text style={[styles.metricFooter, { color: colors.error }]}>
-                Daftar undangan tidak tersedia
+                Ringkasan dari API
               </Text>
             </View>
 
@@ -225,10 +226,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
           <View style={styles.progressSection}>
             <View style={styles.progressLabelRow}>
               <Text style={styles.progressLabel}>Partisipasi Kehadiran</Text>
-              <Text style={styles.progressValue}>Rasio undangan tidak disediakan API</Text>
+              <Text style={styles.progressValue}>{agendaAttendancePage?.summary?.participation_rate_label ?? 'Rasio belum tersedia'}</Text>
             </View>
             <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: '0%' }]} />
+              <View style={[styles.progressBarFill, { width: `${Math.max(0, Math.min(100, agendaAttendancePage?.summary?.participation_rate ?? 0))}%` }]} />
             </View>
           </View>
         </View>
@@ -273,7 +274,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                       : styles.tabBadgeTextInactive,
                   ]}
                 >
-                  {agendaAttendancePage?.total ?? '—'}
+                  {agendaAttendancePage?.summary?.total_attended ?? agendaAttendancePage?.total ?? '—'}
                 </Text>
               </View>
             </Pressable>
@@ -311,7 +312,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                       : styles.tabBadgeTextInactive,
                   ]}
                 >
-                  —
+                  {agendaAttendancePage?.summary?.unattended_count ?? '—'}
                 </Text>
               </View>
             </Pressable>
@@ -404,7 +405,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
 
             {/* Clean Enterprise Participants Feed */}
             <View style={styles.participantFeed}>
-              {error ? <Text style={styles.pRole}>{error}</Text> : activeTab === 'unverified' ? <Text style={styles.pRole}>API tidak menyediakan daftar undangan yang belum presensi.</Text> : filteredList.length === 0 ? <Text style={styles.pRole}>{isLoading ? 'Memuat kehadiran...' : 'Belum ada data kehadiran.'}</Text> : filteredList.map((p, idx) => (
+              {error ? <Text style={styles.pRole}>{error}</Text> : filteredList.length === 0 ? <Text style={styles.pRole}>{isLoading ? 'Memuat kehadiran...' : activeTab === 'unverified' ? 'Semua undangan sudah presensi atau tidak ada data.' : 'Belum ada data kehadiran.'}</Text> : filteredList.map((p, idx) => (
                 <View key={idx} style={styles.participantCard}>
                   <View style={styles.pAvatar}>
                     <MaterialIcons
@@ -452,7 +453,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                   </View>
                 </View>
               ))}
-              {activeTab === 'verified' && agendaAttendancePage && agendaAttendancePage.currentPage < agendaAttendancePage.lastPage ? <Pressable onPress={() => meetingId && void fetchAgendaAttendances(meetingId, agendaAttendancePage.currentPage + 1, true)}><Text style={styles.pRole}>Muat halaman berikutnya</Text></Pressable> : null}
+              {agendaAttendancePage && agendaAttendancePage.currentPage < agendaAttendancePage.lastPage ? <Pressable onPress={() => meetingId && void fetchAgendaAttendances(meetingId, agendaAttendancePage.currentPage + 1, true, { status: activeTab === 'unverified' ? 'unattended' : 'attended', search: searchQuery })}><Text style={styles.pRole}>Muat halaman berikutnya</Text></Pressable> : null}
             </View>
           </View>
         ) : null}
@@ -493,7 +494,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             <Text style={styles.baNumberLabel}>NOMOR BERITA ACARA</Text>
             <View style={styles.baNumberRow}>
               <Text style={styles.baNumberValue}>
-                Tidak disediakan API
+                {meeting?.baNumber || 'Nomor belum tersedia'}
               </Text>
               <Pressable
                 onPress={handleCopyBANumber}
@@ -510,7 +511,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
           <View style={styles.baActionGrid}>
             <Button
               title="Unduh Berita Acara (PDF)"
-              onPress={handleDownloadPdf}
+              onPress={() => void handleExport('pdf')}
+              disabled={Boolean(exporting)}
+              isLoading={exporting === 'pdf'}
               variant="primary"
               size="md"
               fullWidth
@@ -525,7 +528,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
 
             <Button
               title="Unduh Risalah Sidang (DOCX)"
-              onPress={handleDownloadWord}
+              onPress={() => void handleExport('word')}
+              disabled={Boolean(exporting)}
+              isLoading={exporting === 'word'}
               variant="outline"
               size="md"
               fullWidth
@@ -539,7 +544,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             />
 
             <Pressable
-              onPress={handleDownloadExcel}
+              onPress={() => void handleExport('csv')}
               style={({ pressed }) => [
                 styles.excelBtn,
                 pressed && styles.excelBtnPressed,

@@ -58,7 +58,8 @@
           "photosPermission": "SIPERAPAT memerlukan akses foto untuk memilih bukti swafoto presensi.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }

@@ -3,6 +3,7 @@ import { authTokenStore } from './authTokenStore';
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type ApiResponseType = 'json' | 'binary';
+export interface ApiBinaryResponse { blob: Blob; filename: string | null; contentType: string | null }
 export interface ApiRequestOptions { method?: ApiMethod; body?: unknown; authenticated?: boolean; responseType?: ApiResponseType; timeoutMs?: number; headers?: Record<string, string> }
 
 export class ApiError extends Error {
@@ -34,6 +35,18 @@ async function toApiError(response: Response): Promise<ApiError> {
     ?? fallback[response.status]
     ?? `Permintaan gagal (HTTP ${response.status}).`;
   return new ApiError('http', message, response.status, errors, Number(response.headers.get('Retry-After')) || undefined);
+}
+
+function downloadFilename(response: Response): string | null {
+  const disposition = response.headers.get('Content-Disposition');
+  if (!disposition) return null;
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plain = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  let candidate = plain;
+  if (encoded) {
+    try { candidate = decodeURIComponent(encoded); } catch { candidate = plain; }
+  }
+  return candidate?.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim() || null;
 }
 
 class ApiClient {
@@ -71,7 +84,9 @@ class ApiClient {
       throw error;
     }
     if (response.status === 204) return undefined as T;
-    if (options.responseType === 'binary') return await response.blob() as T;
+    if (options.responseType === 'binary') return {
+      blob: await response.blob(), filename: downloadFilename(response), contentType: response.headers.get('Content-Type'),
+    } as T;
     return await response.json() as T;
   }
   get<T>(path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) { return this.request<T>(path, { ...options, method: 'GET' }); }

@@ -75,7 +75,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
           <MaterialIcons name="videocam" size={16} color={colors.primary} />
           <Text style={styles.formatText}>
             <Text style={styles.formatBold}>Format Kedinasan: </Text>
-            Lokasi dan format tidak disediakan API
+            {[attendance.meetingFormat, attendance.meetingLocation].filter(Boolean).join(' • ') || 'Lokasi dan format tidak disediakan API'}
           </Text>
         </View>
       </View>

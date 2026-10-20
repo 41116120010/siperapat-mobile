@@ -19,7 +19,7 @@ import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { activityLogApi } from '../../data/datasources/userApi';
-import { ApiActivityLogDto } from '../../data/datasources/apiTypes';
+import { ApiActivityLogDto, ApiActivityLogPage } from '../../data/datasources/apiTypes';
 import { useAuthStore } from '../store/useAuthStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
 
@@ -34,24 +34,27 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [lastPage, setLastPage] = useState(1);
+  const [summary, setSummary] = useState<ApiActivityLogPage['summary']>();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const currentUser = useAuthStore((state) => state.user);
   const isAdministrator = currentUser?.role === 'administrator';
   const scrollViewRef = useRef<ScrollView>(null);
 
+  const categoryValue = selectedCategory === 'Login' ? 'login' : selectedCategory === 'Agenda' ? 'agenda' : selectedCategory === 'Presensi' ? 'presensi' : selectedCategory === 'User' ? 'user' : undefined;
   const loadLogs = useCallback(async (nextPage = 1, append = false, query = search) => {
     setIsLoading(true); setError(null);
     try {
       const response = isAdministrator
-        ? await activityLogApi.system(nextPage, query)
-        : await activityLogApi.personal(nextPage, query);
+        ? await activityLogApi.system(nextPage, query, 10, { category: categoryValue })
+        : await activityLogApi.personal(nextPage, query, 10, { category: categoryValue });
       setLogs((current) => append ? [...current, ...response.data] : response.data);
       setTotal(response.meta.total); setPage(response.meta.current_page); setLastPage(response.meta.last_page);
+      setSummary(response.summary);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Gagal memuat log aktivitas.');
     } finally { setIsLoading(false); }
-  }, [isAdministrator, search]);
+  }, [isAdministrator, search, categoryValue]);
 
   const handlePageChange = (nextPage: number) => {
     if (nextPage < 1 || nextPage > lastPage || nextPage === page || isLoading) return;
@@ -74,7 +77,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
     if (type.includes('USER') || type.includes('UNIT') || type.includes('PROFILE')) return 'User';
     return 'Lainnya';
   };
-  const filteredLogs = logs.filter((log) => selectedCategory === 'Semua' || toCategory(log.activity_type) === selectedCategory).map((log) => ({
+  const filteredLogs = logs.map((log) => ({
     id: String(log.id), tag: log.activity_type, time: log.created_at ? new Date(log.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }) : '-',
     status: 'Tercatat', statusType: 'info' as 'success' | 'info' | 'warning', actorName: log.user?.name ?? currentUser?.name ?? 'Pengguna tidak tersedia', actorNip: log.user?.nip ?? currentUser?.nip ?? '-', description: log.description,
     ip: log.ip_address ?? '-', meta: log.target_model ? `${log.target_model}${log.target_id ? ` #${log.target_id}` : ''}` : log.user_agent ?? '-', category: toCategory(log.activity_type),
@@ -112,11 +115,11 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
               <Text style={styles.metricLabel}>Total Log</Text>
             </View>
             <View style={styles.metricCol}>
-                <Text style={styles.metricNumber}>-</Text>
+                <Text style={styles.metricNumber}>{summary?.auth_success?.toLocaleString('id-ID') ?? '-'}</Text>
               <Text style={styles.metricLabel}>Otentikasi Sah</Text>
             </View>
             <View style={styles.metricCol}>
-                <Text style={styles.metricNumber}>-</Text>
+                <Text style={styles.metricNumber}>{summary?.incident_count?.toLocaleString('id-ID') ?? '-'}</Text>
               <Text style={styles.metricLabel}>Insiden</Text>
             </View>
           </View>

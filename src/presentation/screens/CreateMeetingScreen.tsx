@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -75,51 +75,55 @@ const CLASSIFICATION_OPTIONS: AgendaOption[] = [
   },
 ];
 
-const DATE_OPTIONS: AgendaOption[] = [
-  {
-    id: '2026-10-23',
-    title: 'Hari Ini — Rabu, 23 Oktober 2026',
-    subtitle: 'Jadwal penyelenggaraan hari kerja berjalan',
-    badge: 'Hari Ini',
-    icon: 'today',
-  },
-  {
-    id: '2026-10-24',
-    title: 'Besok — Kamis, 24 Oktober 2026',
-    subtitle: 'Rekomendasi jadwal sidang koordinasi rutin',
-    badge: 'Besok',
-    icon: 'event',
-  },
-  {
-    id: '2026-10-25',
-    title: 'Jumat, 25 Oktober 2026',
-    subtitle: 'Sesi rapat pimpinan akhir pekan',
-    badge: 'Minggu Ini',
-    icon: 'date-range',
-  },
-  {
-    id: '2026-10-28',
-    title: 'Senin, 28 Oktober 2026',
-    subtitle: 'Pembuka agenda kedinasan pekan depan',
-    badge: 'Pekan Depan',
-    icon: 'date-range',
-  },
-  {
-    id: '2026-10-31',
-    title: 'Kamis, 31 Oktober 2026',
-    subtitle: 'Sidang evaluasi capaian akhir bulan',
-    badge: 'Akhir Bulan',
-    icon: 'event-available',
-  },
-  {
-    id: '2026-11-04',
-    title: 'Rabu, 4 November 2026',
-    subtitle: 'Agenda terencana awal bulan berikutnya',
-    badge: 'Bulan Depan',
-    icon: 'event-available',
-  },
-];
+const AGENDA_TIME_ZONE = 'Asia/Jakarta';
+const DATE_SELECTION_DAYS = 366;
 
+function getJakartaDateKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: AGENDA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function formatAgendaDate(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  // Noon UTC remains on the same calendar day in Jakarta and avoids device timezone shifts.
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: AGENDA_TIME_ZONE,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+}
+
+function getDateOptions(): AgendaOption[] {
+  const todayKey = getJakartaDateKey(new Date());
+  const [year, month, day] = todayKey.split('-').map(Number);
+  const todayAtNoonUtc = new Date(Date.UTC(year, month - 1, day, 12));
+
+  return Array.from({ length: DATE_SELECTION_DAYS }, (_, offset) => {
+    const optionDate = new Date(todayAtNoonUtc);
+    optionDate.setUTCDate(optionDate.getUTCDate() + offset);
+    const id = optionDate.toISOString().slice(0, 10);
+    const formattedDate = formatAgendaDate(id);
+    const prefix = offset === 0 ? 'Hari Ini' : offset === 1 ? 'Besok' : null;
+
+    return {
+      id,
+      title: prefix ? `${prefix} — ${formattedDate}` : formattedDate,
+      subtitle: offset === 0
+        ? 'Jadwalkan agenda untuk hari ini'
+        : 'Jadwal pelaksanaan agenda kedinasan',
+      badge: offset === 0 ? 'Hari Ini' : offset === 1 ? 'Besok' : undefined,
+      icon: offset === 0 ? 'today' : 'event',
+    };
+  });
+}
 const VENUE_OPTIONS: AgendaOption[] = [
   {
     id: 'utama',
@@ -191,6 +195,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
+  const dateOptions = useMemo(
+    () => activeModal === 'date' ? getDateOptions() : [],
+    [activeModal]
+  );
 
   const selectedClassification =
     CLASSIFICATION_OPTIONS.find((c) => c.id === classification) ||
@@ -308,8 +316,8 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       case 'date':
         return {
           title: 'Pilih Tanggal Pelaksanaan',
-          subtitle: 'Jadwal hari kerja pelaksanaan agenda kedinasan',
-          options: DATE_OPTIONS,
+          subtitle: 'Pilih tanggal pelaksanaan agenda kedinasan',
+          options: dateOptions,
           selectedId: dateIso,
         };
       case 'venue':
@@ -346,11 +354,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         break;
       case 'date':
         setDateIso(option.id);
-        setDate(
-          option.title.includes(' — ')
-            ? option.title.split(' — ')[1]
-            : option.title
-        );
+        setDate(formatAgendaDate(option.id));
         break;
       case 'venue':
         setVenue(option.title);
@@ -359,6 +363,8 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     }
     setActiveModal('none');
   };
+
+  const modalConfig = getModalConfig();
 
   return (
     <View style={styles.container}>
@@ -958,10 +964,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       <AgendaOptionModal
         visible={activeModal !== 'none'}
         onClose={() => setActiveModal('none')}
-        title={getModalConfig().title}
-        subtitle={getModalConfig().subtitle}
-        options={getModalConfig().options}
-        selectedId={getModalConfig().selectedId}
+        title={modalConfig.title}
+        subtitle={modalConfig.subtitle}
+        options={modalConfig.options}
+        selectedId={modalConfig.selectedId}
         onSelect={handleSelectOption}
       />
     </View>

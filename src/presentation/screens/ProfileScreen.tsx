@@ -30,7 +30,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigateChangePassword,
 }) => {
   const { user, logout } = useAuthStore();
-  const [whatsapp, setWhatsapp] = useState(user?.phone ?? '0812-6612-8901');
+  const [whatsapp, setWhatsapp] = useState(user?.phone ?? '');
 
   const handleLogout = () => {
     useFeedbackStore.getState().showModal({
@@ -96,19 +96,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.perfGrid}>
               <View style={styles.perfCol}>
                 <Text style={styles.perfLabel}>Total Agenda</Text>
-                <Text style={styles.perfValue}>24</Text>
-                <Text style={styles.perfSub}>Rapat & Sidang</Text>
+                <Text style={styles.perfValue}>{user?.attendanceStats?.totalAgendas ?? '—'}</Text>
+                <Text style={styles.perfSub}>{user?.attendanceStats?.periodLabel ?? 'Rapat & Sidang'}</Text>
               </View>
 
               <View style={styles.perfCol}>
                 <Text style={styles.perfLabel}>Kehadiran</Text>
-                <Text style={styles.perfValue}>98.5%</Text>
+                <Text style={styles.perfValue}>{user?.attendanceStats?.attendanceRateLabel ?? '—'}</Text>
                 <Text style={styles.perfSub}>Tervalidasi</Text>
               </View>
 
               <View style={styles.perfCol}>
                 <Text style={styles.perfLabel}>Tepat Waktu</Text>
-                <Text style={styles.perfValue}>100%</Text>
+                <Text style={styles.perfValue}>{user?.attendanceStats?.onTimeRateLabel ?? '—'}</Text>
                 <Text style={styles.perfSub}>Presensi Awal</Text>
               </View>
             </View>

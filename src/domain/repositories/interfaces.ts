@@ -22,8 +22,8 @@ export interface IMeetingRepository {
 export interface IAttendanceRepository {
   getAttendancePortal(agendaId: string): Promise<{ agenda: Meeting; isOngoing: boolean; isEligible: boolean; hasAttended: boolean; attendance: Attendance | null }>;
   submitAttendance(agendaId: string, payload: { selfie_data?: string; signature_data?: string }): Promise<Attendance>;
-  getAttendanceHistory(page?: number, perPage?: number): Promise<{ records: Attendance[]; currentPage: number; lastPage: number; total: number }>;
-  getAgendaAttendances(agendaId: string, page?: number, perPage?: number): Promise<{ records: Attendance[]; currentPage: number; lastPage: number; total: number }>;
+  getAttendanceHistory(page?: number, perPage?: number, filters?: { search?: string; period?: string; tipeRapat?: string }): Promise<{ records: Attendance[]; currentPage: number; lastPage: number; total: number; summary?: { total_attended: number; total_eligible_agendas?: number; attendance_rate?: number; attendance_rate_label?: string; period_label?: string } }>;
+  getAgendaAttendances(agendaId: string, page?: number, perPage?: number, filters?: { status?: 'attended' | 'unattended'; search?: string }): Promise<{ records: Attendance[]; currentPage: number; lastPage: number; total: number; summary?: { total_invited?: number; total_attended?: number; unattended_count?: number; participation_rate?: number; participation_rate_label?: string } }>;
   getAttendanceReceipt(attendanceId: string): Promise<Attendance | null>;
   getOfflineQueue(): Promise<Attendance[]>;
   syncOfflineQueue(): Promise<number>;

@@ -37,7 +37,15 @@ export class AuthRepositoryImpl implements IAuthRepository {
     throw new Error('Pengaturan biometrik belum didukung oleh API.');
   }
 
-  async changePassword(_currentPassword: string, _newPassword: string): Promise<boolean> {
-    throw new Error('Perubahan kata sandi belum didukung oleh endpoint API yang tersedia.');
+  async changePassword(currentPassword: string, newPassword: string): Promise<boolean> {
+    const response = await authApi.changePassword({
+      current_password: currentPassword,
+      password: newPassword,
+      password_confirmation: newPassword,
+      device_name: 'SIPERAPAT Mobile',
+    });
+    if (!response.success || !response.data.token) throw new Error(response.message || 'Gagal memperbarui kata sandi.');
+    await authTokenStore.replace(response.data.token);
+    return true;
   }
 }
