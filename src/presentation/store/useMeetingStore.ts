@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Meeting } from '../../domain/entities/types';
-import { AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UploadFileRef } from '../../data/datasources/agendaApi';
+import { AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
 import { ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 import { MeetingRepositoryImpl } from '../../data/repositories/MeetingRepositoryImpl';
 
@@ -14,7 +14,9 @@ interface MeetingState {
   formOptions: { users: ApiUserDto[]; units: ApiUnitDto[] } | null; isFormOptionsLoading: boolean;
   setFilterTab: (tab: FilterTab) => void; fetchDashboard: () => Promise<void>;
   fetchMeetings: (page?: number, append?: boolean, typeFilter?: 'all' | 'hybrid' | 'offline' | 'online') => Promise<void>;
-  getMeetingById: (id: string) => Promise<Meeting>; updateMinutes: (id: string, minutes: UpdateMinutesDto) => Promise<Meeting | null>;
+  getMeetingById: (id: string) => Promise<Meeting>;
+  updateMinutes: (id: string, minutes: UpdateMinutesDto) => Promise<Meeting | null>;
+  uploadSuratEdaran: (id: string, suratEdaran: UploadFileRef) => Promise<Meeting | null>;
   createMeeting: (payload: CreateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   updateMeeting: (id: string, payload: UpdateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   deleteMeeting: (id: string) => Promise<{ success: boolean; message?: string }>;
@@ -71,14 +73,33 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     try {
       const updated = await repository.updateMinutes(id, minutes);
       set((state) => ({
-        meetings: state.meetings.map((item) => item.id === id ? updated : item),
-        dashboardMeetings: state.dashboardMeetings.map((item) => item.id === id ? updated : item),
+        meetings: state.meetings.map((item) => (item.id === id ? updated : item)),
+        dashboardMeetings: state.dashboardMeetings.map((item) => (item.id === id ? updated : item)),
+        activeMeeting: state.activeMeeting?.id === id ? updated : state.activeMeeting,
       }));
       return updated;
     } catch (error) {
       set({ error: message(error, 'Gagal menyimpan notulensi.') });
       return null;
     } finally { set({ isSavingMinutes: false }); }
+  },
+
+  uploadSuratEdaran: async (id, suratEdaran) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updated = await repository.uploadSuratEdaran(id, suratEdaran);
+      set((state) => ({
+        meetings: state.meetings.map((item) => (item.id === id ? updated : item)),
+        dashboardMeetings: state.dashboardMeetings.map((item) => (item.id === id ? updated : item)),
+        activeMeeting: state.activeMeeting?.id === id ? updated : state.activeMeeting,
+      }));
+      return updated;
+    } catch (error) {
+      set({ error: message(error, 'Gagal mengunggah surat edaran.') });
+      return null;
+    } finally {
+      set({ isLoading: false });
+    }
   },
 
   createMeeting: async (payload, suratEdaran) => {

@@ -1,6 +1,6 @@
 import { IMeetingRepository } from '../../domain/repositories/interfaces';
 import { Meeting } from '../../domain/entities/types';
-import { agendaApi, AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UploadFileRef } from '../datasources/agendaApi';
+import { agendaApi, AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../datasources/agendaApi';
 import { ApiAgendaDto } from '../datasources/apiTypes';
 import { toMeeting } from '../mappers/apiMappers';
 
@@ -26,6 +26,12 @@ export class MeetingRepositoryImpl implements IMeetingRepository {
     const response = await agendaApi.updateMinutes(id, minutes);
     if (!response.success) throw new Error(response.message || 'Gagal menyimpan notulensi.');
     return toMeeting(response.data);
+  }
+
+  async uploadSuratEdaran(id: string, suratEdaran: UploadFileRef): Promise<Meeting> {
+    const response = await agendaApi.uploadSuratEdaran(id, suratEdaran);
+    if (!response.success) throw new Error(response.message || 'Gagal mengunggah surat edaran.');
+    return toMeeting(response.data as ApiAgendaDto);
   }
 
   async createMeeting(input: CreateAgendaDto, suratEdaran?: UploadFileRef): Promise<Meeting> {

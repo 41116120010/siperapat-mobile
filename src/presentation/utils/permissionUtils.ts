@@ -74,3 +74,43 @@ export function canEditMeeting(user: ASN | null, meeting: Meeting | null): boole
 
   return false;
 }
+
+/**
+ * Checks whether the user can manage notulensi, kesimpulan, and documentation photos.
+ * Strict parity with backend AgendaPolicy.php:
+ * 1. Cancelled meetings cannot be modified by anyone.
+ * 2. Administrator has universal rights.
+ * 3. Meeting Creator has rights.
+ * 4. Admin of the Creator's Unit has rights.
+ * 5. Appointed Notulis or Appointed Leader (regardless of role staff or admin) has rights.
+ */
+export function canManageMinutes(user: ASN | null, meeting: Meeting | null): boolean {
+  if (!user || !meeting) return false;
+  if (meeting.rawStatus === 'cancelled' || meeting.status === 'cancelled') return false;
+
+  const role = (user.role ?? '').toLowerCase().trim();
+  if (role === 'administrator') return true;
+
+  // Meeting Creator
+  if (meeting.creatorId && String(meeting.creatorId) === String(user.id)) return true;
+
+  // Admin of organizer unit
+  const isAdminUnit = role === 'admin' || role === 'admin_unit' || role === 'admin unit';
+  if (isAdminUnit && user.unitId && meeting.creatorUnitId === user.unitId) return true;
+
+  // Appointed Notulis or Appointed Leader
+  if (meeting.notulisId && String(meeting.notulisId) === String(user.id)) return true;
+  if (meeting.leaderId && String(meeting.leaderId) === String(user.id)) return true;
+
+  return false;
+}
+
+/**
+ * Checks whether the user can upload or replace the official surat edaran.
+ */
+export function canManageSuratEdaran(user: ASN | null, meeting: Meeting | null): boolean {
+  if (!user || !meeting) return false;
+  if (meeting.rawStatus === 'cancelled' || meeting.status === 'cancelled') return false;
+
+  return canEditMeeting(user, meeting);
+}

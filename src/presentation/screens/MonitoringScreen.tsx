@@ -23,8 +23,9 @@ import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepo
 import { AgendaExportFormat } from '../../data/datasources/reportApi';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { triggerPageTransition } from '../store/useTransitionStore';
+import * as DocumentPicker from 'expo-document-picker';
 import { useAuthStore } from '../store/useAuthStore';
-import { canDeleteMeeting, canEditMeeting } from '../utils/permissionUtils';
+import { canDeleteMeeting, canEditMeeting, canManageMinutes, canManageSuratEdaran } from '../utils/permissionUtils';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -59,16 +60,28 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
   const { user } = useAuthStore();
-  const { getMeetingById, deleteMeeting } = useMeetingStore();
+  const { getMeetingById, deleteMeeting, updateMinutes, uploadSuratEdaran, isSavingMinutes } = useMeetingStore();
   const { agendaAttendances, agendaAttendancePage, fetchAgendaAttendances, isLoading, error } = useAttendanceStore();
   const [meeting, setMeeting] = useState<Awaited<ReturnType<typeof getMeetingById>> | null>(null);
   const [isEditingMinutes, setIsEditingMinutes] = useState(false);
   const [minutesDraft, setMinutesDraft] = useState('');
+  const [conclusionDraft, setConclusionDraft] = useState('');
+  const [isUploadingEdaran, setIsUploadingEdaran] = useState(false);
   const [agendaError, setAgendaError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<AgendaExportFormat | null>(null);
 
   const userCanDelete = useMemo(() => canDeleteMeeting(user, meeting), [user, meeting]);
   const userCanEdit = useMemo(() => canEditMeeting(user, meeting), [user, meeting]);
+  const userCanManageMinutes = useMemo(() => canManageMinutes(user, meeting), [user, meeting]);
+  const userCanManageSuratEdaran = useMemo(() => canManageSuratEdaran(user, meeting), [user, meeting]);
+
+  const isAppointedNotulis = useMemo(() => {
+    return Boolean(user && meeting?.notulisId && String(meeting.notulisId) === String(user.id));
+  }, [user, meeting]);
+
+  const isAppointedLeader = useMemo(() => {
+    return Boolean(user && meeting?.leaderId && String(meeting.leaderId) === String(user.id));
+  }, [user, meeting]);
 
   const handleConfirmDelete = () => {
     if (!meeting) return;
@@ -156,30 +169,81 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
 
   const handleEditMinutes = () => {
     setMinutesDraft(meeting?.minutesHtml ? plainText(meeting.minutesHtml) : '');
+    setConclusionDraft(meeting?.summaryHtml ? plainText(meeting.summaryHtml) : '');
     setIsEditingMinutes(true);
   };
 
   const handleSaveMinutes = async () => {
     if (!meetingId || !meeting || isSavingMinutes) return;
-    const currentPlainText = meeting.minutesHtml ? plainText(meeting.minutesHtml) : '';
-    const notulensi = minutesDraft.trim() === ''
-      ? null
-      : minutesDraft === currentPlainText
-        ? meeting.minutesHtml ?? minutesDraft
-        : minutesDraft;
+    const notulensi = minutesDraft.trim() || null;
+    const kesimpulan = conclusionDraft.trim() || null;
+
     const updated = await updateMinutes(meetingId, {
       notulensi,
-      // Send the existing conclusion too: backend currently normalizes omitted fields to null.
-      kesimpulan: meeting.summaryHtml ?? null,
+      kesimpulan,
     });
     if (!updated) {
-      useFeedbackStore.getState().showToast({ type: 'error', message: useMeetingStore.getState().error || minutesError || 'Notulensi gagal disimpan.' });
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: useMeetingStore.getState().error || 'Notulensi dan kesimpulan gagal disimpan.',
+      });
       return;
     }
     setMeeting(updated);
     setMinutesDraft(updated.minutesHtml ? plainText(updated.minutesHtml) : '');
+    setConclusionDraft(updated.summaryHtml ? plainText(updated.summaryHtml) : '');
     setIsEditingMinutes(false);
-    useFeedbackStore.getState().showToast({ type: 'success', message: 'Notulensi berhasil disimpan.' });
+    useFeedbackStore.getState().showToast({
+      type: 'success',
+      message: 'Notulensi dan kesimpulan rapat berhasil disimpan.',
+    });
+  };
+
+  const handleUploadSuratEdaran = async () => {
+    if (!meetingId || !meeting || isUploadingEdaran) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if ((asset.size ?? 0) > 5 * 1024 * 1024) {
+        useFeedbackStore.getState().showToast({
+          type: 'warning',
+          message: 'Ukuran berkas surat edaran melebihi batas sistem 5 MB.',
+        });
+        return;
+      }
+
+      setIsUploadingEdaran(true);
+      const updated = await uploadSuratEdaran(meetingId, {
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType ?? 'application/pdf',
+      });
+
+      if (!updated) {
+        useFeedbackStore.getState().showToast({
+          type: 'error',
+          message: useMeetingStore.getState().error || 'Gagal mengunggah berkas surat edaran.',
+        });
+        return;
+      }
+
+      setMeeting(updated);
+      useFeedbackStore.getState().showToast({
+        type: 'success',
+        message: 'Berkas surat edaran resmi berhasil diunggah.',
+      });
+    } catch (uploadError) {
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: uploadError instanceof Error ? uploadError.message : 'Gagal memilih berkas surat edaran.',
+      });
+    } finally {
+      setIsUploadingEdaran(false);
+    }
   };
 
   const displayList: Participant[] = useMemo(() => activeTab !== 'minutes' ? agendaAttendances.map((record) => ({
@@ -644,60 +708,167 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           </View>
         ) : null}
 
-        {/* NOTULENSI & RTL DRAFT VIEW */}
+        {/* NOTULENSI & KESIMPULAN DUAL-CARD VIEW */}
         {activeTab === 'minutes' ? (
-          <View style={styles.minutesCard}>
-            <View style={styles.minutesHeader}>
-              <View style={styles.minutesIconCircle}>
-                <MaterialIcons name="edit-note" size={20} color={colors.primary} />
+          <View style={styles.minutesSectionContainer}>
+            {/* Appointed Role Official Banner */}
+            {(isAppointedNotulis || isAppointedLeader) ? (
+              <View style={styles.roleBannerContainer}>
+                <View style={[styles.roleBannerIconBox, isAppointedNotulis ? styles.roleBannerNotulisIcon : styles.roleBannerLeaderIcon]}>
+                  <MaterialIcons
+                    name={isAppointedNotulis ? "assignment-ind" : "gavel"}
+                    size={20}
+                    color={isAppointedNotulis ? colors.primary : "#B45309"}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.roleBannerTitle}>
+                    {isAppointedNotulis ? 'Penugasan: Notulis Rapat Resmi' : 'Penugasan: Pimpinan Rapat'}
+                  </Text>
+                  <Text style={styles.roleBannerSubtitle}>
+                    Anda memiliki wewenang kedinasan untuk menyusun dan memperbarui Notulensi serta Kesimpulan & Tindak Lanjut agenda ini.
+                  </Text>
+                </View>
               </View>
+            ) : null}
+
+            {/* Header / Mode Indicator */}
+            <View style={styles.minutesSectionHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.minutesTitle}>Notulensi Rapat</Text>
-                <Text style={styles.minutesSubtitle}>
-                  {meeting ? `Agenda: ${meeting.code}` : 'Data notulensi dari agenda'}
+                <Text style={styles.minutesSectionTitle}>Risalah & Dokumen Rapat</Text>
+                <Text style={styles.minutesSectionSubtitle}>
+                  {meeting ? `Kode Agenda: ${meeting.code}` : 'Dokumentasi resmi agenda'}
                 </Text>
               </View>
-              {isEditingMinutes ? (
-                <Pressable onPress={() => setIsEditingMinutes(false)} accessibilityRole="button" accessibilityLabel="Batal mengubah notulensi" hitSlop={8}>
-                  <Text style={styles.minutesActionText}>Batal</Text>
-                </Pressable>
-              ) : (
-                <Pressable onPress={handleEditMinutes} accessibilityRole="button" accessibilityLabel="Ubah notulensi" hitSlop={8}>
-                  <MaterialIcons name="edit" size={20} color={colors.primary} />
-                </Pressable>
+              {userCanManageMinutes && (
+                isEditingMinutes ? (
+                  <Pressable
+                    onPress={() => setIsEditingMinutes(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Batal mengubah risalah rapat"
+                    hitSlop={8}
+                    style={styles.minutesHeaderCancelBtn}
+                  >
+                    <Text style={styles.minutesHeaderCancelText}>Batal</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={handleEditMinutes}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ubah risalah rapat"
+                    hitSlop={8}
+                    style={styles.minutesHeaderEditBtn}
+                  >
+                    <MaterialIcons name="edit" size={15} color={colors.primary} />
+                    <Text style={styles.minutesHeaderEditText}>Ubah Risalah</Text>
+                  </Pressable>
+                )
               )}
             </View>
-            <View style={styles.minutesDivider} />
-            {isEditingMinutes ? (
-              <>
+
+            {/* CARD 1: NOTULENSI JALANNYA RAPAT */}
+            <View style={styles.minutesCard}>
+              <View style={styles.minutesHeader}>
+                <View style={styles.minutesIconCircle}>
+                  <MaterialIcons name="edit-note" size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.minutesTitle}>Notulensi Jalannya Rapat</Text>
+                  <Text style={styles.minutesSubtitle}>
+                    Catatan dinas pembahasan agenda, dinamika, dan masukan peserta
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.minutesDivider} />
+              {isEditingMinutes ? (
                 <TextInput
                   multiline
                   textAlignVertical="top"
                   value={minutesDraft}
                   onChangeText={setMinutesDraft}
                   editable={!isSavingMinutes}
-                  placeholder="Tulis notulensi rapat..."
+                  placeholder="Tuliskan jalannya rapat dan dinamika pembahasan secara lengkap..."
                   placeholderTextColor={colors.outline}
-                  accessibilityLabel="Isi notulensi rapat"
+                  accessibilityLabel="Isi notulensi jalannya rapat"
                   style={styles.minutesInput}
                 />
-                <Pressable
+              ) : meeting?.minutesHtml && plainText(meeting.minutesHtml).length > 0 ? (
+                <Text style={styles.minutesBody}>{plainText(meeting.minutesHtml)}</Text>
+              ) : (
+                <View style={styles.minutesEmptyBox}>
+                  <MaterialIcons name="info-outline" size={18} color={colors.outline} />
+                  <Text style={styles.minutesEmptyText}>
+                    Belum ada catatan jalannya rapat yang didokumentasikan.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* CARD 2: KESIMPULAN & TINDAK LANJUT */}
+            <View style={styles.minutesCard}>
+              <View style={styles.minutesHeader}>
+                <View style={[styles.minutesIconCircle, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+                  <MaterialIcons name="fact-check" size={18} color={colors.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.minutesTitle}>Kesimpulan & Tindak Lanjut</Text>
+                  <Text style={styles.minutesSubtitle}>
+                    Poin kesepakatan, arahan pimpinan rapat, PIC, dan tenggat waktu
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.minutesDivider} />
+              {isEditingMinutes ? (
+                <TextInput
+                  multiline
+                  textAlignVertical="top"
+                  value={conclusionDraft}
+                  onChangeText={setConclusionDraft}
+                  editable={!isSavingMinutes}
+                  placeholder="Tuliskan poin kesimpulan, arahan pimpinan, penanggung jawab (PIC), serta tenggat waktu pelaksanaan..."
+                  placeholderTextColor={colors.outline}
+                  accessibilityLabel="Isi kesimpulan dan rencana tindak lanjut"
+                  style={styles.minutesInput}
+                />
+              ) : meeting?.summaryHtml && plainText(meeting.summaryHtml).length > 0 ? (
+                <Text style={styles.minutesBody}>{plainText(meeting.summaryHtml)}</Text>
+              ) : (
+                <View style={styles.minutesEmptyBox}>
+                  <MaterialIcons name="info-outline" size={18} color={colors.outline} />
+                  <Text style={styles.minutesEmptyText}>
+                    Belum ada kesimpulan & tindak lanjut yang didokumentasikan.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* EDIT ACTION BUTTONS */}
+            {isEditingMinutes ? (
+              <View style={styles.minutesActionRow}>
+                <Button
+                  title="Batal"
+                  variant="outline"
+                  size="md"
+                  onPress={() => setIsEditingMinutes(false)}
+                  disabled={isSavingMinutes}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title={isSavingMinutes ? "Menyimpan..." : "Simpan Risalah Rapat"}
+                  variant="primary"
+                  size="md"
                   onPress={() => void handleSaveMinutes()}
                   disabled={isSavingMinutes || !meeting}
-                  accessibilityRole="button"
-                  accessibilityLabel="Simpan notulensi"
-                  style={[styles.minutesSaveButton, (isSavingMinutes || !meeting) && styles.minutesSaveButtonDisabled]}
-                >
-                  <Text style={styles.minutesSaveText}>{isSavingMinutes ? 'Menyimpan...' : 'Simpan Notulensi'}</Text>
-                </Pressable>
-              </>
-            ) : (
-              <Text style={styles.minutesBody}>{plainText(meeting?.minutesHtml)}</Text>
-            )}
+                  isLoading={isSavingMinutes}
+                  icon={<MaterialIcons name="check-circle" size={18} color={colors.onPrimary} />}
+                  style={{ flex: 2 }}
+                />
+              </View>
+            ) : null}
           </View>
         ) : null}
 
-        {/* SECTION: PRATINJAU SURAT EDARAN RAPAT */}
+        {/* SECTION: SURAT EDARAN RAPAT */}
         <View style={styles.edaranCard}>
           <View style={styles.edaranHeader}>
             <View style={styles.edaranIconCircle}>
@@ -730,30 +901,72 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 </View>
               </View>
 
-              <Button
-                title="Buka / Pratinjau Surat Edaran"
-                onPress={handlePreviewSuratEdaran}
-                variant="outline"
-                size="md"
-                fullWidth
-                icon={
-                  <MaterialIcons
-                    name="visibility"
-                    size={18}
-                    color={colors.primary}
+              <View style={styles.edaranBtnGroup}>
+                <Button
+                  title="Buka / Pratinjau Surat Edaran"
+                  onPress={handlePreviewSuratEdaran}
+                  variant="outline"
+                  size="md"
+                  fullWidth
+                  icon={
+                    <MaterialIcons
+                      name="visibility"
+                      size={18}
+                      color={colors.primary}
+                    />
+                  }
+                />
+                {userCanManageSuratEdaran ? (
+                  <Button
+                    title={isUploadingEdaran ? "Mengunggah..." : "Ganti Berkas Surat Edaran"}
+                    onPress={() => void handleUploadSuratEdaran()}
+                    disabled={isUploadingEdaran}
+                    isLoading={isUploadingEdaran}
+                    variant="ghost"
+                    size="md"
+                    fullWidth
+                    icon={
+                      <MaterialIcons
+                        name="cloud-upload"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    }
                   />
-                }
-              />
+                ) : null}
+              </View>
             </View>
           ) : (
-            <View style={styles.edaranEmptyBox}>
-              <MaterialIcons name="info-outline" size={20} color={colors.outline} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.edaranEmptyTitle}>Berkas Belum Dilampirkan</Text>
-                <Text style={styles.edaranEmptySub}>
-                  Sekretariat LLDIKTI X belum mengunggah dokumen digital surat edaran pada agenda ini.
-                </Text>
+            <View style={styles.edaranEmptyContent}>
+              <View style={styles.edaranEmptyBox}>
+                <MaterialIcons name="info-outline" size={20} color={colors.outline} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.edaranEmptyTitle}>Berkas Belum Dilampirkan</Text>
+                  <Text style={styles.edaranEmptySub}>
+                    {userCanManageSuratEdaran
+                      ? 'Dokumen digital surat edaran belum dilampirkan. Unggah berkas surat edaran (PDF atau gambar) di bawah ini.'
+                      : 'Sekretariat LLDIKTI X belum mengunggah dokumen digital surat edaran pada agenda ini.'}
+                  </Text>
+                </View>
               </View>
+              {userCanManageSuratEdaran ? (
+                <Button
+                  title={isUploadingEdaran ? "Mengunggah Surat Edaran..." : "Unggah Surat Edaran (PDF/Gambar)"}
+                  onPress={() => void handleUploadSuratEdaran()}
+                  disabled={isUploadingEdaran}
+                  isLoading={isUploadingEdaran}
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  icon={
+                    <MaterialIcons
+                      name="cloud-upload"
+                      size={18}
+                      color={colors.onPrimary}
+                    />
+                  }
+                />
+              ) : null}
             </View>
           )}
         </View>
@@ -1293,6 +1506,105 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.outline,
   },
+  minutesSectionContainer: {
+    gap: spacing.sm,
+  },
+  roleBannerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surfaceContainerLowest,
+    padding: spacing.md,
+    borderRadius: rounded.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 35, 111, 0.15)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+  },
+  roleBannerIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleBannerNotulisIcon: {
+    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+  },
+  roleBannerLeaderIcon: {
+    backgroundColor: 'rgba(217, 119, 6, 0.12)',
+  },
+  roleBannerTitle: {
+    ...typography.headlineSm,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.onSurface,
+  },
+  roleBannerSubtitle: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  minutesSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  minutesSectionTitle: {
+    ...typography.headlineSm,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.onSurface,
+  },
+  minutesSectionSubtitle: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 1,
+  },
+  minutesHeaderEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 35, 111, 0.15)',
+  },
+  minutesHeaderEditText: {
+    ...typography.labelSm,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  minutesHeaderCancelBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  minutesHeaderCancelText: {
+    ...typography.labelSm,
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: colors.onSurfaceVariant,
+  },
   minutesCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
@@ -1349,10 +1661,24 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     lineHeight: 18,
   },
+  minutesEmptyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 2,
+  },
+  minutesEmptyText: {
+    ...typography.bodySm,
+    fontSize: 11.5,
+    color: colors.outline,
+    flex: 1,
+    fontStyle: 'italic',
+  },
   minutesInput: {
     ...typography.bodySm,
-    minHeight: 180,
-    maxHeight: 360,
+    minHeight: 110,
+    maxHeight: 220,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
     borderRadius: rounded.md,
@@ -1362,24 +1688,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  minutesActionText: {
-    ...typography.labelMd,
-    color: colors.onSurfaceVariant,
-  },
-  minutesSaveButton: {
-    alignSelf: 'flex-end',
-    borderRadius: rounded.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.primary,
-  },
-  minutesSaveButtonDisabled: {
-    opacity: 0.6,
-  },
-  minutesSaveText: {
-    ...typography.labelMd,
-    color: colors.onPrimary,
-    fontWeight: '700',
+  minutesActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: 4,
   },
   edaranCard: {
     backgroundColor: colors.surfaceContainerLowest,
@@ -1430,6 +1743,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: 2,
   },
+  edaranEmptyContent: {
+    gap: spacing.sm,
+    marginTop: 2,
+  },
   edaranDocPreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1471,6 +1788,10 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     fontWeight: '600',
     color: colors.success,
+  },
+  edaranBtnGroup: {
+    gap: spacing.xs,
+    marginTop: 2,
   },
   edaranEmptyBox: {
     flexDirection: 'row',

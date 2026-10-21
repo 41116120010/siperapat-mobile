@@ -11,6 +11,12 @@ export interface UpdateAgendaDto extends Omit<Partial<CreateAgendaDto>, 'status'
   status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
 }
 export interface UploadFileRef { uri: string; name: string; type: string }
+export interface UpdateMinutesDto {
+  notulensi?: string | null;
+  kesimpulan?: string | null;
+  photos?: UploadFileRef[];
+  captions?: string[];
+}
 function queryString(values: Record<string, string | number | undefined>) {
   const params = new URLSearchParams();
   Object.entries(values).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); });
@@ -23,7 +29,27 @@ export const agendaApi = {
     return apiClient.get<ApiPaginated<ApiAgendaDto>>(`/agendas?${query}`);
   },
   detail: (id: string) => apiClient.get<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`),
-  updateMinutes: (id: string, data: UpdateMinutesDto) => apiClient.put<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/notulen`, data),
+  updateMinutes: (id: string, data: UpdateMinutesDto) => {
+    if (data.photos && data.photos.length > 0) {
+      const form = new FormData();
+      form.append('_method', 'PUT');
+      if (data.notulensi !== undefined && data.notulensi !== null) form.append('notulensi', data.notulensi);
+      if (data.kesimpulan !== undefined && data.kesimpulan !== null) form.append('kesimpulan', data.kesimpulan);
+      data.photos.forEach((photo) => {
+        form.append('photos[]', { uri: photo.uri, name: photo.name, type: photo.type } as unknown as Blob);
+      });
+      data.captions?.forEach((caption) => form.append('captions[]', caption));
+      return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/notulen`, form, {
+        headers: { 'X-HTTP-Method-Override': 'PUT' },
+      });
+    }
+    return apiClient.put<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/notulen`, data);
+  },
+  uploadSuratEdaran: (id: string | number, suratEdaran: UploadFileRef) => {
+    const form = new FormData();
+    form.append('surat_edaran', { uri: suratEdaran.uri, name: suratEdaran.name, type: suratEdaran.type } as unknown as Blob);
+    return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/surat-edaran`, form);
+  },
   create: (data: CreateAgendaDto, suratEdaran?: UploadFileRef) => {
     if (!suratEdaran) return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', data);
     const form = new FormData();
