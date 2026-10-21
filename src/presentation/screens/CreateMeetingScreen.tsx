@@ -222,10 +222,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       judul_rapat: title.trim(),
       jenis_rapat: selectedClassification.title,
       tipe_rapat: formatType,
-      lokasi_ruang: formatType === 'online' ? null : venue,
+      lokasi_ruang: (formatType === 'online' || venue === 'Pilih ruang rapat') ? null : venue,
       link_meeting: formatType === 'offline' ? null : zoomUrl || null,
       waktu_mulai: toIsoDateTime(dateIso, startTime),
-      waktu_selesai: toIsoDateTime(dateIso, endTime),
+      waktu_selesai: endTime.trim() ? toIsoDateTime(dateIso, endTime) : null,
       pimpinan_id: leaderId ? Number(leaderId) : null,
       notulis_id: notulisId ? Number(notulisId) : null,
       is_all_units: scopeUniversal,
@@ -246,6 +246,12 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         },
         confirmText: 'Kembali ke Agenda',
         onConfirm: onSuccess,
+      });
+    } else {
+      const currentError = useMeetingStore.getState().error;
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: currentError || 'Gagal menerbitkan agenda rapat. Periksa kembali isian formulir.',
       });
     }
   };

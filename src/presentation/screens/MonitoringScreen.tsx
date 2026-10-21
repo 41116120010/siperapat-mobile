@@ -23,10 +23,13 @@ import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepo
 import { AgendaExportFormat } from '../../data/datasources/reportApi';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { triggerPageTransition } from '../store/useTransitionStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { canDeleteMeeting, canEditMeeting } from '../utils/permissionUtils';
 
 interface MonitoringScreenProps {
   meetingId?: string;
   onBack?: () => void;
+  onNavigateEdit?: (meetingId: string) => void;
 }
 
 type TabType = 'verified' | 'unverified' | 'minutes';
@@ -45,19 +48,58 @@ function plainText(html?: string | null) {
   return html?.replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').trim() || '';
 }
 
-export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meetingId }) => {
+export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
+  onBack,
+  meetingId,
+  onNavigateEdit,
+}) => {
   const exportRepository = useMemo(() => new AgendaExportRepository(), []);
   const [activeTab, setActiveTab] = useState<TabType>('verified');
   const [attendancePage, setAttendancePage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
-  const { getMeetingById, updateMinutes, isSavingMinutes, error: minutesError } = useMeetingStore();
+  const { user } = useAuthStore();
+  const { getMeetingById, deleteMeeting } = useMeetingStore();
   const { agendaAttendances, agendaAttendancePage, fetchAgendaAttendances, isLoading, error } = useAttendanceStore();
   const [meeting, setMeeting] = useState<Awaited<ReturnType<typeof getMeetingById>> | null>(null);
   const [isEditingMinutes, setIsEditingMinutes] = useState(false);
   const [minutesDraft, setMinutesDraft] = useState('');
   const [agendaError, setAgendaError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<AgendaExportFormat | null>(null);
+
+  const userCanDelete = useMemo(() => canDeleteMeeting(user, meeting), [user, meeting]);
+  const userCanEdit = useMemo(() => canEditMeeting(user, meeting), [user, meeting]);
+
+  const handleConfirmDelete = () => {
+    if (!meeting) return;
+    useFeedbackStore.getState().showModal({
+      type: 'confirm',
+      confirmVariant: 'destructive',
+      title: 'Hapus Agenda Rapat',
+      message: `Apakah Anda yakin ingin menghapus agenda "${meeting.title}" (${meeting.code})? Tindakan ini akan menghapus data kehadiran dan berkas terkait secara permanen.`,
+      confirmText: 'Hapus Agenda',
+      cancelText: 'Batal',
+      onConfirm: async () => {
+        const result = await deleteMeeting(meeting.id);
+        if (result.success) {
+          useFeedbackStore.getState().showToast({
+            type: 'success',
+            message: `Agenda "${meeting.title}" berhasil dihapus.`,
+          });
+          if (onBack) {
+            onBack();
+          }
+        } else {
+          useFeedbackStore.getState().showModal({
+            type: 'error',
+            title: 'Penghapusan Agenda Ditolak',
+            message: result.message || 'Gagal menghapus agenda rapat. Silakan periksa kembali integritas data.',
+            confirmText: 'Mengerti',
+          });
+        }
+      },
+    });
+  };
 
   useEffect(() => {
     if (!meetingId) return;
@@ -247,6 +289,47 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             </View>
           </View>
         </View>
+
+        {/* MANAGEMENT ACTIONS (EDIT & DELETE) - ROLE GATED */}
+        {(userCanEdit || userCanDelete) ? (
+          <View style={styles.managementBar}>
+            {userCanEdit ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.editMeetingBtn,
+                  pressed && styles.btnPressed,
+                  !userCanDelete && { flex: 1 },
+                ]}
+                onPress={() => {
+                  if (meetingId && onNavigateEdit) {
+                    onNavigateEdit(meetingId);
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Ubah Agenda Rapat"
+              >
+                <MaterialIcons name="edit" size={16} color={colors.primary} />
+                <Text style={styles.editMeetingBtnText}>Ubah Agenda</Text>
+              </Pressable>
+            ) : null}
+
+            {userCanDelete ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.deleteMeetingBtn,
+                  pressed && styles.btnPressed,
+                  !userCanEdit && { flex: 1 },
+                ]}
+                onPress={handleConfirmDelete}
+                accessibilityRole="button"
+                accessibilityLabel="Hapus Agenda Rapat"
+              >
+                <MaterialIcons name="delete-outline" size={16} color={colors.error} />
+                <Text style={styles.deleteMeetingBtnText}>Hapus Agenda</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* LIVE ATTENDANCE METRICS & PROGRESS GRID */}
         <View style={styles.metricsCard}>
@@ -1480,5 +1563,49 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.primary,
     fontWeight: '600',
+  },
+  managementBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  editMeetingBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 42,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 35, 111, 0.25)',
+  },
+  editMeetingBtnText: {
+    ...typography.labelMd,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  deleteMeetingBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 42,
+    backgroundColor: 'rgba(186, 26, 26, 0.06)',
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: 'rgba(186, 26, 26, 0.25)',
+  },
+  deleteMeetingBtnText: {
+    ...typography.labelMd,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.error,
+  },
+  btnPressed: {
+    opacity: 0.75,
   },
 });

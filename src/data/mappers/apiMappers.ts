@@ -5,6 +5,7 @@ export function toAsn(user: ApiUserDto): ASN {
   return {
     id: String(user.id), nip: user.nip ?? '', name: user.name,
     pangkatGolongan: user.pangkat_golongan ?? '', jabatan: user.jabatan ?? user.role.label, unitKerja: user.unit?.nama_unit ?? '',
+    unitId: user.unit_id ?? user.unit?.id ?? null,
     email: user.email ?? '', phone: user.phone ?? '', avatarUrl: user.avatar_url ?? undefined,
     username: user.username, role: user.role.value, biometricEnabled: false,
     attendanceStats: user.attendance_stats ? {
@@ -24,8 +25,19 @@ function toMeetingStatus(value: ApiAgendaDto['status']['value']): MeetingStatus 
 
 function timePart(value: string | null): string {
   if (!value) return '';
+  const match = value.match(/T(\d{2}):(\d{2})/);
+  if (match) {
+    return `${match[1]}:${match[2]}`;
+  }
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' });
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Jakarta',
+      });
 }
 
 export function toMeeting(agenda: ApiAgendaDto): Meeting {
@@ -33,9 +45,20 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
   const units = agenda.units?.map((unit) => unit.nama_unit) ?? [];
   return {
     id: String(agenda.id), code: agenda.slug, title: agenda.judul_rapat, type: agenda.tipe_rapat,
-    leader: agenda.pimpinan?.name ?? '', notulis: agenda.notulis?.name ?? '', date: agenda.waktu_mulai.slice(0, 10),
+    leader: agenda.pimpinan?.name ?? '', leaderId: agenda.pimpinan?.id ?? null,
+    notulis: agenda.notulis?.name ?? '', notulisId: agenda.notulis?.id ?? null,
+    date: agenda.waktu_mulai.slice(0, 10),
     startTime: timePart(agenda.waktu_mulai), endTime: timePart(agenda.waktu_selesai), venue,
-    status: toMeetingStatus(agenda.status.value), agendaDescription: agenda.jenis_rapat,
+    venueId: agenda.lokasi_ruang ? 'custom' : null,
+    status: toMeetingStatus(agenda.status.value),
+    rawStatus: agenda.status.value,
+    classification: agenda.jenis_rapat,
+    isAllUnits: agenda.is_all_units,
+    unitIds: agenda.units?.map((u) => u.id) ?? [],
+    unitsList: agenda.units?.map((u) => ({ id: u.id, nama_unit: u.nama_unit, kode_unit: u.kode_unit })) ?? [],
+    creatorId: agenda.creator?.id ?? null,
+    creatorUnitId: agenda.creator?.unit_id ?? agenda.creator?.unit?.id ?? null,
+    agendaDescription: agenda.jenis_rapat,
     targetAudience: agenda.is_all_units ? 'Semua unit kerja' : units.join(', '),
     zoomUrl: agenda.link_meeting ?? undefined, invitationPdfUrl: agenda.surat_edaran?.url ?? undefined,
     totalAttended: agenda.total_attended ?? agenda.attendances_count ?? 0,
@@ -45,6 +68,14 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
   };
 }
 
-export function toIsoDateTime(date: string, time: string): string {
-  return new Date(`${date}T${time}:00+07:00`).toISOString();
+export function toIsoDateTime(date: string, time?: string | null): string {
+  if (!date || !time) return '';
+  const dateKey = date.includes('T') ? date.slice(0, 10) : date.trim();
+  const match = time.match(/(\d{1,2})[:.](\d{1,2})/);
+  if (match) {
+    const hh = match[1].padStart(2, '0');
+    const mm = match[2].padStart(2, '0');
+    return `${dateKey}T${hh}:${mm}:00+07:00`;
+  }
+  return '';
 }

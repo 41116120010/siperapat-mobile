@@ -1,6 +1,6 @@
 import { IMeetingRepository } from '../../domain/repositories/interfaces';
 import { Meeting } from '../../domain/entities/types';
-import { agendaApi, AgendaFilters, CreateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../datasources/agendaApi';
+import { agendaApi, AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UploadFileRef } from '../datasources/agendaApi';
 import { ApiAgendaDto } from '../datasources/apiTypes';
 import { toMeeting } from '../mappers/apiMappers';
 
@@ -32,6 +32,18 @@ export class MeetingRepositoryImpl implements IMeetingRepository {
     const response = await agendaApi.create(input, suratEdaran);
     if (!response.success) throw new Error(response.message || 'Gagal membuat agenda.');
     return toMeeting(response.data as ApiAgendaDto);
+  }
+
+  async updateMeeting(id: string, input: UpdateAgendaDto, suratEdaran?: UploadFileRef): Promise<Meeting> {
+    const response = await agendaApi.update(id, input, suratEdaran);
+    if (!response.success) throw new Error(response.message || 'Gagal memperbarui agenda rapat.');
+    return toMeeting(response.data as ApiAgendaDto);
+  }
+
+  async deleteMeeting(id: string): Promise<boolean> {
+    const response = await agendaApi.delete(id);
+    if (!response.success) throw new Error(response.message || 'Gagal menghapus agenda rapat.');
+    return true;
   }
 
   getAgendaFormOptions() { return agendaApi.formOptions(); }

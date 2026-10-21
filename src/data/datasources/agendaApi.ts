@@ -7,7 +7,9 @@ export interface CreateAgendaDto {
   lokasi_ruang?: string | null; link_meeting?: string | null; waktu_mulai: string; waktu_selesai?: string | null;
   pimpinan_id?: number | null; notulis_id?: number | null; is_all_units: boolean; unit_ids?: number[]; status?: 'draft' | 'scheduled';
 }
-export interface UpdateMinutesDto { notulensi: string | null; kesimpulan: string | null }
+export interface UpdateAgendaDto extends Omit<Partial<CreateAgendaDto>, 'status'> {
+  status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
+}
 export interface UploadFileRef { uri: string; name: string; type: string }
 function queryString(values: Record<string, string | number | undefined>) {
   const params = new URLSearchParams();
@@ -34,6 +36,22 @@ export const agendaApi = {
     form.append('surat_edaran', { uri: suratEdaran.uri, name: suratEdaran.name, type: suratEdaran.type } as unknown as Blob);
     return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', form);
   },
+  update: (id: string | number, data: UpdateAgendaDto, suratEdaran?: UploadFileRef) => {
+    if (!suratEdaran) return apiClient.put<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`, data);
+    const form = new FormData();
+    form.append('_method', 'PUT');
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        if (Array.isArray(value)) value.forEach((item) => form.append(`${key}[]`, String(item)));
+        else form.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
+      }
+    });
+    form.append('surat_edaran', { uri: suratEdaran.uri, name: suratEdaran.name, type: suratEdaran.type } as unknown as Blob);
+    return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`, form, {
+      headers: { 'X-HTTP-Method-Override': 'PUT' },
+    });
+  },
+  delete: (id: string | number) => apiClient.delete<ApiEnvelope<never>>(`/agendas/${encodeURIComponent(id)}`),
   formOptions: async () => {
     const [usersFirstPage, units] = await Promise.all([
       apiClient.get<ApiPaginated<ApiUserDto>>('/users?status=active&per_page=50&page=1'),

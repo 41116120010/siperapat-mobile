@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Meeting } from '../../domain/entities/types';
-import { AgendaFilters, CreateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
+import { AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UploadFileRef } from '../../data/datasources/agendaApi';
 import { ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 import { MeetingRepositoryImpl } from '../../data/repositories/MeetingRepositoryImpl';
 
@@ -16,6 +16,8 @@ interface MeetingState {
   fetchMeetings: (page?: number, append?: boolean, typeFilter?: 'all' | 'hybrid' | 'offline' | 'online') => Promise<void>;
   getMeetingById: (id: string) => Promise<Meeting>; updateMinutes: (id: string, minutes: UpdateMinutesDto) => Promise<Meeting | null>;
   createMeeting: (payload: CreateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
+  updateMeeting: (id: string, payload: UpdateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
+  deleteMeeting: (id: string) => Promise<{ success: boolean; message?: string }>;
   fetchAgendaFormOptions: () => Promise<void>; clearError: () => void;
 }
 
@@ -88,6 +90,44 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       return created;
     } catch (error) { set({ error: message(error, 'Gagal membuat agenda.') }); return null; }
     finally { set({ isLoading: false }); }
+  },
+
+  updateMeeting: async (id, payload, suratEdaran) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updated = await repository.updateMeeting(id, payload, suratEdaran);
+      set((state) => ({
+        meetings: state.meetings.map((item) => (item.id === id ? updated : item)),
+        dashboardMeetings: state.dashboardMeetings.map((item) => (item.id === id ? updated : item)),
+        activeMeeting: state.activeMeeting?.id === id ? updated : state.activeMeeting,
+      }));
+      return updated;
+    } catch (error) {
+      set({ error: message(error, 'Gagal memperbarui agenda rapat.') });
+      return null;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  deleteMeeting: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      await repository.deleteMeeting(id);
+      set((state) => ({
+        meetings: state.meetings.filter((item) => item.id !== id),
+        dashboardMeetings: state.dashboardMeetings.filter((item) => item.id !== id),
+        activeMeeting: state.activeMeeting?.id === id ? null : state.activeMeeting,
+        total: Math.max(0, state.total - 1),
+      }));
+      return { success: true };
+    } catch (error) {
+      const errMsg = message(error, 'Gagal menghapus agenda rapat.');
+      set({ error: errMsg });
+      return { success: false, message: errMsg };
+    } finally {
+      set({ isLoading: false });
+    }
   },
 
   fetchAgendaFormOptions: async () => {

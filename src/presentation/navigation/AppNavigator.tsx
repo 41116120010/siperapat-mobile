@@ -21,6 +21,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { PresensiScreen } from '../screens/PresensiScreen';
 import { ReceiptScreen } from '../screens/ReceiptScreen';
 import { CreateMeetingScreen } from '../screens/CreateMeetingScreen';
+import { EditMeetingScreen } from '../screens/EditMeetingScreen';
 import { MonitoringScreen } from '../screens/MonitoringScreen';
 import { EmployeeDirectoryScreen } from '../screens/EmployeeDirectoryScreen';
 import { AddEmployeeScreen } from '../screens/AddEmployeeScreen';
@@ -285,6 +286,20 @@ export const AppNavigator: React.FC = () => {
           <MonitoringScreen
             meetingId={route.params.meetingId}
             onBack={() => safeGoBack(navigation, 'MainTabs')}
+            onNavigateEdit={(id) => {
+              triggerPageTransition();
+              navigation.navigate('EditMeeting', { meetingId: id });
+            }}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="EditMeeting">
+        {({ navigation, route }) => (
+          <EditMeetingScreen
+            meetingId={route.params.meetingId}
+            onBack={() => safeGoBack(navigation, 'Monitoring')}
+            onSuccess={() => safeGoBack(navigation, 'Monitoring')}
           />
         )}
       </Stack.Screen>
