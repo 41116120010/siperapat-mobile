@@ -28,8 +28,8 @@ export class MeetingRepositoryImpl implements IMeetingRepository {
     return toMeeting(response.data);
   }
 
-  async uploadSuratEdaran(id: string, suratEdaran: UploadFileRef): Promise<Meeting> {
-    const response = await agendaApi.uploadSuratEdaran(id, suratEdaran);
+  async uploadSuratEdaran(id: string, suratEdaran: UploadFileRef, meetingContext?: UpdateAgendaDto): Promise<Meeting> {
+    const response = await agendaApi.uploadSuratEdaran(id, suratEdaran, meetingContext);
     if (!response.success) throw new Error(response.message || 'Gagal mengunggah surat edaran.');
     return toMeeting(response.data as ApiAgendaDto);
   }

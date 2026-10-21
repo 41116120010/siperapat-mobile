@@ -49,6 +49,15 @@ function downloadFilename(response: Response): string | null {
   return candidate?.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim() || null;
 }
 
+function isFormDataPayload(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  return (
+    (typeof FormData !== 'undefined' && body instanceof FormData) ||
+    typeof (body as { append?: unknown }).append === 'function' ||
+    Array.isArray((body as { _parts?: unknown })._parts)
+  );
+}
+
 class ApiClient {
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
     let url: string;
@@ -56,8 +65,12 @@ class ApiClient {
     catch (error) { throw new ApiError('configuration', error instanceof Error ? error.message : 'Konfigurasi API belum tersedia.'); }
 
     const headers = new Headers(options.headers);
-    const multipart = typeof FormData !== 'undefined' && options.body instanceof FormData;
-    if (options.body !== undefined && !multipart) headers.set('Content-Type', 'application/json');
+    const multipart = isFormDataPayload(options.body);
+    if (options.body !== undefined && !multipart) {
+      headers.set('Content-Type', 'application/json');
+    } else if (multipart && headers.has('Content-Type')) {
+      headers.delete('Content-Type');
+    }
     headers.set('Accept', options.responseType === 'binary' ? '*/*' : 'application/json');
     if (options.authenticated !== false) {
       const token = await authTokenStore.get();
@@ -69,13 +82,29 @@ class ApiClient {
     let response: Response;
     try {
       response = await fetch(url, {
-        method: options.method ?? 'GET', headers,
-        body: options.body === undefined ? undefined : multipart ? options.body as FormData : JSON.stringify(options.body),
+        method: options.method ?? 'GET',
+        headers,
+        body: options.body === undefined ? undefined : (multipart ? options.body as FormData : JSON.stringify(options.body)),
         signal: controller.signal,
       });
     } catch (error) {
+      if (__DEV__) {
+        console.warn(`[ApiClient] Request to ${options.method ?? 'GET'} ${url} failed:`, error);
+      }
       const timeoutError = error instanceof Error && error.name === 'AbortError';
-      throw new ApiError(timeoutError ? 'timeout' : 'network', timeoutError ? 'Permintaan ke server melewati batas waktu.' : 'Tidak dapat terhubung ke server. Periksa koneksi internet.');
+      const isFormDataError = error instanceof Error && error.message?.includes('FormDataPart');
+      let detailMsg = 'Tidak dapat terhubung ke server. Periksa koneksi internet atau ketersediaan layanan.';
+      if (timeoutError) {
+        detailMsg = 'Permintaan ke server melewati batas waktu.';
+      } else if (isFormDataError) {
+        detailMsg = 'Format berkas tidak dapat diproses oleh runtime perangkat.';
+      } else if (error instanceof Error && error.message && error.message !== 'Network request failed') {
+        detailMsg = `Tidak dapat terhubung ke server: ${error.message}`;
+      }
+      throw new ApiError(
+        timeoutError ? 'timeout' : 'network',
+        detailMsg
+      );
     } finally { clearTimeout(timeout); }
 
     if (!response.ok) {

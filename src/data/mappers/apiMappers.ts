@@ -1,5 +1,6 @@
 import { ASN, Meeting, MeetingStatus } from '../../domain/entities/types';
 import { ApiAgendaDto, ApiUserDto } from '../datasources/apiTypes';
+import { UpdateAgendaDto } from '../datasources/agendaApi';
 
 export function toAsn(user: ApiUserDto): ASN {
   return {
@@ -78,4 +79,23 @@ export function toIsoDateTime(date: string, time?: string | null): string {
     return `${dateKey}T${hh}:${mm}:00+07:00`;
   }
   return '';
+}
+
+export function meetingToUpdateDto(meeting: Meeting): UpdateAgendaDto {
+  const isOnline = meeting.type === 'online';
+  const isOffline = meeting.type === 'offline';
+  return {
+    judul_rapat: meeting.title,
+    jenis_rapat: meeting.classification || 'koordinasi',
+    tipe_rapat: meeting.type,
+    status: meeting.rawStatus ?? (meeting.status === 'upcoming' ? 'scheduled' : (meeting.status as any)),
+    lokasi_ruang: isOnline ? null : (meeting.venue && meeting.venue !== 'Pilih ruang rapat' ? meeting.venue : null),
+    link_meeting: isOffline ? null : (meeting.zoomUrl || null),
+    waktu_mulai: toIsoDateTime(meeting.date, meeting.startTime) || `${meeting.date}T09:00:00+07:00`,
+    waktu_selesai: meeting.endTime && meeting.endTime !== '—' ? toIsoDateTime(meeting.date, meeting.endTime) || null : null,
+    pimpinan_id: meeting.leaderId ?? null,
+    notulis_id: meeting.notulisId ?? null,
+    is_all_units: meeting.isAllUnits ?? true,
+    unit_ids: meeting.isAllUnits ? [] : (meeting.unitIds ?? []),
+  };
 }

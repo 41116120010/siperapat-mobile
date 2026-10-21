@@ -19,7 +19,7 @@ export interface IMeetingRepository {
   updateMeeting(id: string, meeting: UpdateAgendaDto, suratEdaran?: UploadFileRef): Promise<Meeting>;
   deleteMeeting(id: string): Promise<boolean>;
   updateMinutes(id: string, minutes: UpdateMinutesDto): Promise<Meeting>;
-  uploadSuratEdaran(id: string, suratEdaran: UploadFileRef): Promise<Meeting>;
+  uploadSuratEdaran(id: string, suratEdaran: UploadFileRef, meetingContext?: UpdateAgendaDto): Promise<Meeting>;
   getAgendaFormOptions(): Promise<{ users: ApiUserDto[]; units: ApiUnitDto[] }>;
 }
 

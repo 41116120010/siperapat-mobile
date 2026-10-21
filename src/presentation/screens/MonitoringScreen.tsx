@@ -26,6 +26,8 @@ import { triggerPageTransition } from '../store/useTransitionStore';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuthStore } from '../store/useAuthStore';
 import { canDeleteMeeting, canEditMeeting, canManageMinutes, canManageSuratEdaran } from '../utils/permissionUtils';
+import { meetingToUpdateDto } from '../../data/mappers/apiMappers';
+import { resolveFileMimeType } from '../../data/datasources/agendaApi';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -217,11 +219,17 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
       }
 
       setIsUploadingEdaran(true);
-      const updated = await uploadSuratEdaran(meetingId, {
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType ?? 'application/pdf',
-      });
+      const resolvedMime = resolveFileMimeType(asset.name, asset.mimeType ?? undefined);
+      const meetingContext = meetingToUpdateDto(meeting);
+      const updated = await uploadSuratEdaran(
+        meetingId,
+        {
+          uri: asset.uri,
+          name: asset.name,
+          type: resolvedMime,
+        },
+        meetingContext
+      );
 
       if (!updated) {
         useFeedbackStore.getState().showToast({

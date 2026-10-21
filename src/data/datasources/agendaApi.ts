@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { apiClient } from './apiClient';
 import { ApiAgendaDto, ApiDashboardDto, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
 
@@ -22,6 +23,68 @@ function queryString(values: Record<string, string | number | undefined>) {
   Object.entries(values).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); });
   return params.toString();
 }
+export function resolveFileMimeType(filename: string, fallbackMime?: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    default:
+      return fallbackMime && fallbackMime !== 'application/octet-stream' ? fallbackMime : 'application/pdf';
+  }
+}
+
+export interface ExpoFormDataFilePart {
+  name: string;
+  type: string;
+  bytes: () => Promise<Uint8Array>;
+}
+
+/**
+ * Creates an Expo WinterCG-compliant FormData file part.
+ * Modern Expo SDK 52+ / 57 fetch expects an object implementing `.bytes()` or a Blob,
+ * rather than legacy React Native `{ uri, name, type }` objects.
+ */
+export function createFormDataFilePart(fileRef: UploadFileRef): ExpoFormDataFilePart {
+  const mime = resolveFileMimeType(fileRef.name, fileRef.type);
+  return {
+    name: fileRef.name,
+    type: mime,
+    bytes: async (): Promise<Uint8Array> => {
+      // 1. Primary: expo-file-system File class (native C++/Kotlin/Swift reader)
+      try {
+        const file = new File(fileRef.uri);
+        const data = await file.bytes();
+        if (data && data.length > 0) return data;
+      } catch (fileErr) {
+        if (__DEV__) {
+          console.warn(`[createFormDataFilePart] File.bytes() failed for ${fileRef.name}:`, fileErr);
+        }
+      }
+
+      // 2. Secondary fallback: React Native global fetch for blob/data
+      try {
+        const res = await globalThis.fetch(fileRef.uri);
+        const blob = await res.blob();
+        const arrayBuf = await new Response(blob).arrayBuffer();
+        return new Uint8Array(arrayBuf);
+      } catch (fetchErr) {
+        if (__DEV__) {
+          console.warn(`[createFormDataFilePart] fetch blob fallback failed for ${fileRef.name}:`, fetchErr);
+        }
+      }
+
+      throw new Error(`Tidak dapat memproses berkas "${fileRef.name}". Pastikan berkas dapat diakses.`);
+    },
+  };
+}
+
 export const agendaApi = {
   dashboard: () => apiClient.get<ApiEnvelope<ApiDashboardDto>>('/dashboard'),
   list: (page = 1, perPage = 10, filters: AgendaFilters = {}) => {
@@ -36,7 +99,7 @@ export const agendaApi = {
       if (data.notulensi !== undefined && data.notulensi !== null) form.append('notulensi', data.notulensi);
       if (data.kesimpulan !== undefined && data.kesimpulan !== null) form.append('kesimpulan', data.kesimpulan);
       data.photos.forEach((photo) => {
-        form.append('photos[]', { uri: photo.uri, name: photo.name, type: photo.type } as unknown as Blob);
+        form.append('photos[]', createFormDataFilePart(photo) as unknown as Blob);
       });
       data.captions?.forEach((caption) => form.append('captions[]', caption));
       return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/notulen`, form, {
@@ -45,10 +108,48 @@ export const agendaApi = {
     }
     return apiClient.put<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/notulen`, data);
   },
-  uploadSuratEdaran: (id: string | number, suratEdaran: UploadFileRef) => {
-    const form = new FormData();
-    form.append('surat_edaran', { uri: suratEdaran.uri, name: suratEdaran.name, type: suratEdaran.type } as unknown as Blob);
-    return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/surat-edaran`, form);
+  uploadSuratEdaran: async (
+    id: string | number,
+    suratEdaran: UploadFileRef,
+    agendaData?: UpdateAgendaDto
+  ) => {
+    const fileMime = resolveFileMimeType(suratEdaran.name, suratEdaran.type);
+    const normalizedFile: UploadFileRef = {
+      uri: suratEdaran.uri,
+      name: suratEdaran.name,
+      type: fileMime,
+    };
+
+    // If agenda data context is available, use the canonical PUT /agendas/{id} contract directly
+    if (agendaData && agendaData.judul_rapat && agendaData.waktu_mulai) {
+      return agendaApi.update(id, agendaData, normalizedFile);
+    }
+
+    // Attempt direct upload or transparent fallback to canonical update
+    try {
+      const form = new FormData();
+      form.append('surat_edaran', createFormDataFilePart(normalizedFile) as unknown as Blob);
+      return await apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/surat-edaran`, form);
+    } catch (error) {
+      // If standalone route is not available (e.g. 404 on live server), fallback to canonical PUT update
+      const detailRes = await agendaApi.detail(String(id));
+      const current = detailRes.data;
+      const fallbackDto: UpdateAgendaDto = {
+        judul_rapat: current.judul_rapat,
+        jenis_rapat: current.jenis_rapat,
+        tipe_rapat: current.tipe_rapat as 'offline' | 'online' | 'hybrid',
+        waktu_mulai: current.waktu_mulai,
+        waktu_selesai: current.waktu_selesai,
+        lokasi_ruang: current.lokasi_ruang,
+        link_meeting: current.link_meeting,
+        pimpinan_id: current.pimpinan?.id,
+        notulis_id: current.notulis?.id,
+        is_all_units: current.is_all_units,
+        unit_ids: current.units?.map((u) => u.id),
+        status: current.status?.value as any,
+      };
+      return agendaApi.update(id, fallbackDto, normalizedFile);
+    }
   },
   create: (data: CreateAgendaDto, suratEdaran?: UploadFileRef) => {
     if (!suratEdaran) return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', data);
@@ -59,7 +160,7 @@ export const agendaApi = {
         else form.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
       }
     });
-    form.append('surat_edaran', { uri: suratEdaran.uri, name: suratEdaran.name, type: suratEdaran.type } as unknown as Blob);
+    form.append('surat_edaran', createFormDataFilePart(suratEdaran) as unknown as Blob);
     return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', form);
   },
   update: (id: string | number, data: UpdateAgendaDto, suratEdaran?: UploadFileRef) => {
@@ -72,7 +173,7 @@ export const agendaApi = {
         else form.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
       }
     });
-    form.append('surat_edaran', { uri: suratEdaran.uri, name: suratEdaran.name, type: suratEdaran.type } as unknown as Blob);
+    form.append('surat_edaran', createFormDataFilePart(suratEdaran) as unknown as Blob);
     return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`, form, {
       headers: { 'X-HTTP-Method-Override': 'PUT' },
     });

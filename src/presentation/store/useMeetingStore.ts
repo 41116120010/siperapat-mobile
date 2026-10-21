@@ -16,7 +16,7 @@ interface MeetingState {
   fetchMeetings: (page?: number, append?: boolean, typeFilter?: 'all' | 'hybrid' | 'offline' | 'online') => Promise<void>;
   getMeetingById: (id: string) => Promise<Meeting>;
   updateMinutes: (id: string, minutes: UpdateMinutesDto) => Promise<Meeting | null>;
-  uploadSuratEdaran: (id: string, suratEdaran: UploadFileRef) => Promise<Meeting | null>;
+  uploadSuratEdaran: (id: string, suratEdaran: UploadFileRef, meetingContext?: UpdateAgendaDto) => Promise<Meeting | null>;
   createMeeting: (payload: CreateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   updateMeeting: (id: string, payload: UpdateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   deleteMeeting: (id: string) => Promise<{ success: boolean; message?: string }>;
@@ -84,10 +84,10 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     } finally { set({ isSavingMinutes: false }); }
   },
 
-  uploadSuratEdaran: async (id, suratEdaran) => {
+  uploadSuratEdaran: async (id, suratEdaran, meetingContext) => {
     set({ isLoading: true, error: null });
     try {
-      const updated = await repository.uploadSuratEdaran(id, suratEdaran);
+      const updated = await repository.uploadSuratEdaran(id, suratEdaran, meetingContext);
       set((state) => ({
         meetings: state.meetings.map((item) => (item.id === id ? updated : item)),
         dashboardMeetings: state.dashboardMeetings.map((item) => (item.id === id ? updated : item)),

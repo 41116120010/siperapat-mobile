@@ -26,7 +26,7 @@ import {
 } from '../components/modals/CalendarDatePickerModal';
 import * as DocumentPicker from 'expo-document-picker';
 import { toIsoDateTime } from '../../data/mappers/apiMappers';
-import { UploadFileRef } from '../../data/datasources/agendaApi';
+import { UploadFileRef, resolveFileMimeType } from '../../data/datasources/agendaApi';
 
 interface CreateMeetingScreenProps {
   onBack: () => void;
@@ -183,7 +183,8 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       useFeedbackStore.getState().showToast({ type: 'warning', message: 'Ukuran lampiran melebihi batas backend 5 MB.' });
       return;
     }
-    setAttachedFile({ uri: asset.uri, name: asset.name, type: asset.mimeType ?? 'application/octet-stream', size: asset.size ?? 0 });
+    const resolvedMime = resolveFileMimeType(asset.name, asset.mimeType ?? undefined);
+    setAttachedFile({ uri: asset.uri, name: asset.name, type: resolvedMime, size: asset.size ?? 0 });
   };
 
   const handleSaveDraft = () => {

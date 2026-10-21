@@ -37,7 +37,7 @@ import {
 } from '../constants/meetingOptions';
 import * as DocumentPicker from 'expo-document-picker';
 import { toIsoDateTime } from '../../data/mappers/apiMappers';
-import { UploadFileRef } from '../../data/datasources/agendaApi';
+import { UploadFileRef, resolveFileMimeType } from '../../data/datasources/agendaApi';
 
 interface EditMeetingScreenProps {
   meetingId: string;
@@ -239,10 +239,11 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
       });
       return;
     }
+    const resolvedMime = resolveFileMimeType(asset.name, asset.mimeType ?? undefined);
     setAttachedFile({
       uri: asset.uri,
       name: asset.name,
-      type: asset.mimeType ?? 'application/octet-stream',
+      type: resolvedMime,
       size: asset.size ?? 0,
     });
   };
