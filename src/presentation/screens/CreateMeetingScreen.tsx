@@ -290,6 +290,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     subtitle: string;
     options: AgendaOption[];
     selectedId: string;
+    searchable?: boolean;
+    searchPlaceholder?: string;
+    pageSize?: number;
+    paginationLabel?: string;
   } => {
     switch (activeModal) {
       case 'classification':
@@ -303,15 +307,35 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         return {
           title: 'Pilih Pimpinan Rapat',
           subtitle: 'Penanggung jawab sidang kedinasan LLDIKTI Wilayah X',
-          options: (formOptions?.users ?? []).map((user) => ({ id: String(user.id), title: user.name, subtitle: `${user.role.label} • NIP. ${user.nip ?? '—'}`, badge: user.role.label, icon: 'person' })),
+          options: (formOptions?.users ?? []).map((user) => ({
+            id: String(user.id),
+            title: user.name,
+            subtitle: `${user.role.label} • NIP. ${user.nip ?? '—'}`,
+            badge: user.role.label,
+            icon: 'person',
+          })),
           selectedId: leaderId,
+          searchable: true,
+          searchPlaceholder: 'Cari nama atau NIP pimpinan rapat...',
+          pageSize: 5,
+          paginationLabel: 'pimpinan',
         };
       case 'notulis':
         return {
           title: 'Pilih Petugas Notulis',
           subtitle: 'Petugas penyusun risalah dan notulensi sidang',
-          options: (formOptions?.users ?? []).map((user) => ({ id: String(user.id), title: user.name, subtitle: `${user.role.label} • NIP. ${user.nip ?? '—'}`, badge: user.role.label, icon: 'edit-note' })),
+          options: (formOptions?.users ?? []).map((user) => ({
+            id: String(user.id),
+            title: user.name,
+            subtitle: `${user.role.label} • NIP. ${user.nip ?? '—'}`,
+            badge: user.role.label,
+            icon: 'edit-note',
+          })),
           selectedId: notulisId,
+          searchable: true,
+          searchPlaceholder: 'Cari nama atau NIP petugas notulis...',
+          pageSize: 5,
+          paginationLabel: 'notulis',
         };
       case 'date':
         return {
@@ -968,6 +992,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         subtitle={modalConfig.subtitle}
         options={modalConfig.options}
         selectedId={modalConfig.selectedId}
+        searchable={modalConfig.searchable}
+        searchPlaceholder={modalConfig.searchPlaceholder}
+        pageSize={modalConfig.pageSize}
+        paginationLabel={modalConfig.paginationLabel}
         onSelect={handleSelectOption}
       />
     </View>
