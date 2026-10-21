@@ -20,6 +20,10 @@ import {
   AgendaOptionModal,
   AgendaOption,
 } from '../components/modals/AgendaOptionModal';
+import {
+  CalendarDatePickerModal,
+  getJakartaDateKey,
+} from '../components/modals/CalendarDatePickerModal';
 import * as DocumentPicker from 'expo-document-picker';
 import { toIsoDateTime } from '../../data/mappers/apiMappers';
 import { UploadFileRef } from '../../data/datasources/agendaApi';
@@ -75,55 +79,6 @@ const CLASSIFICATION_OPTIONS: AgendaOption[] = [
   },
 ];
 
-const AGENDA_TIME_ZONE = 'Asia/Jakarta';
-const DATE_SELECTION_DAYS = 366;
-
-function getJakartaDateKey(date: Date): string {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: AGENDA_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
-  return `${part('year')}-${part('month')}-${part('day')}`;
-}
-
-function formatAgendaDate(dateKey: string): string {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  // Noon UTC remains on the same calendar day in Jakarta and avoids device timezone shifts.
-  return new Intl.DateTimeFormat('id-ID', {
-    timeZone: AGENDA_TIME_ZONE,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
-}
-
-function getDateOptions(): AgendaOption[] {
-  const todayKey = getJakartaDateKey(new Date());
-  const [year, month, day] = todayKey.split('-').map(Number);
-  const todayAtNoonUtc = new Date(Date.UTC(year, month - 1, day, 12));
-
-  return Array.from({ length: DATE_SELECTION_DAYS }, (_, offset) => {
-    const optionDate = new Date(todayAtNoonUtc);
-    optionDate.setUTCDate(optionDate.getUTCDate() + offset);
-    const id = optionDate.toISOString().slice(0, 10);
-    const formattedDate = formatAgendaDate(id);
-    const prefix = offset === 0 ? 'Hari Ini' : offset === 1 ? 'Besok' : null;
-
-    return {
-      id,
-      title: prefix ? `${prefix} — ${formattedDate}` : formattedDate,
-      subtitle: offset === 0
-        ? 'Jadwalkan agenda untuk hari ini'
-        : 'Jadwal pelaksanaan agenda kedinasan',
-      badge: offset === 0 ? 'Hari Ini' : offset === 1 ? 'Besok' : undefined,
-      icon: offset === 0 ? 'today' : 'event',
-    };
-  });
-}
 const VENUE_OPTIONS: AgendaOption[] = [
   {
     id: 'utama',
@@ -195,10 +150,6 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
-  const dateOptions = useMemo(
-    () => activeModal === 'date' ? getDateOptions() : [],
-    [activeModal]
-  );
 
   const selectedClassification =
     CLASSIFICATION_OPTIONS.find((c) => c.id === classification) ||
@@ -337,13 +288,6 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           pageSize: 5,
           paginationLabel: 'notulis',
         };
-      case 'date':
-        return {
-          title: 'Pilih Tanggal Pelaksanaan',
-          subtitle: 'Pilih tanggal pelaksanaan agenda kedinasan',
-          options: dateOptions,
-          selectedId: dateIso,
-        };
       case 'venue':
         return {
           title: 'Pilih Ruang Rapat',
@@ -375,10 +319,6 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       case 'notulis':
         setNotulisName(option.title);
         setNotulisId(option.id);
-        break;
-      case 'date':
-        setDateIso(option.id);
-        setDate(formatAgendaDate(option.id));
         break;
       case 'venue':
         setVenue(option.title);
@@ -984,9 +924,21 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         </View>
       </View>
 
+      {/* Interactive Enterprise Calendar Date Picker Modal */}
+      <CalendarDatePickerModal
+        visible={activeModal === 'date'}
+        onClose={() => setActiveModal('none')}
+        selectedDate={dateIso}
+        onSelectDate={(newDateIso, formattedText) => {
+          setDateIso(newDateIso);
+          setDate(formattedText);
+        }}
+        minDate={getJakartaDateKey(new Date())}
+      />
+
       {/* Reusable Bottom Sheet Agenda Option Modal */}
       <AgendaOptionModal
-        visible={activeModal !== 'none'}
+        visible={activeModal !== 'none' && activeModal !== 'date'}
         onClose={() => setActiveModal('none')}
         title={modalConfig.title}
         subtitle={modalConfig.subtitle}
