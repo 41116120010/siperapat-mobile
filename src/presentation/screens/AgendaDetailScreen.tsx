@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
-import { spacing } from '../../core/theme/tokens';
+import { rounded, spacing } from '../../core/theme/tokens';
 import { Meeting } from '../../domain/entities/types';
 import { Header } from '../components/common/Header';
 import { ErrorState } from '../components/common/ErrorState';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 
 interface AgendaDetailScreenProps { meetingId: string; onBack: () => void }
 
@@ -13,6 +15,8 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({ meetingI
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isViewerModalVisible, setIsViewerModalVisible] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -42,10 +46,43 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({ meetingI
             <Detail label="Pimpinan" value={meeting.leader} />
             <Detail label="Peserta/unit" value={meeting.targetAudience || 'Tidak tersedia'} />
             <Detail label="Presensi tercatat" value={String(meeting.totalAttended)} />
-            <Detail label="Surat edaran" value={meeting.invitationPdfUrl || 'Tidak tersedia'} />
+            {meeting.invitationPdfUrl ? (
+              <View style={styles.edaranRow}>
+                <Text style={styles.label}>Surat edaran</Text>
+                <Pressable
+                  onPress={() => setIsViewerModalVisible(true)}
+                  style={({ pressed }) => [styles.edaranBtn, pressed && styles.btnPressed]}
+                  accessibilityLabel="Buka surat edaran rapat"
+                >
+                  <MaterialIcons
+                    name={meeting.suratEdaran?.is_image ? 'image' : 'picture-as-pdf'}
+                    size={16}
+                    color={meeting.suratEdaran?.is_image ? colors.primary : '#DC2626'}
+                  />
+                  <Text style={styles.edaranBtnText} numberOfLines={1}>
+                    Lihat Dokumen Digital
+                  </Text>
+                  <MaterialIcons name="chevron-right" size={16} color={colors.primary} />
+                </Pressable>
+              </View>
+            ) : (
+              <Detail label="Surat edaran" value="Tidak tersedia" />
+            )}
           </View>
         </ScrollView>
       ) : null}
+
+      {/* In-App Surat Edaran Viewer Modal */}
+      <SuratEdaranViewerModal
+        visible={isViewerModalVisible}
+        onClose={() => setIsViewerModalVisible(false)}
+        documentUrl={meeting?.invitationPdfUrl}
+        fileName={`Surat-Edaran_${meeting?.code || 'Agenda'}.${meeting?.suratEdaran?.extension || (meeting?.suratEdaran?.is_image ? 'jpg' : 'pdf')}`}
+        meetingTitle={meeting?.title}
+        meetingCode={meeting?.code}
+        meetingDate={`${meeting?.date} • ${meeting?.startTime}`}
+        mimeType={meeting?.suratEdaran?.is_image ? 'image/jpeg' : 'application/pdf'}
+      />
     </View>
   );
 };
@@ -70,4 +107,31 @@ const styles = StyleSheet.create({
   row: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant, paddingTop: spacing.sm, gap: 3 },
   label: { color: colors.onSurfaceVariant, fontSize: 12 },
   value: { color: colors.onSurface, fontSize: 14 },
+  edaranRow: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.outlineVariant,
+    paddingTop: spacing.sm,
+    gap: 6,
+  },
+  edaranBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.sm,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  btnPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  edaranBtnText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
 });

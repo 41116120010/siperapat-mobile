@@ -24,6 +24,7 @@ import {
   CalendarDatePickerModal,
   getJakartaDateKey,
 } from '../components/modals/CalendarDatePickerModal';
+import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import * as DocumentPicker from 'expo-document-picker';
 import { toIsoDateTime } from '../../data/mappers/apiMappers';
 import { UploadFileRef, resolveFileMimeType } from '../../data/datasources/agendaApi';
@@ -150,6 +151,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [scopeUniversal, setScopeUniversal] = useState(true);
   const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
+  const [isViewerModalVisible, setIsViewerModalVisible] = useState(false);
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
 
@@ -905,11 +907,18 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           {attachedFile ? (
             <View style={styles.attachedCard}>
               <View style={styles.attachedLeft}>
-                <View style={styles.attachedIconBox}>
+                <View
+                  style={[
+                    styles.attachedIconBox,
+                    attachedFile.type.startsWith('image/')
+                      ? { backgroundColor: 'rgba(0, 102, 204, 0.08)' }
+                      : null,
+                  ]}
+                >
                   <MaterialIcons
-                    name="picture-as-pdf"
+                    name={attachedFile.type.startsWith('image/') ? 'image' : 'picture-as-pdf'}
                     size={20}
-                    color={colors.error}
+                    color={attachedFile.type.startsWith('image/') ? colors.primary : colors.error}
                   />
                 </View>
                 <View style={styles.attachedInfo}>
@@ -917,25 +926,20 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                     {attachedFile.name}
                   </Text>
                   <Text style={styles.attachedMeta}>
-                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB • {attachedFile.type}
+                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB • {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
                   </Text>
                 </View>
               </View>
               <View style={styles.attachedActions}>
                 <Pressable
-                  onPress={() =>
-                    useFeedbackStore.getState().showToast({
-                      type: 'info',
-                      message: `Berkas terpilih: ${attachedFile.name}`,
-                    })
-                  }
+                  onPress={() => setIsViewerModalVisible(true)}
                   style={styles.attachedActionBtn}
                   accessibilityLabel="Pratinjau lampiran"
                 >
                   <MaterialIcons
                     name="visibility"
                     size={18}
-                    color={colors.onSurfaceVariant}
+                    color={colors.primary}
                   />
                 </Pressable>
                 <Pressable
@@ -1020,6 +1024,18 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         customInitialValue={modalConfig.customInitialValue}
         onSelect={handleSelectOption}
         onSelectCustom={handleSelectCustomOption}
+      />
+
+      {/* In-App Surat Edaran Viewer Modal */}
+      <SuratEdaranViewerModal
+        visible={isViewerModalVisible}
+        onClose={() => setIsViewerModalVisible(false)}
+        localFileUri={attachedFile?.uri}
+        fileName={attachedFile?.name}
+        fileSize={attachedFile?.size}
+        mimeType={attachedFile?.type}
+        meetingTitle={title.trim() || 'Pratinjau Agenda Baru'}
+        meetingDate={date && startTime ? `${date} • ${startTime}` : undefined}
       />
     </View>
   );

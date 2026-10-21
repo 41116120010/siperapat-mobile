@@ -27,7 +27,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useAuthStore } from '../store/useAuthStore';
 import { canDeleteMeeting, canEditMeeting, canManageMinutes, canManageSuratEdaran } from '../utils/permissionUtils';
 import { meetingToUpdateDto } from '../../data/mappers/apiMappers';
-import { resolveFileMimeType } from '../../data/datasources/agendaApi';
+import { resolveFileMimeType, UploadFileRef } from '../../data/datasources/agendaApi';
+import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
+import { UploadSuratEdaranModal } from '../components/modals/UploadSuratEdaranModal';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -141,15 +143,13 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     setAttendancePage(page);
   };
 
+  const [isViewerModalVisible, setIsViewerModalVisible] = useState(false);
+  const [selectedEdaranFile, setSelectedEdaranFile] = useState<(UploadFileRef & { size?: number }) | null>(null);
+  const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
+
   const handlePreviewSuratEdaran = () => {
-    const url = meeting?.invitationPdfUrl;
-    if (url) {
-      void Linking.openURL(url).catch(() => {
-        useFeedbackStore.getState().showToast({
-          type: 'error',
-          message: 'Berkas surat edaran tidak dapat dibuka pada perangkat ini.',
-        });
-      });
+    if (meeting?.invitationPdfUrl) {
+      setIsViewerModalVisible(true);
     } else {
       useFeedbackStore.getState().showToast({
         type: 'info',
@@ -201,7 +201,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     });
   };
 
-  const handleUploadSuratEdaran = async () => {
+  const handlePickSuratEdaran = async () => {
     if (!meetingId || !meeting || isUploadingEdaran) return;
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -218,15 +218,33 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         return;
       }
 
-      setIsUploadingEdaran(true);
       const resolvedMime = resolveFileMimeType(asset.name, asset.mimeType ?? undefined);
+      setSelectedEdaranFile({
+        uri: asset.uri,
+        name: asset.name,
+        type: resolvedMime,
+        size: asset.size ?? 0,
+      });
+      setIsUploadModalVisible(true);
+    } catch (pickerError) {
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: pickerError instanceof Error ? pickerError.message : 'Gagal memilih berkas surat edaran.',
+      });
+    }
+  };
+
+  const handleConfirmUploadSuratEdaran = async () => {
+    if (!meetingId || !meeting || !selectedEdaranFile || isUploadingEdaran) return;
+    setIsUploadingEdaran(true);
+    try {
       const meetingContext = meetingToUpdateDto(meeting);
       const updated = await uploadSuratEdaran(
         meetingId,
         {
-          uri: asset.uri,
-          name: asset.name,
-          type: resolvedMime,
+          uri: selectedEdaranFile.uri,
+          name: selectedEdaranFile.name,
+          type: selectedEdaranFile.type,
         },
         meetingContext
       );
@@ -240,6 +258,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
       }
 
       setMeeting(updated);
+      setIsUploadModalVisible(false);
+      setSelectedEdaranFile(null);
       useFeedbackStore.getState().showToast({
         type: 'success',
         message: 'Berkas surat edaran resmi berhasil diunggah.',
@@ -247,7 +267,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     } catch (uploadError) {
       useFeedbackStore.getState().showToast({
         type: 'error',
-        message: uploadError instanceof Error ? uploadError.message : 'Gagal memilih berkas surat edaran.',
+        message: uploadError instanceof Error ? uploadError.message : 'Gagal mengunggah berkas surat edaran.',
       });
     } finally {
       setIsUploadingEdaran(false);
@@ -892,54 +912,54 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
 
           {meeting?.invitationPdfUrl ? (
             <View style={styles.edaranContent}>
-              <View style={styles.edaranDocPreview}>
-                <View style={styles.edaranPdfBadge}>
-                  <MaterialIcons name="picture-as-pdf" size={22} color="#DC2626" />
+              <Pressable
+                onPress={handlePreviewSuratEdaran}
+                style={({ pressed }) => [styles.edaranDocPreview, pressed && styles.btnPressed]}
+                accessibilityLabel="Lihat dokumen surat edaran rapat"
+              >
+                <View
+                  style={[
+                    styles.edaranPdfBadge,
+                    meeting.suratEdaran?.is_image ? { backgroundColor: 'rgba(0, 102, 204, 0.08)' } : null,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={meeting.suratEdaran?.is_image ? 'image' : 'picture-as-pdf'}
+                    size={22}
+                    color={meeting.suratEdaran?.is_image ? colors.primary : '#DC2626'}
+                  />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.edaranDocName} numberOfLines={1} ellipsizeMode="tail">
-                    Surat-Edaran_{meeting.code || 'Agenda'}.pdf
+                    Surat-Edaran_{meeting.code || 'Agenda'}.{meeting.suratEdaran?.extension || (meeting.suratEdaran?.is_image ? 'jpg' : 'pdf')}
                   </Text>
                   <Text style={styles.edaranDocMeta}>
-                    Dokumen Resmi LLDIKTI Wilayah X
+                    Dokumen Resmi LLDIKTI Wilayah X • Ketuk untuk melihat
                   </Text>
                 </View>
                 <View style={styles.edaranStatusBadge}>
                   <Text style={styles.edaranStatusText}>Tersedia</Text>
                 </View>
-              </View>
+              </Pressable>
 
               <View style={styles.edaranBtnGroup}>
                 <Button
-                  title="Buka / Pratinjau Surat Edaran"
+                  title="Lihat Surat Edaran"
                   onPress={handlePreviewSuratEdaran}
-                  variant="outline"
+                  variant="primary"
                   size="md"
                   fullWidth
-                  icon={
-                    <MaterialIcons
-                      name="visibility"
-                      size={18}
-                      color={colors.primary}
-                    />
-                  }
+                  icon={<MaterialIcons name="visibility" size={18} color={colors.onPrimary} />}
                 />
                 {userCanManageSuratEdaran ? (
                   <Button
-                    title={isUploadingEdaran ? "Mengunggah..." : "Ganti Berkas Surat Edaran"}
-                    onPress={() => void handleUploadSuratEdaran()}
+                    title="Ganti Berkas Surat Edaran"
+                    onPress={() => void handlePickSuratEdaran()}
                     disabled={isUploadingEdaran}
-                    isLoading={isUploadingEdaran}
-                    variant="ghost"
+                    variant="outline"
                     size="md"
                     fullWidth
-                    icon={
-                      <MaterialIcons
-                        name="cloud-upload"
-                        size={18}
-                        color={colors.primary}
-                      />
-                    }
+                    icon={<MaterialIcons name="cloud-upload" size={18} color={colors.primary} />}
                   />
                 ) : null}
               </View>
@@ -959,20 +979,13 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               </View>
               {userCanManageSuratEdaran ? (
                 <Button
-                  title={isUploadingEdaran ? "Mengunggah Surat Edaran..." : "Unggah Surat Edaran (PDF/Gambar)"}
-                  onPress={() => void handleUploadSuratEdaran()}
+                  title="Unggah Surat Edaran (PDF/Gambar)"
+                  onPress={() => void handlePickSuratEdaran()}
                   disabled={isUploadingEdaran}
-                  isLoading={isUploadingEdaran}
                   variant="primary"
                   size="md"
                   fullWidth
-                  icon={
-                    <MaterialIcons
-                      name="cloud-upload"
-                      size={18}
-                      color={colors.onPrimary}
-                    />
-                  }
+                  icon={<MaterialIcons name="cloud-upload" size={18} color={colors.onPrimary} />}
                 />
               ) : null}
             </View>
@@ -1045,6 +1058,35 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           </View>
         </View>
       </ScrollView>
+
+      {/* MODAL 1: In-App Surat Edaran Viewer */}
+      <SuratEdaranViewerModal
+        visible={isViewerModalVisible}
+        onClose={() => setIsViewerModalVisible(false)}
+        documentUrl={meeting?.invitationPdfUrl}
+        fileName={`Surat-Edaran_${meeting?.code || 'Agenda'}.${meeting?.suratEdaran?.extension || (meeting?.suratEdaran?.is_image ? 'jpg' : 'pdf')}`}
+        meetingTitle={meeting?.title}
+        meetingCode={meeting?.code}
+        meetingDate={`${meeting?.date} • ${meeting?.startTime}`}
+        mimeType={meeting?.suratEdaran?.is_image ? 'image/jpeg' : 'application/pdf'}
+        canManage={userCanManageSuratEdaran}
+        onReplaceFile={() => void handlePickSuratEdaran()}
+      />
+
+      {/* MODAL 2: Upload / Ganti Berkas Confirmation */}
+      <UploadSuratEdaranModal
+        visible={isUploadModalVisible}
+        onClose={() => {
+          setIsUploadModalVisible(false);
+          setSelectedEdaranFile(null);
+        }}
+        file={selectedEdaranFile}
+        meetingTitle={meeting?.title || 'Agenda Rapat'}
+        meetingDate={`${meeting?.date} • ${meeting?.startTime}`}
+        isUploading={isUploadingEdaran}
+        onConfirmUpload={handleConfirmUploadSuratEdaran}
+        onPickDifferentFile={() => void handlePickSuratEdaran()}
+      />
     </View>
   );
 };

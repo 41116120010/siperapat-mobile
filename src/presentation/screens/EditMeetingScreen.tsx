@@ -35,6 +35,7 @@ import {
   VENUE_OPTIONS,
   STATUS_OPTIONS,
 } from '../constants/meetingOptions';
+import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import * as DocumentPicker from 'expo-document-picker';
 import { toIsoDateTime } from '../../data/mappers/apiMappers';
 import { UploadFileRef, resolveFileMimeType } from '../../data/datasources/agendaApi';
@@ -98,6 +99,16 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   // Attachments
   const [existingAttachmentUrl, setExistingAttachmentUrl] = useState<string | null>(null);
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
+  const [viewerModalConfig, setViewerModalConfig] = useState<{
+    visible: boolean;
+    url?: string | null;
+    localUri?: string | null;
+    name?: string;
+    size?: number;
+    mime?: string;
+  }>({
+    visible: false,
+  });
 
   // Modals & Feedback
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
@@ -250,11 +261,23 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
   const handlePreviewExistingEdaran = () => {
     if (existingAttachmentUrl) {
-      void Linking.openURL(existingAttachmentUrl).catch(() => {
-        useFeedbackStore.getState().showToast({
-          type: 'error',
-          message: 'Berkas surat edaran tidak dapat dibuka pada perangkat ini.',
-        });
+      setViewerModalConfig({
+        visible: true,
+        url: existingAttachmentUrl,
+        name: `Surat-Edaran_${meetingCode || 'Agenda'}.pdf`,
+        mime: 'application/pdf',
+      });
+    }
+  };
+
+  const handlePreviewAttachedFile = () => {
+    if (attachedFile) {
+      setViewerModalConfig({
+        visible: true,
+        localUri: attachedFile.uri,
+        name: attachedFile.name,
+        size: attachedFile.size,
+        mime: attachedFile.type,
       });
     }
   };
@@ -1000,25 +1023,45 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
           {attachedFile ? (
             <View style={styles.attachedCard}>
               <View style={styles.attachedLeft}>
-                <View style={styles.attachedIconBox}>
-                  <MaterialIcons name="picture-as-pdf" size={20} color={colors.error} />
+                <View
+                  style={[
+                    styles.attachedIconBox,
+                    attachedFile.type.startsWith('image/')
+                      ? { backgroundColor: 'rgba(0, 102, 204, 0.08)' }
+                      : null,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={attachedFile.type.startsWith('image/') ? 'image' : 'picture-as-pdf'}
+                    size={20}
+                    color={attachedFile.type.startsWith('image/') ? colors.primary : colors.error}
+                  />
                 </View>
                 <View style={styles.attachedInfo}>
                   <Text style={styles.attachedName} numberOfLines={1}>
                     {attachedFile.name} (Berkas Baru)
                   </Text>
                   <Text style={styles.attachedMeta}>
-                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB • Siap disimpan
+                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB • {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
                   </Text>
                 </View>
               </View>
-              <Pressable
-                onPress={() => setAttachedFile(null)}
-                style={styles.attachedActionBtn}
-                accessibilityLabel="Hapus lampiran baru"
-              >
-                <MaterialIcons name="close" size={18} color={colors.error} />
-              </Pressable>
+              <View style={styles.attachedActions}>
+                <Pressable
+                  onPress={handlePreviewAttachedFile}
+                  style={styles.attachedActionBtn}
+                  accessibilityLabel="Pratinjau lampiran baru"
+                >
+                  <MaterialIcons name="visibility" size={18} color={colors.primary} />
+                </Pressable>
+                <Pressable
+                  onPress={() => setAttachedFile(null)}
+                  style={styles.attachedActionBtn}
+                  accessibilityLabel="Hapus lampiran baru"
+                >
+                  <MaterialIcons name="close" size={18} color={colors.error} />
+                </Pressable>
+              </View>
             </View>
           ) : null}
         </View>
@@ -1115,6 +1158,20 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
           else if (onBack) onBack();
         }}
         onClose={() => setShowSuccessModal(false)}
+      />
+
+      {/* In-App Surat Edaran Viewer Modal */}
+      <SuratEdaranViewerModal
+        visible={viewerModalConfig.visible}
+        onClose={() => setViewerModalConfig({ visible: false })}
+        documentUrl={viewerModalConfig.url}
+        localFileUri={viewerModalConfig.localUri}
+        fileName={viewerModalConfig.name}
+        fileSize={viewerModalConfig.size}
+        mimeType={viewerModalConfig.mime}
+        meetingTitle={title.trim() || 'Agenda Rapat'}
+        meetingCode={meetingCode}
+        meetingDate={date && startTime ? `${date} • ${startTime}` : undefined}
       />
     </View>
   );
@@ -1576,6 +1633,11 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: colors.onSurfaceVariant,
     marginTop: 1,
+  },
+  attachedActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   attachedActionBtn: {
     padding: 6,
