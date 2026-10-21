@@ -44,7 +44,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   fetchAgendaAttendances: async (agendaId, page = 1, append = false, filters = {}) => {
     set(append ? { isLoading: true, error: null } : { isLoading: true, error: null, agendaAttendances: [], agendaAttendancePage: null });
     try {
-      const result = await attendanceRepo.getAgendaAttendances(agendaId, page, 50, filters);
+      const result = await attendanceRepo.getAgendaAttendances(agendaId, page, 10, filters);
       set((state) => ({ agendaAttendances: append ? [...state.agendaAttendances, ...result.records] : result.records, agendaAttendancePage: result }));
     } catch (error) { set({ error: errorMessage(error, 'Gagal memuat daftar kehadiran agenda.') }); }
     finally { set({ isLoading: false }); }

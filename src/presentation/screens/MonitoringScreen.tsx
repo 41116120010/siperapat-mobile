@@ -21,6 +21,8 @@ import { useMeetingStore } from '../store/useMeetingStore';
 import { useAttendanceStore } from '../store/useAttendanceStore';
 import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
 import { AgendaExportFormat } from '../../data/datasources/reportApi';
+import { PaginationBar } from '../components/common/PaginationBar';
+import { triggerPageTransition } from '../store/useTransitionStore';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -46,6 +48,7 @@ function plainText(html?: string | null) {
 export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meetingId }) => {
   const exportRepository = useMemo(() => new AgendaExportRepository(), []);
   const [activeTab, setActiveTab] = useState<TabType>('verified');
+  const [attendancePage, setAttendancePage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
   const { getMeetingById } = useMeetingStore();
@@ -64,11 +67,20 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
 
   useEffect(() => {
     if (!meetingId || activeTab === 'minutes') return;
-    const timer = setTimeout(() => void fetchAgendaAttendances(meetingId, 1, false, {
-      status: activeTab === 'unverified' ? 'unattended' : 'attended', search: searchQuery,
-    }), 250);
+    const timer = setTimeout(() => {
+      void fetchAgendaAttendances(meetingId, attendancePage, false, {
+        status: activeTab === 'unverified' ? 'unattended' : 'attended',
+        search: searchQuery,
+      });
+    }, 250);
     return () => clearTimeout(timer);
-  }, [meetingId, activeTab, searchQuery, fetchAgendaAttendances]);
+  }, [meetingId, activeTab, searchQuery, attendancePage, fetchAgendaAttendances]);
+
+  const handlePageChange = (page: number) => {
+    if (!meetingId || page === attendancePage || isLoading) return;
+    triggerPageTransition(350);
+    setAttendancePage(page);
+  };
 
   const handlePreviewSuratEdaran = () => {
     const url = meeting?.invitationPdfUrl;
@@ -122,7 +134,22 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => meetingId && void fetchAgendaAttendances(meetingId, 1, false, { status: activeTab === 'unverified' ? 'unattended' : 'attended', search: searchQuery })} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={() => {
+              if (!meetingId) return;
+              void getMeetingById(meetingId).then((agenda) => setMeeting(agenda)).catch(() => {});
+              if (activeTab !== 'minutes') {
+                void fetchAgendaAttendances(meetingId, attendancePage, false, {
+                  status: activeTab === 'unverified' ? 'unattended' : 'attended',
+                  search: searchQuery,
+                });
+              }
+            }}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* AGENDA SUMMARY & STATUS HERO CARD */}
         <View style={styles.heroCard}>
@@ -253,7 +280,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             contentContainerStyle={styles.tabScrollContainer}
           >
             <Pressable
-              onPress={() => setActiveTab('verified')}
+              onPress={() => {
+                if (activeTab !== 'verified') {
+                  setActiveTab('verified');
+                  setAttendancePage(1);
+                }
+              }}
               style={[
                 styles.tabBtn,
                 activeTab === 'verified' && styles.tabBtnActive,
@@ -291,7 +323,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             </Pressable>
 
             <Pressable
-              onPress={() => setActiveTab('unverified')}
+              onPress={() => {
+                if (activeTab !== 'unverified') {
+                  setActiveTab('unverified');
+                  setAttendancePage(1);
+                }
+              }}
               style={[
                 styles.tabBtn,
                 activeTab === 'unverified' && styles.tabBtnActive,
@@ -329,7 +366,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
             </Pressable>
 
             <Pressable
-              onPress={() => setActiveTab('minutes')}
+              onPress={() => {
+                if (activeTab !== 'minutes') {
+                  setActiveTab('minutes');
+                  setAttendancePage(1);
+                }
+              }}
               style={[
                 styles.tabBtn,
                 activeTab === 'minutes' && styles.tabBtnActive,
@@ -375,7 +417,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                   placeholder="Cari nama atau NIP pegawai..."
                   placeholderTextColor={colors.outline}
                   value={searchQuery}
-                  onChangeText={setSearchQuery}
+                  onChangeText={(text) => {
+                    setSearchQuery(text);
+                    setAttendancePage(1);
+                  }}
                 />
               </View>
             </View>
@@ -394,7 +439,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                 return (
                   <Pressable
                     key={chip}
-                    onPress={() => setSelectedPokja(chip)}
+                    onPress={() => {
+                      setSelectedPokja(chip);
+                      setAttendancePage(1);
+                    }}
                     style={({ pressed }) => [
                       styles.pokjaChip,
                       active ? styles.pokjaChipActive : styles.pokjaChipInactive,
@@ -434,16 +482,20 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                       <View
                         style={[
                           styles.pStatusBadge,
-                          styles.pStatusBadgeValid,
+                          activeTab === 'unverified'
+                            ? styles.pStatusBadgeWait
+                            : styles.pStatusBadgeValid,
                         ]}
                       >
                         <Text
                           style={[
                             styles.pStatusText,
-                            styles.pStatusTextValid,
+                            activeTab === 'unverified'
+                              ? styles.pStatusTextWait
+                              : styles.pStatusTextValid,
                           ]}
                         >
-                          Tercatat
+                          {activeTab === 'unverified' ? 'Belum Hadir' : 'Tercatat'}
                         </Text>
                       </View>
                     </View>
@@ -464,7 +516,17 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                   </View>
                 </View>
               ))}
-              {agendaAttendancePage && agendaAttendancePage.currentPage < agendaAttendancePage.lastPage ? <Pressable onPress={() => meetingId && void fetchAgendaAttendances(meetingId, agendaAttendancePage.currentPage + 1, true, { status: activeTab === 'unverified' ? 'unattended' : 'attended', search: searchQuery })}><Text style={styles.pRole}>Muat halaman berikutnya</Text></Pressable> : null}
+
+              {agendaAttendancePage && agendaAttendancePage.total > 0 ? (
+                <PaginationBar
+                  currentPage={agendaAttendancePage.currentPage}
+                  lastPage={agendaAttendancePage.lastPage}
+                  total={agendaAttendancePage.total}
+                  label={activeTab === 'unverified' ? 'belum hadir' : 'peserta'}
+                  isLoading={isLoading}
+                  onPageChange={handlePageChange}
+                />
+              ) : null}
             </View>
           </View>
         ) : null}

@@ -39,7 +39,7 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
     return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total, summary: response.summary };
   }
 
-  async getAgendaAttendances(agendaId: string, page = 1, perPage = 50, filters: { status?: 'attended' | 'unattended'; search?: string } = {}) {
+  async getAgendaAttendances(agendaId: string, page = 1, perPage = 10, filters: { status?: 'attended' | 'unattended'; search?: string } = {}) {
     const response = await attendanceApi.agendaAttendances(agendaId, page, perPage, filters);
     if (!response.success) throw new Error(response.message || 'Gagal memuat kehadiran agenda.');
     return { records: response.data.map(toAttendance), currentPage: response.meta.current_page, lastPage: response.meta.last_page, total: response.meta.total, summary: response.summary };
