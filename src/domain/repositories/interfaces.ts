@@ -1,5 +1,5 @@
 import { ASN, Meeting, Attendance, Employee } from '../entities/types';
-import { AgendaFilters, CreateAgendaDto, UploadFileRef } from '../../data/datasources/agendaApi';
+import { AgendaFilters, CreateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
 import { ApiAgendaAttendanceSummary, ApiAttendanceDto, ApiAttendanceHistorySummary, ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 
 export interface IAuthRepository {
@@ -16,6 +16,7 @@ export interface IMeetingRepository {
   getMeetings(page?: number, filters?: AgendaFilters): Promise<{ meetings: Meeting[]; currentPage: number; lastPage: number; total: number }>;
   getMeetingById(id: string): Promise<Meeting | null>;
   createMeeting(meeting: CreateAgendaDto, suratEdaran?: UploadFileRef): Promise<Meeting>;
+  updateMinutes(id: string, minutes: UpdateMinutesDto): Promise<Meeting>;
   getAgendaFormOptions(): Promise<{ users: ApiUserDto[]; units: ApiUnitDto[] }>;
 }
 

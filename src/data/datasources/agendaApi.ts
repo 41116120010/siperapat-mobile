@@ -7,6 +7,7 @@ export interface CreateAgendaDto {
   lokasi_ruang?: string | null; link_meeting?: string | null; waktu_mulai: string; waktu_selesai?: string | null;
   pimpinan_id?: number | null; notulis_id?: number | null; is_all_units: boolean; unit_ids?: number[]; status?: 'draft' | 'scheduled';
 }
+export interface UpdateMinutesDto { notulensi: string | null; kesimpulan: string | null }
 export interface UploadFileRef { uri: string; name: string; type: string }
 function queryString(values: Record<string, string | number | undefined>) {
   const params = new URLSearchParams();
@@ -20,6 +21,7 @@ export const agendaApi = {
     return apiClient.get<ApiPaginated<ApiAgendaDto>>(`/agendas?${query}`);
   },
   detail: (id: string) => apiClient.get<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`),
+  updateMinutes: (id: string, data: UpdateMinutesDto) => apiClient.put<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/notulen`, data),
   create: (data: CreateAgendaDto, suratEdaran?: UploadFileRef) => {
     if (!suratEdaran) return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', data);
     const form = new FormData();

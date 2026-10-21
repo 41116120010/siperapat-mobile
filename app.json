@@ -9,11 +9,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "primaryColor": "#00236F",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#00236F"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "id.go.lldikti10.siperapat",
@@ -59,7 +54,17 @@
           "microphonePermission": false
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#00236F"
+        }
+      ]
     ]
   }
 }

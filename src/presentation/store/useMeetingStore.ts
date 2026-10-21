@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Meeting } from '../../domain/entities/types';
-import { AgendaFilters, CreateAgendaDto, UploadFileRef } from '../../data/datasources/agendaApi';
+import { AgendaFilters, CreateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
 import { ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 import { MeetingRepositoryImpl } from '../../data/repositories/MeetingRepositoryImpl';
 
@@ -9,11 +9,12 @@ type FilterTab = 'all' | 'ongoing' | 'upcoming' | 'completed';
 interface MeetingState {
   meetings: Meeting[]; dashboardMeetings: Meeting[]; dashboardStats: ApiDashboardDto['stats'] | null;
   activeMeeting: Meeting | null; isLoading: boolean; isLoadingMore: boolean; error: string | null;
+  isSavingMinutes: boolean;
   filterTab: FilterTab; currentPage: number; lastPage: number; total: number; typeFilter: 'hybrid' | 'offline' | 'online' | undefined;
   formOptions: { users: ApiUserDto[]; units: ApiUnitDto[] } | null; isFormOptionsLoading: boolean;
   setFilterTab: (tab: FilterTab) => void; fetchDashboard: () => Promise<void>;
   fetchMeetings: (page?: number, append?: boolean, typeFilter?: 'all' | 'hybrid' | 'offline' | 'online') => Promise<void>;
-  getMeetingById: (id: string) => Promise<Meeting>;
+  getMeetingById: (id: string) => Promise<Meeting>; updateMinutes: (id: string, minutes: UpdateMinutesDto) => Promise<Meeting | null>;
   createMeeting: (payload: CreateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   fetchAgendaFormOptions: () => Promise<void>; clearError: () => void;
 }
@@ -23,6 +24,7 @@ function message(error: unknown, fallback: string) { return error instanceof Err
 export const useMeetingStore = create<MeetingState>((set, get) => ({
   meetings: [], dashboardMeetings: [], dashboardStats: null, activeMeeting: null,
   isLoading: false, isLoadingMore: false, error: null, filterTab: 'all', currentPage: 0, lastPage: 1, total: 0,
+  isSavingMinutes: false,
   typeFilter: undefined, formOptions: null, isFormOptionsLoading: false,
 
   setFilterTab: (tab) => {
@@ -60,6 +62,21 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     const meeting = await repository.getMeetingById(id);
     if (!meeting) throw new Error('Agenda tidak ditemukan.');
     return meeting;
+  },
+
+  updateMinutes: async (id, minutes) => {
+    set({ isSavingMinutes: true, error: null });
+    try {
+      const updated = await repository.updateMinutes(id, minutes);
+      set((state) => ({
+        meetings: state.meetings.map((item) => item.id === id ? updated : item),
+        dashboardMeetings: state.dashboardMeetings.map((item) => item.id === id ? updated : item),
+      }));
+      return updated;
+    } catch (error) {
+      set({ error: message(error, 'Gagal menyimpan notulensi.') });
+      return null;
+    } finally { set({ isSavingMinutes: false }); }
   },
 
   createMeeting: async (payload, suratEdaran) => {

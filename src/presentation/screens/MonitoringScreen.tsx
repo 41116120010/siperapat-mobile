@@ -42,7 +42,7 @@ interface Participant {
 }
 
 function plainText(html?: string | null) {
-  return html?.replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').trim() || 'Notulensi belum tersedia di API.';
+  return html?.replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').trim() || '';
 }
 
 export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meetingId }) => {
@@ -51,9 +51,11 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
   const [attendancePage, setAttendancePage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPokja, setSelectedPokja] = useState('Semua Unit');
-  const { getMeetingById } = useMeetingStore();
+  const { getMeetingById, updateMinutes, isSavingMinutes, error: minutesError } = useMeetingStore();
   const { agendaAttendances, agendaAttendancePage, fetchAgendaAttendances, isLoading, error } = useAttendanceStore();
   const [meeting, setMeeting] = useState<Awaited<ReturnType<typeof getMeetingById>> | null>(null);
+  const [isEditingMinutes, setIsEditingMinutes] = useState(false);
+  const [minutesDraft, setMinutesDraft] = useState('');
   const [agendaError, setAgendaError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<AgendaExportFormat | null>(null);
 
@@ -108,6 +110,34 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
     } catch (requestError) {
       useFeedbackStore.getState().showToast({ type: 'error', message: requestError instanceof Error ? requestError.message : 'Gagal mengunduh berkas agenda.' });
     } finally { setExporting(null); }
+  };
+
+  const handleEditMinutes = () => {
+    setMinutesDraft(meeting?.minutesHtml ? plainText(meeting.minutesHtml) : '');
+    setIsEditingMinutes(true);
+  };
+
+  const handleSaveMinutes = async () => {
+    if (!meetingId || !meeting || isSavingMinutes) return;
+    const currentPlainText = meeting.minutesHtml ? plainText(meeting.minutesHtml) : '';
+    const notulensi = minutesDraft.trim() === ''
+      ? null
+      : minutesDraft === currentPlainText
+        ? meeting.minutesHtml ?? minutesDraft
+        : minutesDraft;
+    const updated = await updateMinutes(meetingId, {
+      notulensi,
+      // Send the existing conclusion too: backend currently normalizes omitted fields to null.
+      kesimpulan: meeting.summaryHtml ?? null,
+    });
+    if (!updated) {
+      useFeedbackStore.getState().showToast({ type: 'error', message: useMeetingStore.getState().error || minutesError || 'Notulensi gagal disimpan.' });
+      return;
+    }
+    setMeeting(updated);
+    setMinutesDraft(updated.minutesHtml ? plainText(updated.minutesHtml) : '');
+    setIsEditingMinutes(false);
+    useFeedbackStore.getState().showToast({ type: 'success', message: 'Notulensi berhasil disimpan.' });
   };
 
   const displayList: Participant[] = useMemo(() => activeTab !== 'minutes' ? agendaAttendances.map((record) => ({
@@ -544,9 +574,43 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({ onBack, meet
                   {meeting ? `Agenda: ${meeting.code}` : 'Data notulensi dari agenda'}
                 </Text>
               </View>
+              {isEditingMinutes ? (
+                <Pressable onPress={() => setIsEditingMinutes(false)} accessibilityRole="button" accessibilityLabel="Batal mengubah notulensi" hitSlop={8}>
+                  <Text style={styles.minutesActionText}>Batal</Text>
+                </Pressable>
+              ) : (
+                <Pressable onPress={handleEditMinutes} accessibilityRole="button" accessibilityLabel="Ubah notulensi" hitSlop={8}>
+                  <MaterialIcons name="edit" size={20} color={colors.primary} />
+                </Pressable>
+              )}
             </View>
             <View style={styles.minutesDivider} />
-            <Text style={styles.minutesBody}>{plainText(meeting?.minutesHtml)}</Text>
+            {isEditingMinutes ? (
+              <>
+                <TextInput
+                  multiline
+                  textAlignVertical="top"
+                  value={minutesDraft}
+                  onChangeText={setMinutesDraft}
+                  editable={!isSavingMinutes}
+                  placeholder="Tulis notulensi rapat..."
+                  placeholderTextColor={colors.outline}
+                  accessibilityLabel="Isi notulensi rapat"
+                  style={styles.minutesInput}
+                />
+                <Pressable
+                  onPress={() => void handleSaveMinutes()}
+                  disabled={isSavingMinutes || !meeting}
+                  accessibilityRole="button"
+                  accessibilityLabel="Simpan notulensi"
+                  style={[styles.minutesSaveButton, (isSavingMinutes || !meeting) && styles.minutesSaveButtonDisabled]}
+                >
+                  <Text style={styles.minutesSaveText}>{isSavingMinutes ? 'Menyimpan...' : 'Simpan Notulensi'}</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Text style={styles.minutesBody}>{plainText(meeting?.minutesHtml)}</Text>
+            )}
           </View>
         ) : null}
 
@@ -1201,6 +1265,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.onSurface,
     lineHeight: 18,
+  },
+  minutesInput: {
+    ...typography.bodySm,
+    minHeight: 180,
+    maxHeight: 360,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    borderRadius: rounded.md,
+    padding: spacing.md,
+    color: colors.onSurface,
+    backgroundColor: colors.surface,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  minutesActionText: {
+    ...typography.labelMd,
+    color: colors.onSurfaceVariant,
+  },
+  minutesSaveButton: {
+    alignSelf: 'flex-end',
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.primary,
+  },
+  minutesSaveButtonDisabled: {
+    opacity: 0.6,
+  },
+  minutesSaveText: {
+    ...typography.labelMd,
+    color: colors.onPrimary,
+    fontWeight: '700',
   },
   edaranCard: {
     backgroundColor: colors.surfaceContainerLowest,
