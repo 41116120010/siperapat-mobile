@@ -36,6 +36,12 @@ interface AgendaOptionModalProps {
   searchPlaceholder?: string;
   pageSize?: number;
   paginationLabel?: string;
+  consistentHeight?: boolean;
+  allowCustomOption?: boolean;
+  customOptionLabel?: string;
+  customOptionPlaceholder?: string;
+  customInitialValue?: string;
+  onSelectCustom?: (customValue: string) => void;
 }
 
 export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
@@ -50,16 +56,26 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
   searchPlaceholder,
   pageSize,
   paginationLabel,
+  consistentHeight = false,
+  allowCustomOption = false,
+  customOptionLabel = 'Opsi Kustom',
+  customOptionPlaceholder,
+  customInitialValue = '',
+  onSelectCustom,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [customInputValue, setCustomInputValue] = useState(customInitialValue);
+  const [isCustomExpanded, setIsCustomExpanded] = useState(false);
 
   // Reset or detect initial page whenever modal opens
   useEffect(() => {
     if (visible) {
       setSearchQuery('');
       setIsSearchFocused(false);
+      setCustomInputValue(customInitialValue);
+      setIsCustomExpanded(false);
 
       if (pageSize && pageSize > 0 && selectedId) {
         const selectedIndex = options.findIndex((opt) => opt.id === selectedId);
@@ -70,7 +86,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
       }
       setCurrentPage(1);
     }
-  }, [visible, options, selectedId, pageSize]);
+  }, [visible, options, selectedId, pageSize, customInitialValue]);
 
   // Memoized filter based on searchQuery
   const filteredOptions = useMemo(() => {
@@ -90,6 +106,29 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
     setSearchQuery(text);
     setCurrentPage(1);
   };
+
+  const handleConfirmCustom = (val?: string) => {
+    const finalValue = (val !== undefined ? val : customInputValue).trim();
+    if (!finalValue) return;
+    if (onSelectCustom) {
+      onSelectCustom(finalValue);
+    } else {
+      onSelect({
+        id: 'custom',
+        title: finalValue,
+        subtitle: `${customOptionLabel} (Kustom)`,
+        badge: 'Kustom',
+        icon: 'edit',
+      });
+    }
+    onClose();
+  };
+
+  const hasExactMatch = useMemo(() => {
+    if (!searchQuery.trim()) return false;
+    const q = searchQuery.trim().toLowerCase();
+    return options.some((opt) => opt.title.toLowerCase() === q);
+  }, [options, searchQuery]);
 
   // Pagination calculation
   const isPaginated = typeof pageSize === 'number' && pageSize > 0;
@@ -128,7 +167,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
           <View
             style={[
               styles.sheetContainer,
-              (searchable || isPaginated) && styles.sheetContainerConsistent,
+              (searchable || isPaginated || consistentHeight) && styles.sheetContainerConsistent,
             ]}
           >
             {/* Sheet Handle */}
@@ -218,6 +257,22 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                 <Text style={styles.emptySubtitle}>
                   Tidak ada data yang cocok dengan kata kunci "{searchQuery.trim()}".
                 </Text>
+                {allowCustomOption && searchQuery.trim().length > 0 ? (
+                  <Pressable
+                    onPress={() => handleConfirmCustom(searchQuery.trim())}
+                    style={({ pressed }) => [
+                      styles.emptyCustomButton,
+                      pressed && styles.emptyCustomButtonPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Gunakan ${searchQuery.trim()} sebagai ${customOptionLabel}`}
+                  >
+                    <MaterialIcons name="add-circle" size={17} color={colors.primary} />
+                    <Text style={styles.emptyCustomButtonText} numberOfLines={1}>
+                      Gunakan "{searchQuery.trim()}" sebagai {customOptionLabel}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() => handleSearchChange('')}
                   style={({ pressed }) => [
@@ -238,6 +293,41 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
+                {/* Quick Action: Use current searchQuery as custom option */}
+                {allowCustomOption && searchQuery.trim().length > 0 && !hasExactMatch ? (
+                  <Pressable
+                    onPress={() => handleConfirmCustom(searchQuery.trim())}
+                    style={({ pressed }) => [
+                      styles.quickCustomCard,
+                      pressed && styles.optionCardPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Gunakan ${searchQuery.trim()} sebagai ${customOptionLabel}`}
+                  >
+                    <View style={styles.quickCustomIconWrap}>
+                      <MaterialIcons name="add" size={18} color={colors.primary} />
+                    </View>
+                    <View style={styles.optionTextGroup}>
+                      <View style={styles.titleRow}>
+                        <Text style={styles.quickCustomTitle} numberOfLines={1}>
+                          Gunakan "{searchQuery.trim()}"
+                        </Text>
+                        <View style={styles.badgePillCustom}>
+                          <Text style={styles.badgePillCustomText}>+ Kustom</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.quickCustomSubtitle}>
+                        Jadikan sebagai {customOptionLabel.toLowerCase()} baru
+                      </Text>
+                    </View>
+                    <MaterialIcons
+                      name="arrow-forward-ios"
+                      size={14}
+                      color={colors.primary}
+                    />
+                  </Pressable>
+                ) : null}
+
                 {displayedOptions.map((option) => {
                   const isSelected = option.id === selectedId;
                   return (
@@ -310,6 +400,128 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                     </Pressable>
                   );
                 })}
+
+                {/* Dedicated Manual / Custom Option Card at the end */}
+                {allowCustomOption ? (
+                  <View style={styles.manualCustomSection}>
+                    {!isCustomExpanded ? (
+                      <Pressable
+                        onPress={() => setIsCustomExpanded(true)}
+                        style={({ pressed }) => [
+                          styles.manualCustomTrigger,
+                          selectedId === 'custom' && styles.manualCustomTriggerSelected,
+                          pressed && styles.optionCardPressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Tentukan ${customOptionLabel} kustom`}
+                      >
+                        <View
+                          style={[
+                            styles.iconWrap,
+                            selectedId === 'custom' ? styles.iconWrapActive : styles.manualCustomIconWrap,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="edit"
+                            size={18}
+                            color={selectedId === 'custom' ? colors.primary : colors.secondary}
+                          />
+                        </View>
+                        <View style={styles.optionTextGroup}>
+                          <View style={styles.titleRow}>
+                            <Text
+                              style={[
+                                styles.optionTitle,
+                                selectedId === 'custom' && styles.optionTitleActive,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {selectedId === 'custom' && customInitialValue
+                                ? `${customInitialValue}`
+                                : `Tulis ${customOptionLabel} Kustom...`}
+                            </Text>
+                            <View style={styles.badgePillCustom}>
+                              <Text style={styles.badgePillCustomText}>
+                                {selectedId === 'custom' ? 'Terpilih' : 'Manual'}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={styles.optionSubtitle} numberOfLines={1}>
+                            {selectedId === 'custom' && customInitialValue
+                              ? 'Opsi kustom saat ini aktif • Ketuk untuk ubah'
+                              : 'Input langsung jika opsi yang dicari tidak tersedia'}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.radioCircle,
+                            selectedId === 'custom' ? styles.radioCircleActive : styles.radioCircleInactive,
+                          ]}
+                        >
+                          {selectedId === 'custom' ? <View style={styles.radioInner} /> : null}
+                        </View>
+                      </Pressable>
+                    ) : (
+                      <View style={styles.inlineCustomCard}>
+                        <View style={styles.inlineCustomHeader}>
+                          <View style={styles.inlineCustomHeaderLeft}>
+                            <MaterialIcons name="edit-note" size={18} color={colors.primary} />
+                            <Text style={styles.inlineCustomHeaderText}>
+                              Input {customOptionLabel} Kustom
+                            </Text>
+                          </View>
+                          <Pressable
+                            onPress={() => setIsCustomExpanded(false)}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Tutup form input kustom"
+                          >
+                            <MaterialIcons name="close" size={18} color={colors.onSurfaceVariant} />
+                          </Pressable>
+                        </View>
+                        <TextInput
+                          style={styles.inlineCustomInput}
+                          placeholder={
+                            customOptionPlaceholder ?? `Ketik nama ${customOptionLabel.toLowerCase()}...`
+                          }
+                          placeholderTextColor={colors.onSurfaceVariant}
+                          value={customInputValue}
+                          onChangeText={setCustomInputValue}
+                          returnKeyType="done"
+                          onSubmitEditing={() => handleConfirmCustom()}
+                          autoFocus
+                        />
+                        <View style={styles.inlineCustomActions}>
+                          <Pressable
+                            onPress={() => setIsCustomExpanded(false)}
+                            style={({ pressed }) => [
+                              styles.inlineCancelBtn,
+                              pressed && styles.inlineBtnPressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Batal input kustom"
+                          >
+                            <Text style={styles.inlineCancelBtnText}>Batal</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => handleConfirmCustom()}
+                            disabled={!customInputValue.trim()}
+                            style={({ pressed }) => [
+                              styles.inlineConfirmBtn,
+                              !customInputValue.trim() && styles.inlineConfirmBtnDisabled,
+                              pressed && styles.inlineBtnPressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Gunakan ${customOptionLabel}`}
+                          >
+                            <MaterialIcons name="check" size={16} color={colors.onPrimary} />
+                            <Text style={styles.inlineConfirmBtnText}>Gunakan Opsi</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                ) : null}
               </ScrollView>
             )}
 
@@ -609,5 +821,170 @@ const styles = StyleSheet.create({
   paginationContainer: {
     marginTop: 0,
     marginBottom: spacing.xs,
+  },
+  emptyCustomButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.full,
+    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 35, 111, 0.2)',
+    marginTop: spacing.xs,
+    maxWidth: '90%',
+  },
+  emptyCustomButtonPressed: {
+    backgroundColor: 'rgba(0, 35, 111, 0.16)',
+  },
+  emptyCustomButtonText: {
+    ...typography.labelSm,
+    color: colors.primary,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  quickCustomCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: rounded.md,
+    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+    marginBottom: spacing.xs + 2,
+    gap: spacing.sm,
+  },
+  quickCustomIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: rounded.sm,
+    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickCustomTitle: {
+    ...typography.bodyMd,
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: colors.primary,
+    flex: 1,
+  },
+  quickCustomSubtitle: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 1,
+  },
+  badgePillCustom: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    backgroundColor: 'rgba(0, 81, 213, 0.12)',
+    marginLeft: spacing.xs,
+  },
+  badgePillCustomText: {
+    ...typography.labelSm,
+    fontSize: 9.5,
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  manualCustomSection: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  manualCustomTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.5)',
+    gap: spacing.sm,
+  },
+  manualCustomTriggerSelected: {
+    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    borderColor: colors.primary,
+  },
+  manualCustomIconWrap: {
+    backgroundColor: 'rgba(0, 81, 213, 0.08)',
+  },
+  inlineCustomCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: rounded.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  inlineCustomHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inlineCustomHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  inlineCustomHeaderText: {
+    ...typography.labelMd,
+    fontWeight: '700',
+    color: colors.primary,
+    fontSize: 13,
+  },
+  inlineCustomInput: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderRadius: rounded.sm,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 4,
+    ...typography.bodyMd,
+    fontSize: 13,
+    color: colors.onSurface,
+  },
+  inlineCustomActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: spacing.xs + 4,
+  },
+  inlineCancelBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.full,
+    backgroundColor: 'rgba(197, 197, 211, 0.3)',
+  },
+  inlineCancelBtnText: {
+    ...typography.labelSm,
+    fontSize: 11.5,
+    color: colors.onSurfaceVariant,
+    fontWeight: '600',
+  },
+  inlineConfirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.full,
+    backgroundColor: colors.primary,
+  },
+  inlineConfirmBtnDisabled: {
+    opacity: 0.5,
+  },
+  inlineConfirmBtnText: {
+    ...typography.labelSm,
+    fontSize: 11.5,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  inlineBtnPressed: {
+    opacity: 0.8,
   },
 });

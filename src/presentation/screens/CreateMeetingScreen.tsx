@@ -141,6 +141,8 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [endTime, setEndTime] = useState('12:00');
   const [venue, setVenue] = useState('Pilih ruang rapat');
   const [venueId, setVenueId] = useState('');
+  const [customClassification, setCustomClassification] = useState('');
+  const [customVenue, setCustomVenue] = useState('');
   const [zoomUrl, setZoomUrl] = useState('');
   const [meetingIdInput] = useState('');
   const [passcode] = useState('');
@@ -151,9 +153,21 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
 
-  const selectedClassification =
-    CLASSIFICATION_OPTIONS.find((c) => c.id === classification) ||
-    CLASSIFICATION_OPTIONS[0];
+  const selectedClassification = useMemo(() => {
+    if (classification === 'custom' && customClassification.trim()) {
+      return {
+        id: 'custom',
+        title: customClassification.trim(),
+        subtitle: 'Klasifikasi Rapat Kustom',
+        badge: 'Kustom',
+        icon: 'edit' as const,
+      };
+    }
+    return (
+      CLASSIFICATION_OPTIONS.find((c) => c.id === classification) ||
+      CLASSIFICATION_OPTIONS[0]
+    );
+  }, [classification, customClassification]);
 
   const toggleUnit = (unitId: number) => {
     setSelectedUnits((prev) =>
@@ -245,6 +259,11 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     searchPlaceholder?: string;
     pageSize?: number;
     paginationLabel?: string;
+    consistentHeight?: boolean;
+    allowCustomOption?: boolean;
+    customOptionLabel?: string;
+    customOptionPlaceholder?: string;
+    customInitialValue?: string;
   } => {
     switch (activeModal) {
       case 'classification':
@@ -253,6 +272,13 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           subtitle: 'Kategori agenda untuk administrasi dan kearsipan',
           options: CLASSIFICATION_OPTIONS,
           selectedId: classification,
+          searchable: true,
+          searchPlaceholder: 'Cari jenis atau klasifikasi rapat...',
+          consistentHeight: true,
+          allowCustomOption: true,
+          customOptionLabel: 'Jenis Rapat',
+          customOptionPlaceholder: 'Contoh: Rapat Senat Terbuka, FGD, Diskusi Panel...',
+          customInitialValue: customClassification,
         };
       case 'leader':
         return {
@@ -270,6 +296,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           searchPlaceholder: 'Cari nama atau NIP pimpinan rapat...',
           pageSize: 5,
           paginationLabel: 'pimpinan',
+          consistentHeight: true,
         };
       case 'notulis':
         return {
@@ -287,6 +314,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           searchPlaceholder: 'Cari nama atau NIP petugas notulis...',
           pageSize: 5,
           paginationLabel: 'notulis',
+          consistentHeight: true,
         };
       case 'venue':
         return {
@@ -294,6 +322,13 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           subtitle: 'Lokasi fisik ruang sidang di lingkungan kantor LLDIKTI X',
           options: VENUE_OPTIONS,
           selectedId: venueId,
+          searchable: true,
+          searchPlaceholder: 'Cari ruang sidang atau nama gedung...',
+          consistentHeight: true,
+          allowCustomOption: true,
+          customOptionLabel: 'Ruang / Lokasi Rapat',
+          customOptionPlaceholder: 'Contoh: Ruang Tamu Khusus Lt. 2, Hotel Mercure, dll...',
+          customInitialValue: customVenue,
         };
       default:
         return {
@@ -309,6 +344,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     switch (activeModal) {
       case 'classification':
         setClassification(option.id);
+        setCustomClassification('');
         break;
       case 'leader':
         setLeaderName(option.title);
@@ -323,7 +359,22 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       case 'venue':
         setVenue(option.title);
         setVenueId(option.id);
+        setCustomVenue('');
         break;
+    }
+    setActiveModal('none');
+  };
+
+  const handleSelectCustomOption = (customVal: string) => {
+    const trimmed = customVal.trim();
+    if (!trimmed) return;
+    if (activeModal === 'classification') {
+      setClassification('custom');
+      setCustomClassification(trimmed);
+    } else if (activeModal === 'venue') {
+      setVenue(trimmed);
+      setVenueId('custom');
+      setCustomVenue(trimmed);
     }
     setActiveModal('none');
   };
@@ -645,11 +696,18 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                     {venue}
                   </Text>
                 </View>
-                <MaterialIcons
-                  name="expand-more"
-                  size={20}
-                  color={colors.onSurfaceVariant}
-                />
+                <View style={styles.selectorRight}>
+                  {venueId === 'custom' ? (
+                    <View style={styles.selectorBadge}>
+                      <Text style={styles.selectorBadgeText}>Kustom</Text>
+                    </View>
+                  ) : null}
+                  <MaterialIcons
+                    name="expand-more"
+                    size={20}
+                    color={colors.onSurfaceVariant}
+                  />
+                </View>
               </Pressable>
             </View>
           ) : null}
@@ -948,7 +1006,13 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         searchPlaceholder={modalConfig.searchPlaceholder}
         pageSize={modalConfig.pageSize}
         paginationLabel={modalConfig.paginationLabel}
+        consistentHeight={modalConfig.consistentHeight}
+        allowCustomOption={modalConfig.allowCustomOption}
+        customOptionLabel={modalConfig.customOptionLabel}
+        customOptionPlaceholder={modalConfig.customOptionPlaceholder}
+        customInitialValue={modalConfig.customInitialValue}
         onSelect={handleSelectOption}
+        onSelectCustom={handleSelectCustomOption}
       />
     </View>
   );
