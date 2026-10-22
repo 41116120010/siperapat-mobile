@@ -196,6 +196,10 @@ const safeGoBack = (navigation: any, fallbackRoute = 'MainTabs') => {
 };
 
 export const AppNavigator: React.FC = () => {
+  const role = useAuthStore((state) => state.user?.role);
+  const canManageEmployees = role === 'administrator' || role === 'admin';
+  const isAdministrator = role === 'administrator';
+
   return (
     <>
       <Stack.Navigator
@@ -305,7 +309,7 @@ export const AppNavigator: React.FC = () => {
       </Stack.Screen>
 
       <Stack.Screen name="EmployeeDirectory">
-        {({ navigation }) => (
+        {({ navigation }) => canManageEmployees ? (
           <EmployeeDirectoryScreen
             onBack={() => safeGoBack(navigation, 'MainTabs')}
             onNavigateAdd={() => {
@@ -325,45 +329,45 @@ export const AppNavigator: React.FC = () => {
               navigation.navigate('EditUnit', { unitId });
             }}
           />
-        )}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
       </Stack.Screen>
 
       <Stack.Screen name="AddEmployee">
-        {({ navigation }) => (
+        {({ navigation }) => canManageEmployees ? (
           <AddEmployeeScreen
             onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
             onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
           />
-        )}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
       </Stack.Screen>
 
       <Stack.Screen name="EditEmployee">
-        {({ navigation, route }) => (
+        {({ navigation, route }) => canManageEmployees ? (
           <EditEmployeeScreen
             employeeId={route.params.employeeId}
             onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
             onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
           />
-        )}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
       </Stack.Screen>
 
       <Stack.Screen name="AddUnit">
-        {({ navigation }) => (
+        {({ navigation }) => isAdministrator ? (
           <AddUnitScreen
             onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
             onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
           />
-        )}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'EmployeeDirectory')} />}
       </Stack.Screen>
 
       <Stack.Screen name="EditUnit">
-        {({ navigation, route }) => (
+        {({ navigation, route }) => isAdministrator ? (
           <EditUnitScreen
             unitId={route.params.unitId}
             onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
             onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
           />
-        )}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'EmployeeDirectory')} />}
       </Stack.Screen>
 
       <Stack.Screen name="AuditLog">
@@ -386,6 +390,16 @@ export const AppNavigator: React.FC = () => {
     </>
   );
 };
+
+const RoleAccessDenied: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.background }}>
+    <Text style={{ color: colors.onSurface, fontSize: 17, fontWeight: '700', textAlign: 'center' }}>Akses tidak tersedia</Text>
+    <Text style={{ color: colors.onSurfaceVariant, fontSize: 13, textAlign: 'center', marginTop: 8 }}>Akun Anda tidak memiliki izin untuk membuka halaman ini.</Text>
+    <Pressable onPress={onBack} accessibilityRole="button" style={{ marginTop: 20, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.primary }}>
+      <Text style={{ color: colors.onPrimary, fontWeight: '700' }}>Kembali</Text>
+    </Pressable>
+  </View>
+);
 
 const styles = StyleSheet.create({
   tabBar: {

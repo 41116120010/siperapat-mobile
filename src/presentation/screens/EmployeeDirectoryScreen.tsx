@@ -22,6 +22,7 @@ import { Employee } from '../../domain/entities/types';
 import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { ApiUnitDto } from '../../data/datasources/apiTypes';
+import { useAuthStore } from '../store/useAuthStore';
 
 interface EmployeeDirectoryScreenProps {
   onBack?: () => void;
@@ -38,6 +39,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
   onNavigateAddUnit,
   onNavigateEditUnit,
 }) => {
+  const role = useAuthStore((state) => state.user?.role);
+  const isAdministrator = role === 'administrator';
   const {
     employees,
     units: apiUnits,
@@ -66,7 +69,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     void fetchUnits(1);
   }, [fetchUnits]);
 
-  const selectedUnitId = apiUnits.find((item) => item.nama_unit === selectedUnit)?.id;
+  const selectedUnitId = isAdministrator ? apiUnits.find((item) => item.nama_unit === selectedUnit)?.id : undefined;
   const apiRole = selectedRole === 'Semua Role' ? undefined : selectedRole === 'Administrator' ? 'administrator' : selectedRole === 'Admin Unit' ? 'admin' : 'staff';
 
   useEffect(() => {
@@ -297,7 +300,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
         </View>
 
         {/* PRIMARY OPERATIONAL ACTION BAR */}
-        <Pressable
+        {activeTab === 'asn' || isAdministrator ? <Pressable
           onPress={activeTab === 'asn' ? handleAddEmployee : handleAddUnit}
           style={({ pressed }) => [
             styles.primaryAddBtn,
@@ -320,7 +323,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               ? 'Tambah Pegawai Baru'
               : 'Tambah Unit Kerja Baru'}
           </Text>
-        </Pressable>
+        </Pressable> : null}
 
         {activeTab === 'asn' ? (
           <>
@@ -375,34 +378,36 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
             </View>
 
             {/* UNIT FILTER CHIPS */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.unitChipsContainer}
-            >
-              {units.map((u) => {
-                const active = selectedUnit === u;
-                return (
-                  <Pressable
-                    key={u}
-                    onPress={() => setSelectedUnit(u)}
-                    style={[
-                      styles.unitChip,
-                      active && styles.unitChipActive,
-                    ]}
-                  >
-                    <Text
+            {isAdministrator ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.unitChipsContainer}
+              >
+                {units.map((u) => {
+                  const active = selectedUnit === u;
+                  return (
+                    <Pressable
+                      key={u}
+                      onPress={() => setSelectedUnit(u)}
                       style={[
-                        styles.unitChipText,
-                        active && styles.unitChipTextActive,
+                        styles.unitChip,
+                        active && styles.unitChipActive,
                       ]}
                     >
-                      {u}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+                      <Text
+                        style={[
+                          styles.unitChipText,
+                          active && styles.unitChipTextActive,
+                        ]}
+                      >
+                        {u}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
 
             {/* DIRECTORY LIST HEADER */}
             <View style={styles.listHeaderRow}>
@@ -590,6 +595,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                   </Text>
 
                   <View style={styles.cardActions}>
+                    {isAdministrator ? <>
                     <Pressable
                       onPress={() => handleDeleteUnit(unit)}
                       style={({ pressed }) => [
@@ -629,6 +635,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                         Edit
                       </Text>
                     </Pressable>
+                    </> : null}
                   </View>
                 </View>
               </View>

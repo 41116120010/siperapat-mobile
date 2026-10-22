@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -29,8 +29,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigatePegawai,
   onNavigateChangePassword,
 }) => {
-  const { user, logout } = useAuthStore();
+  const { user, logout, refreshProfile } = useAuthStore();
+  const isAdministrator = user?.role === 'administrator';
+  const canManageEmployees = isAdministrator || user?.role === 'admin';
   const [whatsapp, setWhatsapp] = useState(user?.phone ?? '');
+
+  useEffect(() => {
+    if (user?.id) void refreshProfile();
+  }, [refreshProfile, user?.id]);
 
   const handleLogout = () => {
     useFeedbackStore.getState().showModal({
@@ -205,39 +211,43 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Administrasi Sistem</Text>
 
-          <Pressable
-            onPress={onNavigatePegawai}
-            style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Buka Direktori Pegawai"
-          >
-            <View style={styles.menuNavIconWrap}>
-              <MaterialIcons name="groups" size={20} color={colors.primary} />
-            </View>
-            <View style={styles.menuNavTextCol}>
-              <Text style={styles.menuNavTitle}>Direktori Pegawai ASN</Text>
-              <Text style={styles.menuNavSub}>
-                Daftar 79 pegawai ASN dan pembagian unit kerja
-              </Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
-          </Pressable>
+          {canManageEmployees ? (
+            <>
+              <Pressable
+                onPress={onNavigatePegawai}
+                style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Buka Direktori Pegawai"
+              >
+                <View style={styles.menuNavIconWrap}>
+                  <MaterialIcons name="groups" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.menuNavTextCol}>
+                  <Text style={styles.menuNavTitle}>Direktori Pegawai ASN</Text>
+                  <Text style={styles.menuNavSub}>
+                    {isAdministrator ? 'Daftar pegawai dan pembagian unit kerja' : 'Pegawai pada unit kerja Anda'}
+                  </Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={colors.outline} />
+              </Pressable>
 
-          <View style={styles.menuDivider} />
+              <View style={styles.menuDivider} />
+            </>
+          ) : null}
 
           <Pressable
             onPress={onNavigateAuditLog}
             style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
             accessibilityRole="button"
-            accessibilityLabel="Buka Log Aktivitas Sistem"
+            accessibilityLabel={isAdministrator ? 'Buka Log Aktivitas Sistem' : 'Buka Log Aktivitas Saya'}
           >
             <View style={styles.menuNavIconWrap}>
               <MaterialIcons name="history" size={20} color={colors.primary} />
             </View>
             <View style={styles.menuNavTextCol}>
-              <Text style={styles.menuNavTitle}>Log Audit Sistem</Text>
+              <Text style={styles.menuNavTitle}>{isAdministrator ? 'Log Audit Sistem' : 'Log Aktivitas Saya'}</Text>
               <Text style={styles.menuNavSub}>
-                Rekam jejak aktivitas, autentikasi, dan presensi
+                {isAdministrator ? 'Rekam jejak aktivitas seluruh pengguna' : 'Riwayat aktivitas akun Anda'}
               </Text>
             </View>
             <MaterialIcons name="chevron-right" size={20} color={colors.outline} />

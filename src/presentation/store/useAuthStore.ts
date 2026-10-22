@@ -10,6 +10,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   checkSession: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   login: (nip: string, password: string, remember?: boolean) => Promise<boolean>;
   loginBiometric: () => Promise<boolean>;
   logout: () => Promise<void>;
@@ -36,6 +37,15 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
         error: err instanceof Error ? err.message : 'Gagal memeriksa sesi pengguna',
       });
+    }
+  },
+
+  refreshProfile: async () => {
+    try {
+      const user = await authRepo.getCurrentUser();
+      if (user) set({ user });
+    } catch {
+      // Keep the current profile visible when a refresh fails; do not replace it with mock data.
     }
   },
 
