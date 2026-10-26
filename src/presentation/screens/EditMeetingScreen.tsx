@@ -20,7 +20,7 @@ import { ErrorState } from '../components/common/ErrorState';
 import { FeedbackModal } from '../components/modals/FeedbackModal';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
-import { MeetingType, MeetingStatus } from '../../domain/entities/types';
+import { Meeting, MeetingType, MeetingStatus } from '../../domain/entities/types';
 import {
   AgendaOptionModal,
   AgendaOption,
@@ -98,6 +98,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
   // Attachments
   const [existingAttachmentUrl, setExistingAttachmentUrl] = useState<string | null>(null);
+  const [existingAttachmentMeta, setExistingAttachmentMeta] = useState<Meeting['suratEdaran'] | null>(null);
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
   const [viewerModalConfig, setViewerModalConfig] = useState<{
     visible: boolean;
@@ -201,6 +202,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
         // Attachment
         setExistingAttachmentUrl(agenda.invitationPdfUrl || null);
+        setExistingAttachmentMeta(agenda.suratEdaran || null);
       }
     } catch (err: unknown) {
       setInitError(err instanceof Error ? err.message : 'Gagal memuat data agenda rapat.');
@@ -261,11 +263,13 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
   const handlePreviewExistingEdaran = () => {
     if (existingAttachmentUrl) {
+      const isImg = existingAttachmentMeta?.is_image ?? false;
+      const ext = existingAttachmentMeta?.extension || (isImg ? 'jpg' : 'pdf');
       setViewerModalConfig({
         visible: true,
         url: existingAttachmentUrl,
-        name: `Surat-Edaran_${meetingCode || 'Agenda'}.pdf`,
-        mime: 'application/pdf',
+        name: `Surat-Edaran_${meetingCode || 'Agenda'}.${ext}`,
+        mime: isImg ? 'image/jpeg' : 'application/pdf',
       });
     }
   };
@@ -978,12 +982,21 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
           {existingAttachmentUrl && !attachedFile ? (
             <View style={styles.existingAttachmentCard}>
               <View style={styles.attachedLeft}>
-                <View style={styles.attachedIconBox}>
-                  <MaterialIcons name="picture-as-pdf" size={20} color={colors.error} />
+                <View
+                  style={[
+                    styles.attachedIconBox,
+                    existingAttachmentMeta?.is_image ? { backgroundColor: 'rgba(0, 102, 204, 0.08)' } : null,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={existingAttachmentMeta?.is_image ? 'image' : 'picture-as-pdf'}
+                    size={20}
+                    color={existingAttachmentMeta?.is_image ? colors.primary : colors.error}
+                  />
                 </View>
                 <View style={styles.attachedInfo}>
                   <Text style={styles.attachedName} numberOfLines={1}>
-                    Surat-Edaran_{meetingCode || 'Agenda'}.pdf
+                    Surat-Edaran_{meetingCode || 'Agenda'}.{existingAttachmentMeta?.extension || (existingAttachmentMeta?.is_image ? 'jpg' : 'pdf')}
                   </Text>
                   <Text style={styles.attachedMeta}>Berkas Surat Resmi Terlampir di Server</Text>
                 </View>

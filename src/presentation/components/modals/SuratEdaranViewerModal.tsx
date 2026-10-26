@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  Platform,
   Image,
   ActivityIndicator,
   Linking,
@@ -20,6 +19,8 @@ import { typography } from '../../../core/theme/typography';
 import { rounded, spacing, elevations } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
+import { authTokenStore } from '../../../data/datasources/authTokenStore';
+import { resolveSuratEdaranUrl } from '../../../core/utils/mediaUrl';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -52,15 +53,25 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
   canManage = false,
   onReplaceFile,
 }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [imageLoading, setImageLoading] = useState(false);
+  const [cachedLocalUri, setCachedLocalUri] = useState<string | null>(null);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [cacheError, setCacheError] = useState<string | null>(null);
+  const [downloadedSize, setDownloadedSize] = useState<number | null>(fileSize ?? null);
+  const [isSharing, setIsSharing] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  const activeUri = localFileUri || documentUrl;
+  // Normalize remote document URL using active canonical backend host
+  const canonicalDocumentUrl = useMemo(
+    () => resolveSuratEdaranUrl(documentUrl),
+    [documentUrl]
+  );
+
+  // Active URI priority: local file uri (e.g. from picker) > canonical remote URL
+  const activeUri = localFileUri || canonicalDocumentUrl;
   const resolvedFileName = fileName || `Surat-Edaran_${meetingCode || 'Agenda'}.pdf`;
 
-  // Determine file type
-  const isImage = React.useMemo(() => {
+  // Determine whether the file is an image format
+  const isImage = useMemo(() => {
     if (mimeType?.startsWith('image/')) return true;
     const lowerName = resolvedFileName.toLowerCase();
     const lowerUri = (activeUri || '').toLowerCase();
@@ -76,16 +87,114 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
     );
   }, [mimeType, resolvedFileName, activeUri]);
 
-  const formattedSize = React.useMemo(() => {
-    if (!fileSize || fileSize <= 0) return null;
-    if (fileSize < 1024 * 1024) {
-      return `${(fileSize / 1024).toFixed(1)} KB`;
+  // Format file size label
+  const formattedSize = useMemo(() => {
+    const sizeToFormat = downloadedSize || fileSize;
+    if (!sizeToFormat || sizeToFormat <= 0) return null;
+    if (sizeToFormat < 1024 * 1024) {
+      return `${(sizeToFormat / 1024).toFixed(1)} KB`;
     }
-    return `${(fileSize / (1024 * 1024)).toFixed(2)} MB`;
-  }, [fileSize]);
+    return `${(sizeToFormat / (1024 * 1024)).toFixed(2)} MB`;
+  }, [downloadedSize, fileSize]);
 
-  const handleOpenNativeReader = async () => {
+  /**
+   * Pre-downloads or resolves the file into local cache so it can be viewed reliably
+   * without encountering Android cleartext blocks, missing origin, or Fresco streaming dropped headers.
+   */
+  const prepareFile = useCallback(async () => {
     if (!activeUri) {
+      setCachedLocalUri(null);
+      return;
+    }
+
+    // 1. Direct local URIs (file://, data:, content://)
+    if (
+      activeUri.startsWith('file://') ||
+      activeUri.startsWith('data:') ||
+      activeUri.startsWith('content://')
+    ) {
+      setCachedLocalUri(activeUri);
+      setCacheError(null);
+      if (activeUri.startsWith('file://')) {
+        try {
+          const info = await FileSystem.getInfoAsync(activeUri);
+          if (info.exists && typeof info.size === 'number') {
+            setDownloadedSize(info.size);
+          }
+        } catch {
+          // Keep existing size
+        }
+      }
+      return;
+    }
+
+    // 2. Remote URLs (HTTP / HTTPS)
+    try {
+      setIsPreparing(true);
+      setCacheError(null);
+      setImageError(false);
+
+      const cacheDir = FileSystem.cacheDirectory || '';
+      const safeName = resolvedFileName.replace(/[\\/:*?"<>|\u0000-\u001f\s]/g, '_');
+      const localDest = `${cacheDir}edaran_${safeName}`;
+
+      // Check if already in cache and not zero-byte
+      const existing = await FileSystem.getInfoAsync(localDest);
+      if (existing.exists && typeof existing.size === 'number' && existing.size > 0) {
+        setCachedLocalUri(localDest);
+        setDownloadedSize(existing.size);
+        setIsPreparing(false);
+        return;
+      }
+
+      // Download file to cache with Bearer token if session exists
+      const token = await authTokenStore.get();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const downloadResult = await FileSystem.downloadAsync(activeUri, localDest, {
+        headers,
+      });
+
+      if (downloadResult.status === 200) {
+        setCachedLocalUri(downloadResult.uri);
+        const info = await FileSystem.getInfoAsync(downloadResult.uri);
+        if (info.exists && typeof info.size === 'number') {
+          setDownloadedSize(info.size);
+        }
+      } else if (downloadResult.status === 404) {
+        throw new Error('Berkas surat edaran belum diunggah atau tidak ditemukan di server (404).');
+      } else if (downloadResult.status === 401) {
+        throw new Error('Sesi kredensial kedaluwarsa (401). Silakan login ulang.');
+      } else {
+        throw new Error(`Gagal mengunduh berkas surat edaran (HTTP ${downloadResult.status}).`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gagal mempersiapkan berkas surat edaran.';
+      setCacheError(msg);
+      setCachedLocalUri(null);
+    } finally {
+      setIsPreparing(false);
+    }
+  }, [activeUri, resolvedFileName]);
+
+  // Trigger preparation whenever modal becomes visible or URI changes
+  useEffect(() => {
+    if (visible && activeUri) {
+      void prepareFile();
+    } else if (!visible) {
+      // Reset transient error states on close
+      setCacheError(null);
+      setImageError(false);
+    }
+  }, [visible, activeUri, prepareFile]);
+
+  // Open native reader via system sharing/document viewer
+  const handleOpenNativeReader = async () => {
+    const targetUri = cachedLocalUri || activeUri;
+    if (!targetUri) {
       useFeedbackStore.getState().showToast({
         type: 'warning',
         message: 'Tautan atau berkas surat edaran belum tersedia.',
@@ -94,18 +203,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
     }
 
     try {
-      setIsDownloading(true);
-      let targetUri = activeUri;
-
-      // If remote URL, download to cache first for native QuickLook/reader
-      if (activeUri.startsWith('http://') || activeUri.startsWith('https://')) {
-        const cacheDir = FileSystem.cacheDirectory || '';
-        const safeName = resolvedFileName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
-        const localDest = `${cacheDir}${safeName}`;
-        const downloadResult = await FileSystem.downloadAsync(activeUri, localDest);
-        targetUri = downloadResult.uri;
-      }
-
+      setIsSharing(true);
       const available = await Sharing.isAvailableAsync();
       if (available) {
         await Sharing.shareAsync(targetUri, {
@@ -113,8 +211,8 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
           dialogTitle: `Buka ${resolvedFileName}`,
           UTI: isImage ? 'public.image' : 'com.adobe.pdf',
         });
-      } else {
-        await Linking.openURL(activeUri);
+      } else if (canonicalDocumentUrl) {
+        await Linking.openURL(canonicalDocumentUrl);
       }
     } catch (err) {
       useFeedbackStore.getState().showToast({
@@ -122,44 +220,40 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
         message: err instanceof Error ? err.message : 'Gagal membuka penampil dokumen native.',
       });
     } finally {
-      setIsDownloading(false);
+      setIsSharing(false);
     }
   };
 
+  // Share file to external applications (WhatsApp, Drive, Email, etc.)
   const handleShareDocument = async () => {
-    if (!activeUri) return;
+    const targetUri = cachedLocalUri || activeUri;
+    if (!targetUri) return;
+
     try {
-      setIsDownloading(true);
-      let targetUri = activeUri;
-      if (activeUri.startsWith('http://') || activeUri.startsWith('https://')) {
-        const cacheDir = FileSystem.cacheDirectory || '';
-        const safeName = resolvedFileName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
-        const localDest = `${cacheDir}${safeName}`;
-        const downloadResult = await FileSystem.downloadAsync(activeUri, localDest);
-        targetUri = downloadResult.uri;
-      }
+      setIsSharing(true);
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(targetUri, {
           mimeType: isImage ? 'image/jpeg' : 'application/pdf',
           dialogTitle: `Bagikan ${resolvedFileName}`,
         });
-      } else {
-        await Linking.openURL(activeUri);
+      } else if (canonicalDocumentUrl) {
+        await Linking.openURL(canonicalDocumentUrl);
       }
-    } catch (err) {
+    } catch {
       useFeedbackStore.getState().showToast({
         type: 'error',
         message: 'Fitur berbagi berkas tidak dapat diproses saat ini.',
       });
     } finally {
-      setIsDownloading(false);
+      setIsSharing(false);
     }
   };
 
+  // Open canonical document URL in external mobile browser
   const handleOpenExternal = async () => {
-    if (documentUrl) {
+    if (canonicalDocumentUrl) {
       try {
-        await Linking.openURL(documentUrl);
+        await Linking.openURL(canonicalDocumentUrl);
       } catch {
         useFeedbackStore.getState().showToast({
           type: 'error',
@@ -218,7 +312,40 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
             contentContainerStyle={styles.modalBodyContent}
             showsVerticalScrollIndicator={false}
           >
-            {isImage && activeUri ? (
+            {/* 1. STATE: Preparing / Downloading file */}
+            {isPreparing ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingTitle}>
+                  {isImage ? 'Mengunduh Gambar Surat Edaran...' : 'Mempersiapkan Dokumen PDF...'}
+                </Text>
+                <Text style={styles.loadingSubtitle}>
+                  Menyimpan ke penyimpanan lokal untuk tampilan instan...
+                </Text>
+              </View>
+            ) : null}
+
+            {/* 2. STATE: Cache / Download Error */}
+            {!isPreparing && cacheError ? (
+              <View style={styles.errorContainer}>
+                <View style={styles.errorIconCircle}>
+                  <MaterialIcons name="error-outline" size={36} color={colors.error} />
+                </View>
+                <Text style={styles.errorTitle}>Gagal Memuat Surat Edaran</Text>
+                <Text style={styles.errorMessage}>{cacheError}</Text>
+                <Button
+                  title="Coba Muat Ulang"
+                  onPress={() => void prepareFile()}
+                  variant="outline"
+                  size="md"
+                  icon={<MaterialIcons name="refresh" size={18} color={colors.primary} />}
+                  style={styles.retryBtn}
+                />
+              </View>
+            ) : null}
+
+            {/* 3. STATE: Normal Render (Image or PDF) */}
+            {!isPreparing && !cacheError && isImage && (cachedLocalUri || activeUri) ? (
               /* IMAGE VIEWER VIEWPORT */
               <View style={styles.imageViewerContainer}>
                 <ScrollView
@@ -230,29 +357,22 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   showsVerticalScrollIndicator={false}
                 >
                   <Image
-                    source={{ uri: activeUri }}
+                    source={{ uri: cachedLocalUri || activeUri || '' }}
                     style={styles.imageDisplay}
                     resizeMode="contain"
-                    onLoadStart={() => {
-                      setImageLoading(true);
-                      setImageError(false);
-                    }}
-                    onLoadEnd={() => setImageLoading(false)}
-                    onError={() => {
-                      setImageLoading(false);
-                      setImageError(true);
-                    }}
+                    onError={() => setImageError(true)}
                   />
-                  {imageLoading ? (
-                    <View style={styles.imageLoadingOverlay}>
-                      <ActivityIndicator size="large" color={colors.primary} />
-                      <Text style={styles.imageLoadingText}>Memuat gambar...</Text>
-                    </View>
-                  ) : null}
                   {imageError ? (
                     <View style={styles.imageErrorBox}>
-                      <MaterialIcons name="broken-image" size={36} color={colors.error} />
+                      <MaterialIcons name="broken-image" size={42} color={colors.error} />
                       <Text style={styles.imageErrorText}>Gagal memuat pratinjau gambar.</Text>
+                      <Button
+                        title="Muat Ulang Gambar"
+                        onPress={() => void prepareFile()}
+                        variant="outline"
+                        size="sm"
+                        style={{ marginTop: spacing.sm }}
+                      />
                     </View>
                   ) : null}
                 </ScrollView>
@@ -263,7 +383,9 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   </Text>
                 </View>
               </View>
-            ) : (
+            ) : null}
+
+            {!isPreparing && !cacheError && !isImage && (
               /* PDF OFFICIAL DOCUMENT CARD */
               <View style={styles.pdfCardContainer}>
                 {/* Official Insignia Banner */}
@@ -278,6 +400,12 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                     <MaterialIcons name="verified" size={15} color={colors.success} />
                     <Text style={styles.verifiedText}>Dokumen Digital Resmi LLDIKTI X</Text>
                   </View>
+                  {cachedLocalUri ? (
+                    <View style={styles.cachedBadge}>
+                      <MaterialIcons name="check-circle" size={13} color={colors.primary} />
+                      <Text style={styles.cachedBadgeText}>Tersedia di Penyimpanan Lokal (Siap Dibaca)</Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 {/* Document Metadata Table */}
@@ -310,10 +438,10 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
 
                 {/* Primary Reader Button */}
                 <Button
-                  title={isDownloading ? 'Mempersiapkan Dokumen...' : 'Buka Dokumen PDF (Viewer Native)'}
+                  title={isSharing ? 'Membuka Dokumen...' : 'Buka Dokumen PDF (Viewer Native)'}
                   onPress={() => void handleOpenNativeReader()}
-                  disabled={isDownloading}
-                  isLoading={isDownloading}
+                  disabled={isSharing || isPreparing}
+                  isLoading={isSharing}
                   variant="primary"
                   size="lg"
                   fullWidth
@@ -326,13 +454,13 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   <Button
                     title="Bagikan Dokumen"
                     onPress={() => void handleShareDocument()}
-                    disabled={isDownloading}
+                    disabled={isSharing || isPreparing}
                     variant="outline"
                     size="md"
                     icon={<MaterialIcons name="share" size={18} color={colors.primary} />}
                     style={{ flex: 1 }}
                   />
-                  {documentUrl ? (
+                  {canonicalDocumentUrl ? (
                     <Button
                       title="Peramban Web"
                       onPress={() => void handleOpenExternal()}
@@ -456,13 +584,63 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
 
+  // Loading States
+  loadingContainer: {
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  loadingTitle: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  loadingSubtitle: {
+    ...typography.labelSm,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+  },
+
+  // Error States
+  errorContainer: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  errorIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: rounded.full,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  errorTitle: {
+    ...typography.headlineSm,
+    color: colors.error,
+    fontWeight: '700',
+  },
+  errorMessage: {
+    ...typography.bodySm,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  retryBtn: {
+    marginTop: spacing.md,
+  },
+
   // Image Viewer Styles
   imageViewerContainer: {
     alignItems: 'center',
   },
   imageZoomWrapper: {
     width: '100%',
-    height: 280,
+    height: 300,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceContainerLow,
@@ -473,24 +651,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  imageLoadingOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-  },
-  imageLoadingText: {
-    ...typography.labelSm,
-    color: colors.primary,
-    fontWeight: '600',
-  },
   imageErrorBox: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceContainerLow,
     gap: spacing.xs,
+    padding: spacing.md,
   },
   imageErrorText: {
     ...typography.bodySm,
@@ -554,6 +721,22 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     color: colors.success,
     fontWeight: '600',
+  },
+  cachedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 102, 204, 0.08)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    marginTop: 2,
+  },
+  cachedBadgeText: {
+    ...typography.labelSm,
+    color: colors.primary,
+    fontWeight: '500',
+    fontSize: 10,
   },
   metaTable: {
     backgroundColor: colors.surfaceContainerLow,

@@ -59,3 +59,61 @@ export function resolveAttendanceMediaUrl(
     return rawUrl ?? null;
   }
 }
+
+/**
+ * Resolves Surat Edaran document/image URLs safely:
+ * 1. Preserves local `file://`, `content://`, or `data:` URIs (from local attachment picker).
+ * 2. If rawUrl is null/undefined or empty string, returns null.
+ * 3. If rawUrl is a root-relative path (e.g. `/storage/surat_edaran/...` from Laravel):
+ *    prepends the base origin of `requireApiBaseUrl()`, producing e.g. `https://preview.daffiq.tech/storage/surat_edaran/...`
+ * 4. If rawUrl contains localhost, 127.0.0.1, or cleartext http:
+ *    upgrades/replaces the host with the active API base host over HTTPS.
+ */
+export function resolveSuratEdaranUrl(
+  rawUrl: string | null | undefined
+): string | null {
+  if (!rawUrl) return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+
+  // 1. Local URIs
+  if (
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('file://') ||
+    trimmed.startsWith('content://')
+  ) {
+    return trimmed;
+  }
+
+  try {
+    const baseUrl = requireApiBaseUrl(); // e.g. "https://preview.daffiq.tech/api/v1"
+    const apiHost = baseUrl.replace(/\/api\/v1\/?$/, ''); // e.g. "https://preview.daffiq.tech"
+
+    // 2. Root-relative paths from Laravel (e.g. "/storage/surat_edaran/xyz.pdf")
+    if (trimmed.startsWith('/')) {
+      return `${apiHost}${trimmed}`;
+    }
+
+    // 3. Localhost or 127.0.0.1 replacement
+    if (
+      trimmed.includes('localhost') ||
+      trimmed.includes('127.0.0.1') ||
+      trimmed.includes('0.0.0.0')
+    ) {
+      const pathMatch = trimmed.match(/^https?:\/\/[^/]+(\/.*)$/);
+      if (pathMatch && pathMatch[1]) {
+        return `${apiHost}${pathMatch[1]}`;
+      }
+      return `${apiHost}/${trimmed.replace(/^https?:\/\/[^/]+\/?/, '')}`;
+    }
+
+    // 4. Cleartext HTTP upgrade to HTTPS
+    if (trimmed.startsWith('http://')) {
+      return trimmed.replace(/^http:\/\//, 'https://');
+    }
+
+    return trimmed;
+  } catch {
+    return rawUrl;
+  }
+}

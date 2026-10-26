@@ -1,6 +1,7 @@
 import { ASN, Meeting, MeetingStatus } from '../../domain/entities/types';
 import { ApiAgendaDto, ApiUserDto } from '../datasources/apiTypes';
 import { UpdateAgendaDto } from '../datasources/agendaApi';
+import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 
 export function toAsn(user: ApiUserDto): ASN {
   return {
@@ -44,6 +45,7 @@ function timePart(value: string | null): string {
 export function toMeeting(agenda: ApiAgendaDto): Meeting {
   const venue = agenda.tipe_rapat === 'online' ? agenda.link_meeting ?? '' : agenda.lokasi_ruang ?? '';
   const units = agenda.units?.map((unit) => unit.nama_unit) ?? [];
+  const resolvedEdaranUrl = resolveSuratEdaranUrl(agenda.surat_edaran?.url);
   return {
     id: String(agenda.id), code: agenda.slug, title: agenda.judul_rapat, type: agenda.tipe_rapat,
     leader: agenda.pimpinan?.name ?? '', leaderId: agenda.pimpinan?.id ?? null,
@@ -61,9 +63,16 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     creatorUnitId: agenda.creator?.unit_id ?? agenda.creator?.unit?.id ?? null,
     agendaDescription: agenda.jenis_rapat,
     targetAudience: agenda.is_all_units ? 'Semua unit kerja' : units.join(', '),
-    zoomUrl: agenda.link_meeting ?? undefined, invitationPdfUrl: agenda.surat_edaran?.url ?? undefined,
+    zoomUrl: agenda.link_meeting ?? undefined,
+    invitationPdfUrl: resolvedEdaranUrl ?? undefined,
     totalAttended: agenda.total_attended ?? agenda.attendances_count ?? 0,
-    suratEdaran: agenda.surat_edaran, baNumber: agenda.nomor_ba ?? null,
+    suratEdaran: agenda.surat_edaran
+      ? {
+          ...agenda.surat_edaran,
+          url: resolvedEdaranUrl,
+        }
+      : undefined,
+    baNumber: agenda.nomor_ba ?? null,
     totalInvited: agenda.total_invited ?? undefined, geofenceRadiusMeters: undefined, latitude: undefined, longitude: undefined,
     minutesHtml: agenda.notulensi_html ?? null, summaryHtml: agenda.kesimpulan_html ?? null,
   };

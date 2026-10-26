@@ -23,6 +23,7 @@ import {
   FilterStatus,
   FilterOrder,
 } from '../components/modals/MeetingFilterModal';
+import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { useAuthStore } from '../store/useAuthStore';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
@@ -88,8 +89,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   ];
 
   const handlePdfView = (url?: string) => {
-    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' }));
-    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
+    const canonical = resolveSuratEdaranUrl(url);
+    if (canonical) {
+      void Linking.openURL(canonical).catch(() =>
+        useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' })
+      );
+    } else {
+      useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
+    }
   };
 
   const handleJoinLink = (url?: string) => {

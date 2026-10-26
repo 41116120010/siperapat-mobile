@@ -21,6 +21,7 @@ import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
 import { Meeting } from '../../domain/entities/types';
+import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 
 interface AgendaScreenProps {
   onNavigateDetail: (meetingId: string) => void;
@@ -52,8 +53,14 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   };
 
   const handlePdfView = (url?: string) => {
-    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' }));
-    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
+    const canonical = resolveSuratEdaranUrl(url);
+    if (canonical) {
+      void Linking.openURL(canonical).catch(() =>
+        useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' })
+      );
+    } else {
+      useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
+    }
   };
 
   const handleJoinLink = (url?: string) => {

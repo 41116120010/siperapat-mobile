@@ -1,5 +1,6 @@
 import { Meeting, MeetingStatus } from '../../domain/entities/types';
 import { ApiAgendaDto } from '../datasources/apiTypes';
+import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 
 function localDatePart(value: string): string {
   return value.slice(0, 10);
@@ -26,6 +27,7 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
   const startDate = localDatePart(agenda.waktu_mulai);
   const venue = agenda.lokasi_ruang || agenda.link_meeting || '';
   const units = agenda.units?.map((unit) => unit.nama_unit) ?? [];
+  const resolvedEdaranUrl = resolveSuratEdaranUrl(agenda.surat_edaran?.url);
 
   return {
     id: String(agenda.id),
@@ -41,8 +43,13 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     agendaDescription: [agenda.jenis_rapat, venue].filter(Boolean).join(' • '),
     targetAudience: agenda.is_all_units ? 'Semua unit kerja' : units.join(', '),
     zoomUrl: agenda.link_meeting ?? undefined,
-    invitationPdfUrl: agenda.surat_edaran?.url ?? undefined,
-    suratEdaran: agenda.surat_edaran,
+    invitationPdfUrl: resolvedEdaranUrl ?? undefined,
+    suratEdaran: agenda.surat_edaran
+      ? {
+          ...agenda.surat_edaran,
+          url: resolvedEdaranUrl,
+        }
+      : undefined,
     totalAttended: agenda.total_attended ?? agenda.attendances_count ?? 0,
     totalInvited: agenda.total_invited,
     baNumber: agenda.nomor_ba ?? null,
