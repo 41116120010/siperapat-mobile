@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, Image, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Attendance } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
@@ -8,6 +8,7 @@ import { rounded, spacing } from '../../../core/theme/tokens';
 import { formatWaktuWIB, formatTanggalIndonesia } from '../../../core/utils/dateFormatter';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
 import { EvidenceViewerModal } from '../modals/EvidenceViewerModal';
+import { resolveAttendanceMediaUrl } from '../../../core/utils/mediaUrl';
 
 export interface PerforatedTicketProps {
   attendance: Attendance;
@@ -26,8 +27,33 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
     void authTokenStore.get().then((token) => setAuthToken(token));
   }, []);
 
-  const activeSelfie = attendance.selfieUri || attendance.selfieUrl || null;
-  const activeSignature = attendance.signatureSvg || attendance.signatureUrl || null;
+  const activeSelfie = useMemo(() => {
+    return resolveAttendanceMediaUrl(
+      attendance.selfieUri || attendance.selfieUrl,
+      attendance.id,
+      'selfie'
+    );
+  }, [attendance.selfieUri, attendance.selfieUrl, attendance.id]);
+
+  const activeSignature = useMemo(() => {
+    return resolveAttendanceMediaUrl(
+      attendance.signatureSvg || attendance.signatureUrl,
+      attendance.id,
+      'signature'
+    );
+  }, [attendance.signatureSvg, attendance.signatureUrl, attendance.id]);
+
+  const isSelfieReadyToRender = useMemo(() => {
+    if (!activeSelfie) return false;
+    if (activeSelfie.startsWith('data:') || activeSelfie.startsWith('file:')) return true;
+    return Boolean(authToken);
+  }, [activeSelfie, authToken]);
+
+  const isSignatureReadyToRender = useMemo(() => {
+    if (!activeSignature) return false;
+    if (activeSignature.startsWith('data:') || activeSignature.startsWith('file:')) return true;
+    return Boolean(authToken);
+  }, [activeSignature, authToken]);
 
   const selfieHeaders = useMemo(() => {
     if (activeSelfie && (activeSelfie.startsWith('http://') || activeSelfie.startsWith('https://')) && authToken) {
@@ -184,12 +210,16 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             accessibilityLabel="Lihat Bukti Swafoto Presensi"
           >
             <View style={styles.evidenceImageWrapper}>
-              {activeSelfie ? (
+              {activeSelfie && isSelfieReadyToRender ? (
                 <Image
                   source={{ uri: activeSelfie, headers: selfieHeaders }}
                   style={styles.evidenceImage}
                   resizeMode="cover"
                 />
+              ) : activeSelfie && !isSelfieReadyToRender ? (
+                <View style={styles.evidencePlaceholder}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
               ) : (
                 <View style={styles.evidencePlaceholder}>
                   <MaterialIcons name="person" size={40} color={colors.outline} />
@@ -216,12 +246,16 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             accessibilityLabel="Lihat Bukti Tanda Tangan Digital"
           >
             <View style={styles.signatureImageWrapper}>
-              {activeSignature ? (
+              {activeSignature && isSignatureReadyToRender ? (
                 <Image
                   source={{ uri: activeSignature, headers: signatureHeaders }}
                   style={styles.signatureImage}
                   resizeMode="contain"
                 />
+              ) : activeSignature && !isSignatureReadyToRender ? (
+                <View style={styles.signaturePlaceholder}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
               ) : (
                 <View style={styles.signaturePlaceholder}>
                   <MaterialIcons name="draw" size={32} color={colors.outline} />
@@ -272,9 +306,10 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
         visible={isEvidenceModalVisible}
         onClose={() => setIsEvidenceModalVisible(false)}
         initialTab={evidenceTab}
-        selfieUrl={attendance.selfieUrl}
+        attendanceId={attendance.id}
+        selfieUrl={activeSelfie}
         selfieUri={attendance.selfieUri}
-        signatureUrl={attendance.signatureUrl}
+        signatureUrl={activeSignature}
         signatureSvg={attendance.signatureSvg}
         participantName={attendance.asnName}
         participantNip={attendance.asnNip}

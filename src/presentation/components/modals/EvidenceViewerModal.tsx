@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -21,6 +21,7 @@ import { Button } from '../common/Button';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
 import { formatTanggalIndonesia, formatWaktuWIB } from '../../../core/utils/dateFormatter';
+import { resolveAttendanceMediaUrl } from '../../../core/utils/mediaUrl';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -28,6 +29,7 @@ export interface EvidenceViewerModalProps {
   visible: boolean;
   onClose: () => void;
   initialTab?: 'selfie' | 'signature';
+  attendanceId?: string;
   selfieUrl?: string | null;
   selfieUri?: string;
   signatureUrl?: string | null;
@@ -45,6 +47,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
   visible,
   onClose,
   initialTab = 'selfie',
+  attendanceId = '',
   selfieUrl,
   selfieUri,
   signatureUrl,
@@ -58,32 +61,106 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
   deviceInfo,
 }) => {
   const [activeTab, setActiveTab] = useState<'selfie' | 'signature'>(initialTab);
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [imageLoading, setImageLoading] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const [localImageUri, setLocalImageUri] = useState<string | null>(null);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+  const [mediaErrorMessage, setMediaErrorMessage] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setActiveTab(initialTab);
-      setImageError(false);
-      void authTokenStore.get().then((token) => setAuthToken(token));
     }
   }, [visible, initialTab]);
 
-  const activeUri = useMemo(() => {
-    if (activeTab === 'selfie') {
-      return selfieUri || selfieUrl || null;
-    }
-    return signatureSvg || signatureUrl || null;
-  }, [activeTab, selfieUri, selfieUrl, signatureSvg, signatureUrl]);
+  // Compute canonical target URL
+  const targetMediaUrl = useMemo(() => {
+    const raw = activeTab === 'selfie'
+      ? (selfieUri || selfieUrl || null)
+      : (signatureSvg || signatureUrl || null);
 
-  const imageHeaders = useMemo(() => {
-    if (activeUri && (activeUri.startsWith('http://') || activeUri.startsWith('https://')) && authToken) {
-      return { Authorization: `Bearer ${authToken}` };
+    return resolveAttendanceMediaUrl(raw, attendanceId, activeTab);
+  }, [activeTab, selfieUri, selfieUrl, signatureSvg, signatureUrl, attendanceId]);
+
+  const loadMediaFile = useCallback(async () => {
+    if (!visible) return;
+
+    setMediaErrorMessage(null);
+
+    if (!targetMediaUrl) {
+      setLocalImageUri(null);
+      setMediaErrorMessage(
+        activeTab === 'selfie'
+          ? 'Berkas foto swafoto belum tersedia pada tanda terima ini.'
+          : 'Berkas tanda tangan digital belum tersedia pada tanda terima ini.'
+      );
+      return;
     }
-    return undefined;
-  }, [activeUri, authToken]);
+
+    // 1. Direct Base64 data URI or Local file URI (from fresh attendance submission)
+    if (targetMediaUrl.startsWith('data:image/') || targetMediaUrl.startsWith('file://')) {
+      setLocalImageUri(targetMediaUrl);
+      setIsLoadingMedia(false);
+      return;
+    }
+
+    // 2. Remote URL: download to local cache with Bearer Token to guarantee 100% reliable rendering
+    setIsLoadingMedia(true);
+    try {
+      const token = await authTokenStore.get();
+      const cacheDir = FileSystem.cacheDirectory || '';
+      const safeId = (attendanceId || 'att').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeToken = (verificationToken || 'SIP').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const ext = activeTab === 'selfie' ? 'jpg' : 'png';
+      const localDest = `${cacheDir}evidence_${activeTab}_${safeId}_${safeToken}.${ext}`;
+
+      // Check if file is already cached locally
+      const existingInfo = await FileSystem.getInfoAsync(localDest);
+      if (existingInfo.exists && existingInfo.size && existingInfo.size > 0) {
+        setLocalImageUri(localDest);
+        setIsLoadingMedia(false);
+        return;
+      }
+
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const downloadResult = await FileSystem.downloadAsync(targetMediaUrl, localDest, {
+        headers,
+      });
+
+      if (downloadResult.status === 200) {
+        setLocalImageUri(downloadResult.uri);
+      } else if (downloadResult.status === 404) {
+        setLocalImageUri(null);
+        setMediaErrorMessage(
+          activeTab === 'selfie'
+            ? 'Berkas swafoto fisik tidak ditemukan di server (catatan presensi lama mungkin dibuat tanpa lampiran foto).'
+            : 'Berkas tanda tangan digital tidak ditemukan di server.'
+        );
+      } else if (downloadResult.status === 401) {
+        setLocalImageUri(null);
+        setMediaErrorMessage('Sesi otentikasi telah berakhir. Silakan masuk kembali ke aplikasi.');
+      } else {
+        setLocalImageUri(null);
+        setMediaErrorMessage(`Gagal mengunduh berkas dari server (HTTP ${downloadResult.status}).`);
+      }
+    } catch (error) {
+      setLocalImageUri(null);
+      setMediaErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Terjadi gangguan jaringan saat memuat berkas bukti digital.'
+      );
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  }, [visible, targetMediaUrl, activeTab, attendanceId, verificationToken]);
+
+  useEffect(() => {
+    void loadMediaFile();
+  }, [loadMediaFile]);
 
   const formattedDateTime = useMemo(() => {
     if (!signedAt) return 'Waktu tidak tersedia';
@@ -97,23 +174,27 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
   }, [signedAt]);
 
   const handleShareEvidence = async () => {
-    if (!activeUri) return;
+    if (!localImageUri) return;
     try {
       setIsSharing(true);
-      let targetUri = activeUri;
+      let targetShareUri = localImageUri;
 
-      if (activeUri.startsWith('http://') || activeUri.startsWith('https://')) {
-        const cacheDir = FileSystem.cacheDirectory || '';
-        const safeName = `Bukti_${activeTab}_${verificationToken || 'SIP'}.jpg`;
-        const localDest = `${cacheDir}${safeName}`;
-        const downloadResult = await FileSystem.downloadAsync(activeUri, localDest, {
-          headers: imageHeaders,
-        });
-        targetUri = downloadResult.uri;
+      // If localImageUri is a Base64 data URI, write it to a temporary file for expo-sharing
+      if (localImageUri.startsWith('data:image/')) {
+        const matches = localImageUri.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+        if (matches) {
+          const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+          const base64Data = matches[2];
+          const tempPath = `${FileSystem.cacheDirectory || ''}share_${activeTab}_${Date.now()}.${ext}`;
+          await FileSystem.writeAsStringAsync(tempPath, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          targetShareUri = tempPath;
+        }
       }
 
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(targetUri, {
+        await Sharing.shareAsync(targetShareUri, {
           mimeType: activeTab === 'selfie' ? 'image/jpeg' : 'image/png',
           dialogTitle: `Bagikan Bukti ${activeTab === 'selfie' ? 'Swafoto' : 'Tanda Tangan'} Presensi`,
         });
@@ -172,14 +253,13 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
           {/* Dual-Tab Segmented Selector */}
           <View style={styles.tabBar}>
             <Pressable
-              onPress={() => {
-                setActiveTab('selfie');
-                setImageError(false);
-              }}
+              onPress={() => setActiveTab('selfie')}
               style={[
                 styles.tabItem,
                 activeTab === 'selfie' && styles.tabItemActive,
               ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === 'selfie' }}
             >
               <MaterialIcons
                 name="person"
@@ -197,14 +277,13 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
             </Pressable>
 
             <Pressable
-              onPress={() => {
-                setActiveTab('signature');
-                setImageError(false);
-              }}
+              onPress={() => setActiveTab('signature')}
               style={[
                 styles.tabItem,
                 activeTab === 'signature' && styles.tabItemActive,
               ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === 'signature' }}
             >
               <MaterialIcons
                 name="gesture"
@@ -238,34 +317,22 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
                 showsHorizontalScrollIndicator={false}
                 showsVerticalScrollIndicator={false}
               >
-                {activeUri && !imageError ? (
+                {localImageUri && !mediaErrorMessage ? (
                   <Image
-                    source={{
-                      uri: activeUri,
-                      headers: imageHeaders,
-                    }}
+                    source={{ uri: localImageUri }}
                     style={activeTab === 'selfie' ? styles.selfieImage : styles.signatureImage}
                     resizeMode={activeTab === 'selfie' ? 'cover' : 'contain'}
-                    onLoadStart={() => {
-                      setImageLoading(true);
-                      setImageError(false);
-                    }}
-                    onLoadEnd={() => setImageLoading(false)}
-                    onError={() => {
-                      setImageLoading(false);
-                      setImageError(true);
-                    }}
                   />
                 ) : null}
 
-                {imageLoading ? (
+                {isLoadingMedia ? (
                   <View style={styles.loadingOverlay}>
                     <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={styles.loadingText}>Memuat berkas bukti...</Text>
+                    <Text style={styles.loadingText}>Menyiapkan berkas terotentikasi...</Text>
                   </View>
                 ) : null}
 
-                {imageError || !activeUri ? (
+                {mediaErrorMessage && !isLoadingMedia ? (
                   <View style={styles.errorBox}>
                     <MaterialIcons
                       name={activeTab === 'selfie' ? 'no-photography' : 'broken-image'}
@@ -275,21 +342,16 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
                     <Text style={styles.errorTitle}>
                       {activeTab === 'selfie' ? 'Swafoto Belum Tersedia' : 'Tanda Tangan Belum Tersedia'}
                     </Text>
-                    <Text style={styles.errorSub}>
-                      Berkas digital tidak dapat dimuat dari server saat ini.
-                    </Text>
-                    {activeUri ? (
-                      <Pressable
-                        onPress={() => {
-                          setImageError(false);
-                          setImageLoading(true);
-                        }}
-                        style={styles.retryBtn}
-                      >
-                        <MaterialIcons name="refresh" size={16} color={colors.primary} />
-                        <Text style={styles.retryBtnText}>Coba Muat Ulang</Text>
-                      </Pressable>
-                    ) : null}
+                    <Text style={styles.errorSub}>{mediaErrorMessage}</Text>
+                    <Pressable
+                      onPress={() => void loadMediaFile()}
+                      style={styles.retryBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel="Coba muat ulang berkas bukti"
+                    >
+                      <MaterialIcons name="refresh" size={16} color={colors.primary} />
+                      <Text style={styles.retryBtnText}>Coba Muat Ulang</Text>
+                    </Pressable>
                   </View>
                 ) : null}
               </ScrollView>
@@ -349,11 +411,11 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
           {/* Modal Footer */}
           <View style={styles.footer}>
             <View style={styles.footerButtons}>
-              {activeUri && !imageError ? (
+              {localImageUri && !mediaErrorMessage ? (
                 <Button
                   title="Bagikan Bukti"
                   onPress={() => void handleShareEvidence()}
-                  disabled={isSharing}
+                  disabled={isSharing || isLoadingMedia}
                   isLoading={isSharing}
                   variant="outline"
                   size="md"
@@ -534,6 +596,7 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
+    maxWidth: '90%',
   },
   retryBtn: {
     flexDirection: 'row',
