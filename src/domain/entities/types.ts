@@ -16,8 +16,10 @@ export interface ASN {
   avatarUrl?: string;
   username?: string;
   role?: string;
+  roleLabel?: string;
   biometricEnabled: boolean;
   attendanceStats?: { totalAgendas?: number; totalAttended?: number; attendanceRateLabel?: string; onTimeRateLabel?: string; periodLabel?: string };
+  security?: { last_password_changed_at?: string | null; last_password_changed_label?: string | null };
 }
 
 export type MeetingStatus = 'draft' | 'ongoing' | 'upcoming' | 'completed' | 'cancelled';

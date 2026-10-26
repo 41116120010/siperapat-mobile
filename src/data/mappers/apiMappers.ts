@@ -9,7 +9,7 @@ export function toAsn(user: ApiUserDto): ASN {
     pangkatGolongan: user.pangkat_golongan ?? '', jabatan: user.jabatan ?? user.role.label, unitKerja: user.unit?.nama_unit ?? '',
     unitId: user.unit_id ?? user.unit?.id ?? null,
     email: user.email ?? '', phone: user.phone ?? '', avatarUrl: user.avatar_url ?? undefined,
-    username: user.username, role: user.role.value, biometricEnabled: false,
+    username: user.username, role: user.role.value, roleLabel: user.role.label, biometricEnabled: false,
     attendanceStats: user.attendance_stats ? {
       totalAgendas: user.attendance_stats.total_agendas,
       totalAttended: user.attendance_stats.total_attended,
@@ -17,6 +17,7 @@ export function toAsn(user: ApiUserDto): ASN {
       onTimeRateLabel: user.attendance_stats.on_time_rate_label,
       periodLabel: user.attendance_stats.period_label,
     } : undefined,
+    security: user.security,
   };
 }
 

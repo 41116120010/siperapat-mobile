@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,9 @@ import {
   ScrollView,
   Pressable,
   TextInput,
+  TextInputInstance,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
@@ -29,14 +31,90 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigatePegawai,
   onNavigateChangePassword,
 }) => {
-  const { user, logout, refreshProfile } = useAuthStore();
+  const { user, logout, refreshProfile, updateProfile } = useAuthStore();
   const isAdministrator = user?.role === 'administrator';
   const canManageEmployees = isAdministrator || user?.role === 'admin';
-  const [whatsapp, setWhatsapp] = useState(user?.phone ?? '');
+
+  // WhatsApp Inline Edit States
+  const [whatsappInput, setWhatsappInput] = useState(user?.phone ?? '');
+  const [isEditingWhatsapp, setIsEditingWhatsapp] = useState(false);
+  const [isSavingWhatsapp, setIsSavingWhatsapp] = useState(false);
+  const whatsappInputRef = useRef<TextInputInstance>(null);
+
+  // Sync state whenever user phone changes if not currently editing
+  useEffect(() => {
+    if (!isEditingWhatsapp) {
+      setWhatsappInput(user?.phone ?? '');
+    }
+  }, [user?.phone, isEditingWhatsapp]);
 
   useEffect(() => {
     if (user?.id) void refreshProfile();
   }, [refreshProfile, user?.id]);
+
+  const handleStartEditWhatsapp = () => {
+    setWhatsappInput(user?.phone ?? '');
+    setIsEditingWhatsapp(true);
+    setTimeout(() => {
+      whatsappInputRef.current?.focus();
+    }, 60);
+  };
+
+  const handleCancelEditWhatsapp = () => {
+    setWhatsappInput(user?.phone ?? '');
+    setIsEditingWhatsapp(false);
+  };
+
+  const handleSaveWhatsapp = async () => {
+    const cleaned = whatsappInput.trim().replace(/[^0-9+]/g, '');
+
+    // Validation
+    if (cleaned.length > 0 && cleaned.length < 9) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Nomor WhatsApp minimal terdiri dari 9 digit angka.',
+      });
+      return;
+    }
+
+    if (cleaned.length > 16) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Nomor WhatsApp maksimal 16 digit angka.',
+      });
+      return;
+    }
+
+    // If identical, no need to send network request
+    if (cleaned === (user?.phone ?? '')) {
+      setIsEditingWhatsapp(false);
+      return;
+    }
+
+    try {
+      setIsSavingWhatsapp(true);
+      const res = await updateProfile({ phone: cleaned });
+      if (res.success) {
+        useFeedbackStore.getState().showToast({
+          type: 'success',
+          message: cleaned ? 'Nomor WhatsApp kedinasan berhasil diperbarui.' : 'Nomor WhatsApp berhasil dihapus.',
+        });
+        setIsEditingWhatsapp(false);
+      } else {
+        useFeedbackStore.getState().showToast({
+          type: 'error',
+          message: res.message || 'Gagal memperbarui nomor WhatsApp.',
+        });
+      }
+    } catch (err: unknown) {
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Terjadi kesalahan saat menyimpan nomor WhatsApp.',
+      });
+    } finally {
+      setIsSavingWhatsapp(false);
+    }
+  };
 
   const handleLogout = () => {
     useFeedbackStore.getState().showModal({
@@ -156,19 +234,97 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </View>
           </View>
 
+          {/* WhatsApp Kedinasan Field (Interactive Inline Edit) */}
           <View style={styles.fieldItem}>
             <Text style={styles.fieldLabel}>WhatsApp Kedinasan</Text>
-            <View style={styles.editableInputRow}>
-              <MaterialIcons name="phone-iphone" size={18} color={colors.outline} />
-              <TextInput
-                style={styles.editableInput}
-                value={whatsapp}
-                onChangeText={setWhatsapp}
-                keyboardType="phone-pad"
-                placeholder="Nomor WhatsApp"
-                placeholderTextColor={colors.outline}
-              />
-            </View>
+
+            {isEditingWhatsapp ? (
+              /* EDITING STATE */
+              <View style={styles.activeEditingRow}>
+                <View style={styles.activeInputWrap}>
+                  <MaterialIcons name="phone-iphone" size={18} color={colors.primary} />
+                  <TextInput
+                    ref={whatsappInputRef}
+                    style={styles.activeEditableInput}
+                    value={whatsappInput}
+                    onChangeText={setWhatsappInput}
+                    keyboardType="phone-pad"
+                    placeholder="Contoh: 081234567890"
+                    placeholderTextColor={colors.outline}
+                    editable={!isSavingWhatsapp}
+                    returnKeyType="done"
+                    onSubmitEditing={() => void handleSaveWhatsapp()}
+                  />
+                </View>
+
+                {/* Save (Checkmark) Button */}
+                <Pressable
+                  onPress={() => void handleSaveWhatsapp()}
+                  disabled={isSavingWhatsapp}
+                  style={({ pressed }) => [
+                    styles.actionIconBtn,
+                    styles.saveIconBtn,
+                    pressed && styles.btnPressed,
+                  ]}
+                  accessibilityLabel="Simpan Nomor WhatsApp"
+                  accessibilityRole="button"
+                >
+                  {isSavingWhatsapp ? (
+                    <ActivityIndicator size="small" color={colors.onPrimary} />
+                  ) : (
+                    <MaterialIcons name="check" size={18} color={colors.onPrimary} />
+                  )}
+                </Pressable>
+
+                {/* Cancel (Close) Button */}
+                <Pressable
+                  onPress={handleCancelEditWhatsapp}
+                  disabled={isSavingWhatsapp}
+                  style={({ pressed }) => [
+                    styles.actionIconBtn,
+                    styles.cancelIconBtn,
+                    pressed && styles.btnPressed,
+                  ]}
+                  accessibilityLabel="Batal Ubah Nomor WhatsApp"
+                  accessibilityRole="button"
+                >
+                  <MaterialIcons name="close" size={18} color={colors.onSurfaceVariant} />
+                </Pressable>
+              </View>
+            ) : (
+              /* READ-ONLY STATE */
+              <View style={styles.readonlyInputRow}>
+                <MaterialIcons
+                  name="phone-iphone"
+                  size={18}
+                  color={user?.phone ? colors.primary : colors.outline}
+                />
+                <Text
+                  style={user?.phone ? styles.readonlyInputValueMono : styles.readonlyInputPlaceholder}
+                  numberOfLines={1}
+                >
+                  {user?.phone ? user.phone : 'Belum ditambahkan'}
+                </Text>
+
+                {/* Dynamic Action Button: '+' if empty, 'pencil' if exists */}
+                <Pressable
+                  onPress={handleStartEditWhatsapp}
+                  style={({ pressed }) => [
+                    styles.iconBtnAction,
+                    pressed && styles.btnPressed,
+                  ]}
+                  hitSlop={6}
+                  accessibilityLabel={user?.phone ? 'Ubah Nomor WhatsApp' : 'Tambah Nomor WhatsApp'}
+                  accessibilityRole="button"
+                >
+                  <MaterialIcons
+                    name={user?.phone ? 'edit' : 'add'}
+                    size={16}
+                    color={colors.primary}
+                  />
+                </Pressable>
+              </View>
+            )}
           </View>
 
           <View style={styles.fieldItem}>
@@ -176,7 +332,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.readonlyInputRow}>
               <MaterialIcons name="security" size={18} color={colors.outline} />
               <Text style={styles.readonlyInputValueBold}>
-                Superadmin Wilayah
+                {user?.roleLabel || (user?.role === 'administrator' ? 'Administrator' : user?.role === 'admin' ? 'Admin Unit' : 'Pegawai ASN')}
               </Text>
             </View>
           </View>
@@ -190,7 +346,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={{ flex: 1 }}>
               <Text style={styles.authActionTitle}>Kata Sandi</Text>
               <Text style={styles.authActionSub}>
-                Terakhir diperbarui 30 hari yang lalu
+                {user?.security?.last_password_changed_label || 'Tersedia opsi pembaruan berkala'}
               </Text>
             </View>
             <Pressable
@@ -470,6 +626,13 @@ const styles = StyleSheet.create({
     flex: 1,
     letterSpacing: 0.3,
   },
+  readonlyInputPlaceholder: {
+    ...typography.bodySm,
+    fontSize: 12,
+    color: colors.outline,
+    fontStyle: 'italic',
+    flex: 1,
+  },
   readonlyInputValueBold: {
     ...typography.bodySm,
     fontSize: 12,
@@ -477,23 +640,58 @@ const styles = StyleSheet.create({
     color: colors.primary,
     flex: 1,
   },
-  editableInputRow: {
-    height: 40,
-    borderRadius: rounded.md,
+  iconBtnAction: {
+    width: 28,
+    height: 28,
+    borderRadius: rounded.full,
     backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeEditingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    gap: 6,
+  },
+  activeInputWrap: {
+    flex: 1,
+    height: 40,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
     gap: 8,
   },
-  editableInput: {
+  activeEditableInput: {
     ...typography.bodySm,
     fontSize: 12,
     color: colors.onSurface,
     flex: 1,
     paddingVertical: 0,
+  },
+  actionIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: rounded.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveIconBtn: {
+    backgroundColor: colors.primary,
+  },
+  cancelIconBtn: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  btnPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.96 }],
   },
   authActionRow: {
     flexDirection: 'row',

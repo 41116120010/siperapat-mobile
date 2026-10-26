@@ -18,6 +18,9 @@ interface AuthState {
     currentPassword: string,
     newPassword: string
   ) => Promise<{ success: boolean; message?: string }>;
+  updateProfile: (
+    payload: { phone?: string; name?: string; email?: string }
+  ) => Promise<{ success: boolean; message?: string }>;
   clearError: () => void;
 }
 
@@ -95,6 +98,20 @@ export const useAuthStore = create<AuthState>((set) => ({
       const message =
         err instanceof Error ? err.message : 'Gagal memperbarui kata sandi.';
       set({ isLoading: false, error: message });
+      return { success: false, message };
+    }
+  },
+
+  updateProfile: async (payload: { phone?: string; name?: string; email?: string }) => {
+    set({ error: null });
+    try {
+      const updatedUser = await authRepo.updateProfile(payload);
+      set({ user: updatedUser });
+      return { success: true };
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Gagal memperbarui profil pengguna.';
+      set({ error: message });
       return { success: false, message };
     }
   },

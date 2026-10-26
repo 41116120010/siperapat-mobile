@@ -9,4 +9,6 @@ export const authApi = {
   logout: () => apiClient.post<{ success: boolean; message: string }>('/auth/logout'),
   changePassword: (payload: { current_password: string; password: string; password_confirmation: string; device_name: string }) =>
     apiClient.put<ApiEnvelope<ApiPasswordChangeDto>>('/profile/password', payload),
+  updateProfile: (payload: { phone?: string; name?: string; email?: string }) =>
+    apiClient.put<ApiEnvelope<ApiUserDto>>('/profile', payload),
 };

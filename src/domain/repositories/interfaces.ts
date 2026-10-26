@@ -9,6 +9,7 @@ export interface IAuthRepository {
   getCurrentUser(): Promise<ASN | null>;
   updateBiometricsSetting(enabled: boolean): Promise<void>;
   changePassword(currentPassword: string, newPassword: string): Promise<boolean>;
+  updateProfile(payload: { phone?: string; name?: string; email?: string }): Promise<ASN>;
 }
 
 export interface IMeetingRepository {

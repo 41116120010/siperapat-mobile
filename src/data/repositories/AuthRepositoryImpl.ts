@@ -48,4 +48,12 @@ export class AuthRepositoryImpl implements IAuthRepository {
     await authTokenStore.replace(response.data.token);
     return true;
   }
+
+  async updateProfile(payload: { phone?: string; name?: string; email?: string }): Promise<ASN> {
+    const response = await authApi.updateProfile(payload);
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Gagal memperbarui profil pengguna.');
+    }
+    return toAsn(response.data);
+  }
 }
