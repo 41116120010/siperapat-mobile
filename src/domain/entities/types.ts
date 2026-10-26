@@ -93,6 +93,10 @@ export interface Attendance {
   selfieUrl?: string | null;
   signatureUrl?: string | null;
   userId?: string;
+  validationStatus?: string;
+  validationStatusLabel?: string;
+  verificationMethod?: string;
+  meetingSchedule?: string | null;
   status: AttendanceStatus;
   isSynced: boolean; // Durability: false when submitted offline, true when synced to central server
 }

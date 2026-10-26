@@ -146,7 +146,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
               isLoading={isLoading}
               onPageChange={handlePageChange}
             />
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           error ? <ErrorState message={error} onRetry={() => void fetchMeetings(1, false, filter === 'semua' ? 'all' : filter)} /> : <EmptyState

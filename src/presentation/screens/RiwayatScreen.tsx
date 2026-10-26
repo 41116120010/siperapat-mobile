@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  ScrollViewInstance,
   TextInput,
   Pressable,
   Platform,
@@ -46,7 +47,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>('all');
   const [selectedType, setSelectedType] = useState<HistoryMeetingType>('all');
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType }), 300);

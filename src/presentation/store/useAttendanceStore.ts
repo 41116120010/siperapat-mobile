@@ -53,8 +53,17 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   fetchReceipt: async (id) => {
     try {
       const record = await attendanceRepo.getAttendanceReceipt(id);
-      if (record) set({ lastReceipt: record });
-      return record;
+      if (record) {
+        const currentLast = get().lastReceipt;
+        const merged: Attendance = {
+          ...record,
+          selfieUri: (currentLast?.id === id && currentLast.selfieUri) ? currentLast.selfieUri : record.selfieUri,
+          signatureSvg: (currentLast?.id === id && currentLast.signatureSvg) ? currentLast.signatureSvg : record.signatureSvg,
+        };
+        set({ lastReceipt: merged });
+        return merged;
+      }
+      return null;
     } catch (error) { set({ error: errorMessage(error, 'Gagal memuat tanda terima presensi.') }); return null; }
   },
 
@@ -63,9 +72,14 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     set({ isSubmitting: true, error: null });
     try {
       const record = await attendanceRepo.submitAttendance(agendaId, payload);
-      set({ lastReceipt: record, portal: get().portal ? { ...get().portal!, hasAttended: true, attendance: record } : null });
+      const richRecord: Attendance = {
+        ...record,
+        selfieUri: payload.selfie_data || record.selfieUri,
+        signatureSvg: payload.signature_data || record.signatureSvg,
+      };
+      set({ lastReceipt: richRecord, portal: get().portal ? { ...get().portal!, hasAttended: true, attendance: richRecord } : null });
       await get().fetchHistory(1);
-      return record;
+      return richRecord;
     } catch (error) { set({ error: errorMessage(error, 'Gagal mengirim presensi.') }); return null; }
     finally { set({ isSubmitting: false }); }
   },

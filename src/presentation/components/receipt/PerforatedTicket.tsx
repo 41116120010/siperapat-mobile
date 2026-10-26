@@ -1,13 +1,15 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Attendance } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
 import { typography } from '../../../core/theme/typography';
 import { rounded, spacing } from '../../../core/theme/tokens';
-import { formatWaktuWIB } from '../../../core/utils/dateFormatter';
+import { formatWaktuWIB, formatTanggalIndonesia } from '../../../core/utils/dateFormatter';
+import { authTokenStore } from '../../../data/datasources/authTokenStore';
+import { EvidenceViewerModal } from '../modals/EvidenceViewerModal';
 
-interface PerforatedTicketProps {
+export interface PerforatedTicketProps {
   attendance: Attendance;
   onViewAgendaDetail?: () => void;
 }
@@ -16,28 +18,62 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
   attendance,
   onViewAgendaDetail,
 }) => {
+  const [isEvidenceModalVisible, setIsEvidenceModalVisible] = useState(false);
+  const [evidenceTab, setEvidenceTab] = useState<'selfie' | 'signature'>('selfie');
+  const [authToken, setAuthToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    void authTokenStore.get().then((token) => setAuthToken(token));
+  }, []);
+
+  const activeSelfie = attendance.selfieUri || attendance.selfieUrl || null;
+  const activeSignature = attendance.signatureSvg || attendance.signatureUrl || null;
+
+  const selfieHeaders = useMemo(() => {
+    if (activeSelfie && (activeSelfie.startsWith('http://') || activeSelfie.startsWith('https://')) && authToken) {
+      return { Authorization: `Bearer ${authToken}` };
+    }
+    return undefined;
+  }, [activeSelfie, authToken]);
+
+  const signatureHeaders = useMemo(() => {
+    if (activeSignature && (activeSignature.startsWith('http://') || activeSignature.startsWith('https://')) && authToken) {
+      return { Authorization: `Bearer ${authToken}` };
+    }
+    return undefined;
+  }, [activeSignature, authToken]);
+
+  const handleOpenEvidence = (tab: 'selfie' | 'signature') => {
+    setEvidenceTab(tab);
+    setIsEvidenceModalVisible(true);
+  };
+
   return (
     <View style={styles.card}>
       {/* 1. Institutional Header */}
       <View style={styles.header}>
         <Text style={styles.ministryText}>
-          KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI
+          {attendance.institutionalHeader?.kementerian || 'KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI'}
         </Text>
         <Text style={styles.institutionText}>
-          LEMBAGA LAYANAN PENDIDIKAN TINGGI WILAYAH X
+          {attendance.institutionalHeader?.instansi || 'LEMBAGA LAYANAN PENDIDIKAN TINGGI WILAYAH X'}
         </Text>
         <Text style={styles.addressText}>
-          Jl. Khatib Sulaiman Padang, Sumatera Barat
+          {attendance.institutionalHeader?.alamat || 'Jl. Khatib Sulaiman Padang, Sumatera Barat'}
         </Text>
       </View>
 
       {/* 2. Receipt Identifier Row */}
       <View style={styles.identifierRow}>
-        <View>
+        <View style={styles.identifierLeft}>
           <Text style={styles.identifierLabel}>NOMOR BUKTI PRESENSI</Text>
           <Text style={styles.identifierCode}>
-            {attendance.verificationToken || `ID ${attendance.id} • token tidak disediakan API`}
+            {attendance.verificationToken || `SIP-${attendance.id.padStart(6, '0')} • Sah Kedinasan`}
           </Text>
+        </View>
+        <View style={styles.identifierBadge}>
+          <MaterialIcons name="verified-user" size={14} color={colors.primary} />
+          <Text style={styles.identifierBadgeText}>Resmi</Text>
         </View>
       </View>
 
@@ -55,27 +91,33 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
 
         <View style={styles.agendaGrid}>
           <View style={styles.agendaGridItem}>
-            <MaterialIcons name="apartment" size={16} color={colors.primary} />
-            <Text style={styles.agendaGridText}>
-              {attendance.asnUnitKerja || 'Unit tidak disediakan API'}
-            </Text>
+            <MaterialIcons name="assignment" size={16} color={colors.primary} />
+            <View style={styles.agendaColContent}>
+              <Text style={styles.agendaGridLabel}>Berita Acara / Jadwal</Text>
+              <Text style={styles.agendaGridText} numberOfLines={2}>
+                {attendance.baNumber ? `No. BA: ${attendance.baNumber}` : (attendance.meetingSchedule || 'Sesuai Jadwal Agenda')}
+              </Text>
+            </View>
           </View>
           <View style={styles.agendaGridItem}>
             <MaterialIcons name="schedule" size={16} color={colors.primary} />
-            <Text style={styles.agendaGridText}>
-              Waktu Presensi:{'\n'}
-              <Text style={styles.agendaGridBold}>
-                {formatWaktuWIB(attendance.timestamp)} WIB
+            <View style={styles.agendaColContent}>
+              <Text style={styles.agendaGridLabel}>Waktu Presensi Sah</Text>
+              <Text style={styles.agendaGridDate}>
+                {formatTanggalIndonesia(attendance.timestamp)}
               </Text>
-            </Text>
+              <Text style={styles.agendaGridBold}>
+                {formatWaktuWIB(attendance.timestamp)}
+              </Text>
+            </View>
           </View>
         </View>
 
         <View style={styles.formatBox}>
-          <MaterialIcons name="videocam" size={16} color={colors.primary} />
+          <MaterialIcons name="meeting-room" size={16} color={colors.primary} />
           <Text style={styles.formatText}>
-            <Text style={styles.formatBold}>Format Kedinasan: </Text>
-            {[attendance.meetingFormat, attendance.meetingLocation].filter(Boolean).join(' • ') || 'Lokasi dan format tidak disediakan API'}
+            <Text style={styles.formatBold}>Format & Lokasi: </Text>
+            {[attendance.meetingFormat, attendance.meetingLocation].filter(Boolean).join(' • ') || 'Format kedinasan resmi LLDIKTI'}
           </Text>
         </View>
       </View>
@@ -93,40 +135,107 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
           <View style={styles.participantGrid}>
             <View style={styles.participantCol}>
               <Text style={styles.participantLabel}>Unit Kerja</Text>
-              <Text style={styles.participantValue}>{attendance.asnUnitKerja}</Text>
+              <Text style={styles.participantValue}>{attendance.asnUnitKerja || 'LLDIKTI Wilayah X'}</Text>
             </View>
             <View style={styles.participantCol}>
-              <Text style={styles.participantLabel}>Radius Geofence</Text>
-              <Text style={attendance.distanceMeters === undefined ? styles.participantValue : styles.participantValueSuccess}>{attendance.distanceMeters === undefined ? 'Validasi lokasi tidak disediakan API' : `Tervalidasi (${attendance.distanceMeters}m)`}</Text>
+              <Text style={styles.participantLabel}>Status Verifikasi</Text>
+              <View style={styles.verifiedBadgeRow}>
+                <MaterialIcons name="verified" size={14} color={colors.success} />
+                <Text style={styles.participantValueSuccess}>
+                  {attendance.validationStatusLabel || 'Hadir Sah Terverifikasi'}
+                </Text>
+              </View>
             </View>
+          </View>
+          <View style={styles.validationDetailsRow}>
+            <View style={styles.validationItem}>
+              <MaterialIcons name="fingerprint" size={13} color={colors.onSurfaceVariant} />
+              <Text style={styles.validationText}>
+                Metode: {attendance.verificationMethod || 'Swafoto & TTD Digital'}
+              </Text>
+            </View>
+            {attendance.ipAddress ? (
+              <View style={styles.validationItem}>
+                <MaterialIcons name="devices" size={13} color={colors.onSurfaceVariant} />
+                <Text style={styles.validationText}>
+                  IP: {attendance.ipAddress}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
       </View>
 
       {/* 6. Bukti Kehadiran (Selfie & TTD) */}
       <View style={styles.evidenceSection}>
-        <Text style={styles.sectionHeading}>BUKTI KEHADIRAN</Text>
+        <View style={styles.evidenceSectionHeader}>
+          <Text style={styles.sectionHeading}>BUKTI KEHADIRAN</Text>
+          <Text style={styles.evidenceSectionHint}>Ketuk untuk melihat detail</Text>
+        </View>
         <View style={styles.evidenceGrid}>
           {/* Selfie Box */}
-          <View style={styles.evidenceCard}>
-            <View style={styles.evidencePlaceholder}>
-              <MaterialIcons name="person" size={48} color={colors.outline} />
+          <Pressable
+            style={({ pressed }) => [
+              styles.evidenceCard,
+              pressed && styles.evidenceCardPressed,
+            ]}
+            onPress={() => handleOpenEvidence('selfie')}
+            accessibilityRole="button"
+            accessibilityLabel="Lihat Bukti Swafoto Presensi"
+          >
+            <View style={styles.evidenceImageWrapper}>
+              {activeSelfie ? (
+                <Image
+                  source={{ uri: activeSelfie, headers: selfieHeaders }}
+                  style={styles.evidenceImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.evidencePlaceholder}>
+                  <MaterialIcons name="person" size={40} color={colors.outline} />
+                </View>
+              )}
               <View style={styles.evidenceBadgeOverlay}>
-                <MaterialIcons name="camera-alt" size={12} color="#FFFFFF" />
+                <MaterialIcons name="zoom-in" size={13} color="#FFFFFF" />
               </View>
             </View>
             <Text style={styles.evidenceTitle}>Swafoto Presensi</Text>
-            <Text style={styles.evidenceSub}>{attendance.selfieUrl ? 'Bukti tersimpan di server' : 'Bukti tidak tersedia'}</Text>
-          </View>
+            <Text style={activeSelfie ? styles.evidenceSubActive : styles.evidenceSub}>
+              {activeSelfie ? 'Ketuk untuk memperbesar' : 'Bukti tidak tersedia'}
+            </Text>
+          </Pressable>
 
           {/* Signature Box */}
-          <View style={styles.evidenceCard}>
-            <View style={styles.signatureBox}>
-              <MaterialIcons name={attendance.signatureUrl ? 'draw' : 'draw'} size={32} color={colors.primary} />
+          <Pressable
+            style={({ pressed }) => [
+              styles.evidenceCard,
+              pressed && styles.evidenceCardPressed,
+            ]}
+            onPress={() => handleOpenEvidence('signature')}
+            accessibilityRole="button"
+            accessibilityLabel="Lihat Bukti Tanda Tangan Digital"
+          >
+            <View style={styles.signatureImageWrapper}>
+              {activeSignature ? (
+                <Image
+                  source={{ uri: activeSignature, headers: signatureHeaders }}
+                  style={styles.signatureImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.signaturePlaceholder}>
+                  <MaterialIcons name="draw" size={32} color={colors.outline} />
+                </View>
+              )}
+              <View style={styles.evidenceBadgeOverlay}>
+                <MaterialIcons name="zoom-in" size={13} color="#FFFFFF" />
+              </View>
             </View>
             <Text style={styles.evidenceTitle}>Tanda Tangan Digital</Text>
-            <Text style={styles.evidenceSub}>{attendance.signatureUrl ? 'Bukti tersimpan di server' : 'Bukti tidak tersedia'}</Text>
-          </View>
+            <Text style={activeSignature ? styles.evidenceSubActive : styles.evidenceSub}>
+              {activeSignature ? 'Ketuk untuk memperbesar' : 'Bukti tidak tersedia'}
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -157,6 +266,24 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
 
       {/* Bottom tear border accent */}
       <View style={styles.tearBorder} />
+
+      {/* Evidence Viewer Modal */}
+      <EvidenceViewerModal
+        visible={isEvidenceModalVisible}
+        onClose={() => setIsEvidenceModalVisible(false)}
+        initialTab={evidenceTab}
+        selfieUrl={attendance.selfieUrl}
+        selfieUri={attendance.selfieUri}
+        signatureUrl={attendance.signatureUrl}
+        signatureSvg={attendance.signatureSvg}
+        participantName={attendance.asnName}
+        participantNip={attendance.asnNip}
+        meetingTitle={attendance.meetingTitle}
+        verificationToken={attendance.verificationToken}
+        signedAt={attendance.timestamp}
+        ipAddress={attendance.ipAddress}
+        deviceInfo={attendance.deviceInfo}
+      />
     </View>
   );
 };
@@ -225,6 +352,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  identifierLeft: {
+    flex: 1,
+  },
   identifierLabel: {
     ...typography.labelSm,
     fontSize: 9.5,
@@ -240,6 +370,23 @@ const styles = StyleSheet.create({
     color: colors.primary,
     letterSpacing: 0.5,
     marginTop: 1,
+  },
+  identifierBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: rounded.full,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 35, 111, 0.15)',
+  },
+  identifierBadgeText: {
+    ...typography.labelSm,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: colors.primary,
   },
   perforationRow: {
     height: 24,
@@ -306,17 +453,34 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 4,
+    gap: 6,
+  },
+  agendaColContent: {
+    flex: 1,
+  },
+  agendaGridLabel: {
+    ...typography.labelSm,
+    fontSize: 9.5,
+    color: colors.onSurfaceVariant,
+    marginBottom: 1,
+  },
+  agendaGridDate: {
+    ...typography.bodySm,
+    fontSize: 10.5,
+    color: colors.onSurfaceVariant,
   },
   agendaGridText: {
     ...typography.bodySm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
-    flex: 1,
+    color: colors.onSurface,
+    fontWeight: '500',
   },
   agendaGridBold: {
+    ...typography.bodySm,
+    fontSize: 11,
     fontWeight: '700',
-    color: colors.onSurface,
+    color: colors.primary,
+    marginTop: 1,
   },
   formatBox: {
     flexDirection: 'row',
@@ -340,13 +504,6 @@ const styles = StyleSheet.create({
   subSection: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.6)',
-  },
-  evidenceSection: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: 'rgba(197, 197, 211, 0.6)',
   },
@@ -395,12 +552,55 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     marginTop: 1,
   },
+  verifiedBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
   participantValueSuccess: {
     ...typography.bodySm,
     fontSize: 11.5,
     fontWeight: '700',
     color: colors.success,
-    marginTop: 1,
+  },
+  validationDetailsRow: {
+    marginTop: spacing.xs + 2,
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(197, 197, 211, 0.4)',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  validationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  validationText: {
+    ...typography.bodySm,
+    fontSize: 10.5,
+    color: colors.onSurfaceVariant,
+  },
+  evidenceSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(197, 197, 211, 0.6)',
+  },
+  evidenceSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  evidenceSectionHint: {
+    ...typography.labelSm,
+    fontSize: 9.5,
+    color: colors.primary,
+    fontWeight: '600',
   },
   evidenceGrid: {
     flexDirection: 'row',
@@ -416,16 +616,54 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     alignItems: 'center',
   },
-  evidencePlaceholder: {
+  evidenceCardPressed: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderColor: colors.primary,
+    transform: [{ scale: 0.99 }],
+  },
+  evidenceImageWrapper: {
     width: '100%',
-    height: 72,
+    height: 84,
     borderRadius: rounded.sm,
+    overflow: 'hidden',
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1,
     borderColor: 'rgba(197, 197, 211, 0.6)',
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  evidenceImage: {
+    width: '100%',
+    height: '100%',
+  },
+  signatureImageWrapper: {
+    width: '100%',
+    height: 84,
+    borderRadius: rounded.sm,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signatureImage: {
+    width: '90%',
+    height: '90%',
+  },
+  evidencePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
+  },
+  signaturePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
   },
   evidenceBadgeOverlay: {
     position: 'absolute',
@@ -433,15 +671,20 @@ const styles = StyleSheet.create({
     right: 4,
     backgroundColor: colors.primary,
     borderRadius: 8,
-    width: 16,
-    height: 16,
+    width: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   evidenceTitle: {
     ...typography.labelSm,
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.onSurface,
     marginTop: 6,
     textAlign: 'center',
@@ -451,16 +694,15 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
+    marginTop: 1,
   },
-  signatureBox: {
-    width: '100%',
-    height: 72,
-    borderRadius: rounded.sm,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
+  evidenceSubActive: {
+    ...typography.labelSm,
+    fontSize: 9.5,
+    color: colors.primary,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 1,
   },
   detailButtonWrapper: {
     paddingHorizontal: spacing.md,

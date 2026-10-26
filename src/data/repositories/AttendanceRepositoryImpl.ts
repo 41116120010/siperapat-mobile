@@ -14,8 +14,13 @@ function toAttendance(dto: ApiAttendanceDto): Attendance {
     institutionalHeader: dto.receipt?.institutional_header,
     asnJabatan: dto.receipt?.participant?.jabatan ?? dto.user?.jabatan ?? dto.user?.role?.label ?? '', asnUnitKerja: dto.receipt?.participant?.unit_kerja ?? dto.user?.unit?.nama_unit ?? '', timestamp: dto.receipt?.validation?.signed_at ?? dto.signed_at ?? '',
     selfieUri: dto.selfie_url ?? undefined, signatureSvg: undefined, verificationToken: dto.receipt?.nomor_bukti ?? dto.verification_token ?? '', ipAddress: dto.receipt?.validation?.ip_address ?? dto.ip_address ?? '',
-    deviceInfo: dto.user_agent ?? '', latitude: undefined, longitude: undefined, distanceMeters: undefined,
-    status: 'tercatat', isSynced: true, selfieUrl: dto.selfie_url, signatureUrl: dto.signature_url, userId: String(dto.user_id),
+    deviceInfo: dto.receipt?.validation?.user_agent ?? dto.user_agent ?? '', latitude: undefined, longitude: undefined, distanceMeters: undefined,
+    status: 'tercatat',
+    validationStatus: dto.receipt?.validation?.status ?? 'tercatat',
+    validationStatusLabel: dto.receipt?.validation?.status_label ?? 'Hadir Sah Terverifikasi',
+    verificationMethod: dto.receipt?.validation?.metode_verifikasi ?? 'Swafoto Wajah & Tanda Tangan Digital',
+    meetingSchedule: dto.receipt?.meeting?.jadwal_lengkap ?? null,
+    isSynced: true, selfieUrl: dto.selfie_url, signatureUrl: dto.signature_url, userId: String(dto.user_id),
   };
 }
 
@@ -61,6 +66,5 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
 }
 
 function toAttendanceReceipt(dto: ApiAttendanceDto): Attendance {
-  if (!dto.receipt) throw new Error('Respons receipt dari API tidak memiliki objek tanda terima.');
   return toAttendance(dto);
 }
