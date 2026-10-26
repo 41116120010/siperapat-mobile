@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Platform,
   Linking,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
@@ -54,9 +55,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const [activeFilterOrder, setActiveFilterOrder] = useState<FilterOrder>('all');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+  useFocusEffect(
+    useCallback(() => {
+      void fetchDashboard();
+    }, [fetchDashboard])
+  );
 
   const ongoingCount = dashboardStats?.ongoing_agendas;
   const upcomingCount = dashboardStats?.upcoming_agendas;

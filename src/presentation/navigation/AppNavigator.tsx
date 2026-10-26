@@ -2,9 +2,10 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
-  createMaterialTopTabNavigator,
-  MaterialTopTabBarProps,
-} from '@react-navigation/material-top-tabs';
+  createBottomTabNavigator,
+  BottomTabBarProps,
+} from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
@@ -36,7 +37,7 @@ import { triggerPageTransition } from '../store/useTransitionStore';
 import { useAuthStore } from '../store/useAuthStore';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const Tab = createMaterialTopTabNavigator<MainTabParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof MaterialIcons.glyphMap> = {
   Beranda: 'dashboard',
@@ -45,13 +46,16 @@ const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof MaterialIcons.glyph
   Profil: 'account-circle',
 };
 
-const CustomBottomTabBar: React.FC<MaterialTopTabBarProps> = ({
+const CustomBottomTabBar: React.FC<BottomTabBarProps> = ({
   state,
   descriptors,
   navigation,
 }) => {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 6);
+
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { paddingBottom: bottomPadding, height: 56 + bottomPadding }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
@@ -64,7 +68,6 @@ const CustomBottomTabBar: React.FC<MaterialTopTabBarProps> = ({
           });
 
           if (!isFocused && !event.defaultPrevented) {
-            triggerPageTransition();
             navigation.navigate(route.name);
           }
         };
@@ -108,10 +111,9 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
   }, [user, rootStackNav]);
   return (
     <Tab.Navigator
-      tabBarPosition="bottom"
       tabBar={(props) => <CustomBottomTabBar {...props} />}
       screenOptions={{
-        swipeEnabled: true,
+        headerShown: false,
         lazy: true,
       }}
     >
@@ -127,7 +129,6 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
               rootStackNav.navigate('Monitoring', { meetingId: id });
             }}
             onNavigateAgenda={() => {
-              triggerPageTransition();
               tabNav.navigate('Agenda');
             }}
           />

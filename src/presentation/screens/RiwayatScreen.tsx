@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
@@ -49,10 +50,15 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
   const [selectedType, setSelectedType] = useState<HistoryMeetingType>('all');
   const scrollViewRef = useRef<ScrollViewInstance>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType }), 300);
-    return () => clearTimeout(timer);
-  }, [fetchHistory, search, selectedPeriod, selectedType]);
+  useFocusEffect(
+    useCallback(() => {
+      void syncOfflineQueue();
+      const timer = setTimeout(() => {
+        void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType });
+      }, 150);
+      return () => clearTimeout(timer);
+    }, [syncOfflineQueue, fetchHistory, search, selectedPeriod, selectedType])
+  );
 
   const handlePageChange = (page: number) => {
     if (!historyPage || page < 1 || page > historyPage.lastPage || page === historyPage.currentPage || isLoading) return;

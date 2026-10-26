@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
@@ -48,9 +49,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   }, [user?.phone, isEditingWhatsapp]);
 
-  useEffect(() => {
-    if (user?.id) void refreshProfile();
-  }, [refreshProfile, user?.id]);
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) void refreshProfile();
+    }, [refreshProfile, user?.id])
+  );
 
   const handleStartEditWhatsapp = () => {
     setWhatsappInput(user?.phone ?? '');

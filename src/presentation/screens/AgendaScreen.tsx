@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Linking,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
@@ -36,9 +37,11 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   const [filter, setFilter] = useState<'semua' | 'hybrid' | 'offline' | 'online'>('semua');
   const flatListRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    fetchMeetings(1, false, filter === 'semua' ? 'all' : filter);
-  }, [fetchMeetings, filter]);
+  useFocusEffect(
+    useCallback(() => {
+      void fetchMeetings(1, false, filter === 'semua' ? 'all' : filter);
+    }, [fetchMeetings, filter])
+  );
 
   const filtered = meetings.filter((m) => {
     if (filter === 'semua') return true;
