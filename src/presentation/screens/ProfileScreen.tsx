@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  TextInputInstance,
   Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -40,7 +39,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [whatsappInput, setWhatsappInput] = useState(user?.phone ?? '');
   const [isEditingWhatsapp, setIsEditingWhatsapp] = useState(false);
   const [isSavingWhatsapp, setIsSavingWhatsapp] = useState(false);
-  const whatsappInputRef = useRef<TextInputInstance>(null);
+  const whatsappInputRef = useRef<TextInput>(null);
 
   // Sync state whenever user phone changes if not currently editing
   useEffect(() => {
