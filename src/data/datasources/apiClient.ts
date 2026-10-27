@@ -89,7 +89,9 @@ class ApiClient {
       });
     } catch (error) {
       if (__DEV__) {
-        console.warn(`[ApiClient] Request to ${options.method ?? 'GET'} ${url} failed:`, error);
+        const safePath = path.split('?')[0].replace(/^\/+/, '');
+        const errorType = error instanceof Error ? error.name : 'UnknownError';
+        console.warn(`[ApiClient] ${options.method ?? 'GET'} ${safePath} failed (${errorType}).`);
       }
       const timeoutError = error instanceof Error && error.name === 'AbortError';
       const isFormDataError = error instanceof Error && error.message?.includes('FormDataPart');
