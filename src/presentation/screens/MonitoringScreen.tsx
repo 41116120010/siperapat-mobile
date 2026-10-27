@@ -30,6 +30,7 @@ import { meetingToUpdateDto } from '../../data/mappers/apiMappers';
 import { resolveFileMimeType, UploadFileRef } from '../../data/datasources/agendaApi';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import { UploadSuratEdaranModal } from '../components/modals/UploadSuratEdaranModal';
+import { AttendanceStatus } from '../../domain/entities/types';
 
 interface MonitoringScreenProps {
   meetingId?: string;
@@ -47,6 +48,7 @@ interface Participant {
   location: string;
   unit?: string;
   isOnline?: boolean;
+  status: AttendanceStatus;
 }
 
 function plainText(html?: string | null) {
@@ -276,8 +278,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
 
   const displayList: Participant[] = useMemo(() => activeTab !== 'minutes' ? agendaAttendances.map((record) => ({
     name: record.asnName || 'Nama tidak disediakan', role: record.asnJabatan || 'Pegawai', nip: record.asnNip || '',
-    time: activeTab === 'unverified' ? 'Belum melakukan presensi' : record.timestamp ? new Date(record.timestamp).toLocaleString('id-ID') : 'Waktu tidak tersedia',
-    location: 'Lokasi tidak disediakan API', unit: record.asnUnitKerja,
+    time: record.status === 'belum_hadir' ? 'Belum melakukan presensi' : record.timestamp ? new Date(record.timestamp).toLocaleString('id-ID') : 'Waktu tidak tersedia',
+    location: 'Lokasi tidak disediakan API', unit: record.asnUnitKerja, status: record.status,
   })) : [], [activeTab, agendaAttendances]);
 
   const filteredList = displayList.filter(
@@ -687,7 +689,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                       <View
                         style={[
                           styles.pStatusBadge,
-                          activeTab === 'unverified'
+                          p.status === 'belum_hadir'
                             ? styles.pStatusBadgeWait
                             : styles.pStatusBadgeValid,
                         ]}
@@ -695,12 +697,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                         <Text
                           style={[
                             styles.pStatusText,
-                            activeTab === 'unverified'
+                            p.status === 'belum_hadir'
                               ? styles.pStatusTextWait
                               : styles.pStatusTextValid,
                           ]}
                         >
-                          {activeTab === 'unverified' ? 'Belum Hadir' : 'Tercatat'}
+                          {p.status === 'belum_hadir' ? 'Belum Hadir' : 'Tercatat'}
                         </Text>
                       </View>
                     </View>

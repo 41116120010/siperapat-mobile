@@ -7,6 +7,7 @@ import { resolveAttendanceMediaUrl } from '../../core/utils/mediaUrl';
 
 function toAttendance(dto: ApiAttendanceDto): Attendance {
   const attendanceId = String(dto.id);
+  const attendanceStatus = dto.status ?? dto.receipt?.validation?.status ?? 'tercatat';
   const canonicalSelfieUrl = resolveAttendanceMediaUrl(dto.selfie_url, attendanceId, 'selfie');
   const canonicalSignatureUrl = resolveAttendanceMediaUrl(dto.signature_url, attendanceId, 'signature');
 
@@ -20,10 +21,10 @@ function toAttendance(dto: ApiAttendanceDto): Attendance {
     asnJabatan: dto.receipt?.participant?.jabatan ?? dto.user?.jabatan ?? dto.user?.role?.label ?? '', asnUnitKerja: dto.receipt?.participant?.unit_kerja ?? dto.user?.unit?.nama_unit ?? '', timestamp: dto.receipt?.validation?.signed_at ?? dto.signed_at ?? '',
     selfieUri: canonicalSelfieUrl ?? undefined, signatureSvg: undefined, verificationToken: dto.receipt?.nomor_bukti ?? dto.verification_token ?? '', ipAddress: dto.receipt?.validation?.ip_address ?? dto.ip_address ?? '',
     deviceInfo: dto.receipt?.validation?.user_agent ?? dto.user_agent ?? '', latitude: undefined, longitude: undefined, distanceMeters: undefined,
-    status: 'tercatat',
-    validationStatus: dto.receipt?.validation?.status ?? 'tercatat',
-    validationStatusLabel: dto.receipt?.validation?.status_label ?? 'Hadir Sah Terverifikasi',
-    verificationMethod: dto.receipt?.validation?.metode_verifikasi ?? 'Swafoto Wajah & Tanda Tangan Digital',
+    status: attendanceStatus,
+    validationStatus: dto.receipt?.validation?.status ?? (attendanceStatus === 'belum_hadir' ? 'belum_hadir' : 'tercatat'),
+    validationStatusLabel: dto.receipt?.validation?.status_label ?? (attendanceStatus === 'belum_hadir' ? undefined : 'Hadir Sah Terverifikasi'),
+    verificationMethod: dto.receipt?.validation?.metode_verifikasi ?? (attendanceStatus === 'belum_hadir' ? undefined : 'Swafoto Wajah & Tanda Tangan Digital'),
     meetingSchedule: dto.receipt?.meeting?.jadwal_lengkap ?? null,
     isSynced: true, selfieUrl: canonicalSelfieUrl, signatureUrl: canonicalSignatureUrl, userId: String(dto.user_id),
   };

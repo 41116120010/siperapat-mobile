@@ -67,7 +67,7 @@ export interface Meeting {
   summaryHtml?: string | null;
 }
 
-export type AttendanceStatus = 'sah' | 'terlambat' | 'izin' | 'ditolak' | 'tercatat';
+export type AttendanceStatus = 'sah' | 'terlambat' | 'izin' | 'ditolak' | 'tercatat' | 'belum_hadir';
 
 export interface Attendance {
   id: string;

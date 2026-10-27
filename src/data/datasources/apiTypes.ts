@@ -31,7 +31,7 @@ export interface ApiAttendanceDto {
   id: number; agenda_id: number; user_id: number;
   user?: Pick<ApiUserDto, 'id' | 'name' | 'nip' | 'role' | 'unit' | 'jabatan' | 'pangkat_golongan'> | null;
   agenda?: { id: number; judul_rapat: string; slug?: string; tipe_rapat?: 'hybrid' | 'offline' | 'online'; lokasi_ruang?: string | null; waktu_mulai?: string | null; waktu_selesai?: string | null; nomor_ba?: string | null } | null;
-  verification_token?: string | null; receipt?: ApiAttendanceReceiptDto | null; status?: string;
+  verification_token?: string | null; receipt?: ApiAttendanceReceiptDto | null; status?: 'belum_hadir';
   signed_at: string | null; selfie_url: string | null; signature_url: string | null; ip_address: string | null; user_agent: string | null;
   created_at: string | null; updated_at: string | null;
 }
@@ -40,7 +40,7 @@ export interface ApiAttendanceReceiptDto {
   institutional_header: { kementerian: string; instansi: string; alamat: string };
   meeting: { judul_rapat: string; nomor_ba: string | null; format_kedinasan?: string | null; tipe_rapat?: string | null; lokasi_ruang?: string | null; link_meeting?: string | null; rentang_waktu?: string | null; jadwal_lengkap?: string | null } | null;
   participant: { name: string; nip: string | null; jabatan: string | null; unit_kerja: string } | null;
-  validation: { status: string; status_label: string; metode_verifikasi: string; ip_address: string | null; user_agent: string | null; signed_at: string | null };
+  validation: { status: 'tercatat'; status_label: string; metode_verifikasi: string; ip_address: string | null; user_agent: string | null; signed_at: string | null };
 }
 export interface ApiAttendanceHistorySummary {
   total_attended: number;
