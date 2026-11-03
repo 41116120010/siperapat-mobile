@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ScrollViewInstance,
   Pressable,
   TextInput,
   Platform,
@@ -64,7 +63,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('Semua Role');
   const [selectedUnit, setSelectedUnit] = useState('Semua Unit');
-  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     void fetchUnits(1);
