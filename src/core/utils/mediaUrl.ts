@@ -61,13 +61,13 @@ export function resolveAttendanceMediaUrl(
 }
 
 /**
- * Resolves Surat Edaran document/image URLs safely:
+ * Resolves the protected Surat Edaran `stream_url` for use by the authenticated API client:
  * 1. Preserves local `file://`, `content://`, or `data:` URIs (from local attachment picker).
  * 2. If rawUrl is null/undefined or empty string, returns null.
- * 3. If rawUrl is a root-relative path (e.g. `/storage/surat_edaran/...` from Laravel):
- *    prepends the base origin of `requireApiBaseUrl()`, producing e.g. `https://preview.daffiq.tech/storage/surat_edaran/...`
+ * 3. If rawUrl is a root-relative API route, prepends the backend origin.
  * 4. If rawUrl contains localhost, 127.0.0.1, or cleartext http:
  *    upgrades/replaces the host with the active API base host over HTTPS.
+ * The public `/storage/...` URL must not be used as a fallback for API documents.
  */
 export function resolveSuratEdaranUrl(
   rawUrl: string | null | undefined

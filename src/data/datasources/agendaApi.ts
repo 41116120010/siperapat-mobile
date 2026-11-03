@@ -1,6 +1,7 @@
 import { File } from 'expo-file-system';
-import { apiClient } from './apiClient';
+import { ApiBinaryResponse, ApiError, apiClient } from './apiClient';
 import { ApiAgendaDto, ApiDashboardDto, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
+import { requireApiBaseUrl } from '../../core/config/apiConfig';
 
 export type AgendaFilters = { status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled'; type?: 'hybrid' | 'offline' | 'online'; search?: string; unitId?: number };
 export interface CreateAgendaDto {
@@ -22,6 +23,32 @@ function queryString(values: Record<string, string | number | undefined>) {
   const params = new URLSearchParams();
   Object.entries(values).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); });
   return params.toString();
+}
+
+function protectedSuratEdaranPath(streamUrl: string): string {
+  let apiBase: URL;
+  let stream: URL;
+  try {
+    apiBase = new URL(requireApiBaseUrl());
+    stream = new URL(streamUrl, apiBase);
+  } catch {
+    throw new ApiError('configuration', 'Alamat streaming surat edaran tidak valid.');
+  }
+
+  const basePath = apiBase.pathname.replace(/\/+$/, '');
+  if (stream.origin !== apiBase.origin || !stream.pathname.startsWith(`${basePath}/`)) {
+    throw new ApiError('configuration', 'Alamat streaming surat edaran tidak sesuai dengan server API.');
+  }
+  if (stream.search || stream.hash) {
+    throw new ApiError('configuration', 'Alamat streaming surat edaran tidak valid.');
+  }
+
+  const endpointPath = stream.pathname.slice(basePath.length);
+  if (!/^\/agendas\/\d+\/surat-edaran$/.test(endpointPath)) {
+    throw new ApiError('configuration', 'Alamat streaming surat edaran tidak valid.');
+  }
+
+  return `${endpointPath}${stream.search}`;
 }
 export function resolveFileMimeType(filename: string, fallbackMime?: string): string {
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -86,6 +113,10 @@ export function createFormDataFilePart(fileRef: UploadFileRef): ExpoFormDataFile
 }
 
 export const agendaApi = {
+  downloadSuratEdaran: (streamUrl: string) => apiClient.get<ApiBinaryResponse>(
+    protectedSuratEdaranPath(streamUrl),
+    { responseType: 'binary' }
+  ),
   dashboard: () => apiClient.get<ApiEnvelope<ApiDashboardDto>>('/dashboard'),
   list: (page = 1, perPage = 10, filters: AgendaFilters = {}) => {
     const query = queryString({ page, per_page: perPage, status: filters.status, tipe_rapat: filters.type, search: filters.search, unit_id: filters.unitId });

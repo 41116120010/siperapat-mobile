@@ -24,10 +24,11 @@ import {
   FilterStatus,
   FilterOrder,
 } from '../components/modals/MeetingFilterModal';
-import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { useAuthStore } from '../store/useAuthStore';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
+import { Meeting } from '../../domain/entities/types';
+import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
@@ -54,6 +55,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const [activeFilterOrder, setActiveFilterOrder] = useState<FilterOrder>('all');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Meeting | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -91,12 +93,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     { id: 'completed', label: 'Selesai', count: dashboardStats?.completed_agendas ?? '—' },
   ];
 
-  const handlePdfView = (url?: string) => {
-    const canonical = resolveSuratEdaranUrl(url);
-    if (canonical) {
-      void Linking.openURL(canonical).catch(() =>
-        useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' })
-      );
+  const handlePdfView = (meeting: Meeting) => {
+    if (meeting.invitationPdfUrl) {
+      setSelectedDocument(meeting);
     } else {
       useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
     }
@@ -269,7 +268,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 key={meeting.id}
                 meeting={meeting}
                 onPressDetail={() => onNavigateDetail(meeting.id)}
-                onPressPdf={() => handlePdfView(meeting.invitationPdfUrl)}
+                onPressPdf={() => handlePdfView(meeting)}
                 onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
               />
             ))
@@ -297,6 +296,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           setFilterTab('all');
           setActiveFilterOrder('all');
         }}
+      />
+      <SuratEdaranViewerModal
+        visible={selectedDocument !== null}
+        onClose={() => setSelectedDocument(null)}
+        documentUrl={selectedDocument?.invitationPdfUrl}
+        fileName={`Surat-Edaran_${selectedDocument?.code || 'Agenda'}.${selectedDocument?.suratEdaran?.extension || (selectedDocument?.suratEdaran?.is_image ? 'jpg' : 'pdf')}`}
+        meetingTitle={selectedDocument?.title}
+        meetingCode={selectedDocument?.code}
+        meetingDate={`${selectedDocument?.date || ''} ${selectedDocument?.startTime || ''}`.trim()}
+        mimeType={selectedDocument?.suratEdaran?.is_image ? 'image/jpeg' : 'application/pdf'}
       />
     </View>
   );

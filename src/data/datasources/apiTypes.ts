@@ -19,7 +19,7 @@ export interface ApiAgendaDto {
   lokasi_ruang: string | null; link_meeting: string | null; waktu_mulai: string; waktu_selesai: string | null;
   rentang_waktu: string | null; jadwal_lengkap: string | null; is_all_units: boolean;
   status: { value: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled'; label: string };
-  surat_edaran?: { url: string | null; extension: string | null; is_pdf: boolean; is_image: boolean };
+  surat_edaran?: { url: string | null; stream_url?: string | null; extension: string | null; is_pdf: boolean; is_image: boolean };
   creator?: ApiUserDto | null; pimpinan?: ApiUserDto | null; notulis?: ApiUserDto | null; units?: ApiUnitDto[];
   attendances_count?: number; is_eligible?: boolean; has_attended?: boolean;
   nomor_ba?: string | null; total_invited?: number; total_attended?: number; unattended_count?: number; participation_rate?: number; participation_rate_label?: string;

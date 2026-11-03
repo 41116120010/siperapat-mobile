@@ -46,7 +46,7 @@ function timePart(value: string | null): string {
 export function toMeeting(agenda: ApiAgendaDto): Meeting {
   const venue = agenda.tipe_rapat === 'online' ? agenda.link_meeting ?? '' : agenda.lokasi_ruang ?? '';
   const units = agenda.units?.map((unit) => unit.nama_unit) ?? [];
-  const resolvedEdaranUrl = resolveSuratEdaranUrl(agenda.surat_edaran?.url);
+  const resolvedEdaranUrl = resolveSuratEdaranUrl(agenda.surat_edaran?.stream_url);
   return {
     id: String(agenda.id), code: agenda.slug, title: agenda.judul_rapat, type: agenda.tipe_rapat,
     leader: agenda.pimpinan?.name ?? '', leaderId: agenda.pimpinan?.id ?? null,
@@ -69,8 +69,10 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     totalAttended: agenda.total_attended ?? agenda.attendances_count ?? 0,
     suratEdaran: agenda.surat_edaran
       ? {
-          ...agenda.surat_edaran,
           url: resolvedEdaranUrl,
+          extension: agenda.surat_edaran.extension,
+          is_pdf: agenda.surat_edaran.is_pdf,
+          is_image: agenda.surat_edaran.is_image,
         }
       : undefined,
     baNumber: agenda.nomor_ba ?? null,

@@ -8,7 +8,6 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Linking,
   Dimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -20,9 +19,38 @@ import { rounded, spacing, elevations } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
+import { ApiError } from '../../../data/datasources/apiClient';
+import { agendaApi } from '../../../data/datasources/agendaApi';
 import { resolveSuratEdaranUrl } from '../../../core/utils/mediaUrl';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Respons dokumen tidak dapat dibaca.'));
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const comma = result.indexOf(',');
+      if (comma < 0) reject(new Error('Format dokumen yang diterima tidak valid.'));
+      else resolve(result.slice(comma + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function getDownloadErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'Sesi tidak valid atau telah berakhir. Silakan masuk kembali.';
+    if (error.status === 403) return 'Anda tidak memiliki izin untuk melihat surat edaran agenda ini.';
+    if (error.status === 404) return 'Berkas surat edaran tidak ditemukan di server.';
+    if (error.kind === 'timeout') return 'Pengunduhan melewati batas waktu. Periksa koneksi lalu coba lagi.';
+    if (error.kind === 'network') return 'Tidak dapat terhubung ke server. Periksa koneksi internet lalu coba lagi.';
+    return 'Server tidak dapat mengirim surat edaran saat ini. Coba lagi beberapa saat lagi.';
+  }
+
+  return 'Gagal mempersiapkan berkas surat edaran. Periksa koneksi lalu coba lagi.';
+}
 
 export interface SuratEdaranViewerModalProps {
   visible: boolean;
@@ -131,6 +159,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
     // 2. Remote URLs (HTTP / HTTPS)
     try {
       setIsPreparing(true);
+      setCachedLocalUri(null);
       setCacheError(null);
       setImageError(false);
 
@@ -138,42 +167,24 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
       const safeName = resolvedFileName.replace(/[\\/:*?"<>|\u0000-\u001f\s]/g, '_');
       const localDest = `${cacheDir}edaran_${safeName}`;
 
-      // Check if already in cache and not zero-byte
-      const existing = await FileSystem.getInfoAsync(localDest);
-      if (existing.exists && typeof existing.size === 'number' && existing.size > 0) {
-        setCachedLocalUri(localDest);
-        setDownloadedSize(existing.size);
-        setIsPreparing(false);
-        return;
+      // Require a current session even if a prior copy exists in the app cache.
+      if (!(await authTokenStore.get())) {
+        throw new ApiError('http', 'Sesi tidak valid atau telah berakhir. Silakan masuk kembali.', 401);
       }
 
-      // Download file to cache with Bearer token if session exists
-      const token = await authTokenStore.get();
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const downloadResult = await FileSystem.downloadAsync(activeUri, localDest, {
-        headers,
+      const result = await agendaApi.downloadSuratEdaran(activeUri);
+      const base64 = await blobToBase64(result.blob);
+      await FileSystem.writeAsStringAsync(localDest, base64, {
+        encoding: FileSystem.EncodingType.Base64,
       });
 
-      if (downloadResult.status === 200) {
-        setCachedLocalUri(downloadResult.uri);
-        const info = await FileSystem.getInfoAsync(downloadResult.uri);
-        if (info.exists && typeof info.size === 'number') {
-          setDownloadedSize(info.size);
-        }
-      } else if (downloadResult.status === 404) {
-        throw new Error('Berkas surat edaran belum diunggah atau tidak ditemukan di server (404).');
-      } else if (downloadResult.status === 401) {
-        throw new Error('Sesi kredensial kedaluwarsa (401). Silakan login ulang.');
-      } else {
-        throw new Error(`Gagal mengunduh berkas surat edaran (HTTP ${downloadResult.status}).`);
+      setCachedLocalUri(localDest);
+      const info = await FileSystem.getInfoAsync(localDest);
+      if (info.exists && typeof info.size === 'number') {
+        setDownloadedSize(info.size);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Gagal mempersiapkan berkas surat edaran.';
-      setCacheError(msg);
+      setCacheError(getDownloadErrorMessage(err));
       setCachedLocalUri(null);
     } finally {
       setIsPreparing(false);
@@ -211,8 +222,11 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
           dialogTitle: `Buka ${resolvedFileName}`,
           UTI: isImage ? 'public.image' : 'com.adobe.pdf',
         });
-      } else if (canonicalDocumentUrl) {
-        await Linking.openURL(canonicalDocumentUrl);
+      } else {
+        useFeedbackStore.getState().showToast({
+          type: 'error',
+          message: 'Aplikasi pembuka dokumen tidak tersedia pada perangkat ini.',
+        });
       }
     } catch (err) {
       useFeedbackStore.getState().showToast({
@@ -236,8 +250,11 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
           mimeType: isImage ? 'image/jpeg' : 'application/pdf',
           dialogTitle: `Bagikan ${resolvedFileName}`,
         });
-      } else if (canonicalDocumentUrl) {
-        await Linking.openURL(canonicalDocumentUrl);
+      } else {
+        useFeedbackStore.getState().showToast({
+          type: 'error',
+          message: 'Fitur berbagi berkas tidak tersedia pada perangkat ini.',
+        });
       }
     } catch {
       useFeedbackStore.getState().showToast({
@@ -249,17 +266,29 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
     }
   };
 
-  // Open canonical document URL in external mobile browser
+  // Pass the already authenticated local copy to another app; never open a remote URL.
   const handleOpenExternal = async () => {
-    if (canonicalDocumentUrl) {
-      try {
-        await Linking.openURL(canonicalDocumentUrl);
-      } catch {
-        useFeedbackStore.getState().showToast({
-          type: 'error',
-          message: 'Gagal membuka peramban web.',
-        });
+    if (!cachedLocalUri) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Unduh dokumen secara terautentikasi terlebih dahulu.',
+      });
+      return;
+    }
+
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Fitur membuka dokumen di aplikasi lain tidak tersedia.');
       }
+      await Sharing.shareAsync(cachedLocalUri, {
+        mimeType: isImage ? 'image/jpeg' : 'application/pdf',
+        dialogTitle: `Buka ${resolvedFileName}`,
+      });
+    } catch {
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: 'Dokumen tidak dapat dibuka di aplikasi lain.',
+      });
     }
   };
 
@@ -462,7 +491,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   />
                   {canonicalDocumentUrl ? (
                     <Button
-                      title="Peramban Web"
+                      title="Buka di Aplikasi"
                       onPress={() => void handleOpenExternal()}
                       variant="ghost"
                       size="md"

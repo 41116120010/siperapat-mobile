@@ -22,7 +22,7 @@ import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
 import { Meeting } from '../../domain/entities/types';
-import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
+import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 
 interface AgendaScreenProps {
   onNavigateDetail: (meetingId: string) => void;
@@ -35,6 +35,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
 }) => {
   const { meetings, fetchMeetings, isLoading, error, currentPage, lastPage, total } = useMeetingStore();
   const [filter, setFilter] = useState<'semua' | 'hybrid' | 'offline' | 'online'>('semua');
+  const [selectedDocument, setSelectedDocument] = useState<Meeting | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   useFocusEffect(
@@ -55,12 +56,9 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
     void fetchMeetings(page, false, filter === 'semua' ? 'all' : filter);
   };
 
-  const handlePdfView = (url?: string) => {
-    const canonical = resolveSuratEdaranUrl(url);
-    if (canonical) {
-      void Linking.openURL(canonical).catch(() =>
-        useFeedbackStore.getState().showToast({ type: 'error', message: 'Berkas undangan tidak dapat dibuka.' })
-      );
+  const handlePdfView = (meeting: Meeting) => {
+    if (meeting.invitationPdfUrl) {
+      setSelectedDocument(meeting);
     } else {
       useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
     }
@@ -134,7 +132,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
           <MeetingCard
             meeting={item}
             onPressDetail={() => onNavigateDetail(item.id)}
-            onPressPdf={() => handlePdfView(item.invitationPdfUrl)}
+            onPressPdf={() => handlePdfView(item)}
             onPressJoinLink={() => handleJoinLink(item.zoomUrl)}
           />
         )}
@@ -166,6 +164,16 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
             onAction={onNavigateCreate}
           />
         }
+      />
+      <SuratEdaranViewerModal
+        visible={selectedDocument !== null}
+        onClose={() => setSelectedDocument(null)}
+        documentUrl={selectedDocument?.invitationPdfUrl}
+        fileName={`Surat-Edaran_${selectedDocument?.code || 'Agenda'}.${selectedDocument?.suratEdaran?.extension || (selectedDocument?.suratEdaran?.is_image ? 'jpg' : 'pdf')}`}
+        meetingTitle={selectedDocument?.title}
+        meetingCode={selectedDocument?.code}
+        meetingDate={`${selectedDocument?.date || ''} ${selectedDocument?.startTime || ''}`.trim()}
+        mimeType={selectedDocument?.suratEdaran?.is_image ? 'image/jpeg' : 'application/pdf'}
       />
     </View>
   );

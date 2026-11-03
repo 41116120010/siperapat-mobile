@@ -27,7 +27,7 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
   const startDate = localDatePart(agenda.waktu_mulai);
   const venue = agenda.lokasi_ruang || agenda.link_meeting || '';
   const units = agenda.units?.map((unit) => unit.nama_unit) ?? [];
-  const resolvedEdaranUrl = resolveSuratEdaranUrl(agenda.surat_edaran?.url);
+  const resolvedEdaranUrl = resolveSuratEdaranUrl(agenda.surat_edaran?.stream_url);
 
   return {
     id: String(agenda.id),
@@ -46,8 +46,10 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     invitationPdfUrl: resolvedEdaranUrl ?? undefined,
     suratEdaran: agenda.surat_edaran
       ? {
-          ...agenda.surat_edaran,
           url: resolvedEdaranUrl,
+          extension: agenda.surat_edaran.extension,
+          is_pdf: agenda.surat_edaran.is_pdf,
+          is_image: agenda.surat_edaran.is_image,
         }
       : undefined,
     totalAttended: agenda.total_attended ?? agenda.attendances_count ?? 0,
