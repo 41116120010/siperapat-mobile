@@ -56,4 +56,14 @@ export class AuthRepositoryImpl implements IAuthRepository {
     }
     return toAsn(response.data);
   }
+
+  async forgotPassword(identity: string): Promise<{ success: boolean; message: string; maskedEmail?: string }> {
+    const response = await authApi.forgotPassword(identity);
+    if (!response.success) throw new Error(response.message || 'Permintaan pemulihan kata sandi gagal.');
+    return {
+      success: response.success,
+      message: response.message,
+      maskedEmail: response.data?.masked_email,
+    };
+  }
 }

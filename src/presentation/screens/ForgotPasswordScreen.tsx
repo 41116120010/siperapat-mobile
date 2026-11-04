@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { rounded, spacing, elevations } from '../../core/theme/tokens';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { formatNIP } from '../../core/utils/nipValidator';
+import { useAuthStore } from '../store/useAuthStore';
 
 interface ForgotPasswordScreenProps {
   onBack: () => void;
@@ -28,23 +29,15 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onSuccessLogin,
 }) => {
   const [identifier, setIdentifier] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedTarget, setSubmittedTarget] = useState('');
   const [cooldown, setCooldown] = useState(60);
+  const { forgotPassword, isLoading: authLoading, error: authError, clearError } = useAuthStore();
 
-  // Countdown timer saat state sukses aktif
+  // Clear auth error when user starts typing
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    if (isSubmitted && cooldown > 0) {
-      timer = setTimeout(() => {
-        setCooldown((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isSubmitted, cooldown]);
+    if (authError) clearError();
+  }, [identifier]);
 
   const isNumericInput = useMemo(() => {
     const trimmed = identifier.trim();
@@ -75,27 +68,42 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
     return trimmed;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!identifier.trim()) return;
 
-    setIsLoading(true);
-    // Simulasi pengiriman request pemulihan aman ke gateway kedinasan
-    setTimeout(() => {
-      setIsLoading(false);
-      setSubmittedTarget(identifier.trim());
-      setIsSubmitted(true);
-      setCooldown(60);
-    }, 900);
-  };
+    try {
+      const result = await forgotPassword(identifier.trim());
+      if (result.success) {
+        setSubmittedTarget(identifier.trim());
+        setIsSubmitted(true);
+        setCooldown(60);
+      } else {
+        // Error is already set in auth store, no need to show additional error
+      }
+    } catch (error) {
+      // Error is already set in auth store, no need to show additional error
+    }
+  }, [identifier, forgotPassword]);
 
-  const handleResend = () => {
-    if (cooldown > 0) return;
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setCooldown(60);
-    }, 600);
-  };
+  // Countdown timer saat state sukses aktif
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (isSubmitted && cooldown > 0) {
+      timer = setTimeout(() => {
+        setCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isSubmitted, cooldown]);
+
+  const handleResend = useCallback(() => {
+    if (cooldown > 0 || authLoading) return;
+    setIsSubmitted(false);
+    setIdentifier('');
+    setCooldown(60);
+  }, [cooldown, authLoading]);
 
   const handleHelpdesk = () => {
     Linking.openURL('tel:0751123456').catch(() => {});
@@ -184,8 +192,8 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                   variant="primary"
                   size="lg"
                   fullWidth
-                  isLoading={isLoading}
-                  disabled={isLoading || !identifier.trim()}
+                  isLoading={authLoading}
+                  disabled={authLoading || !identifier.trim()}
                   icon={<MaterialIcons name="send" size={18} color={colors.onPrimary} />}
                 />
 
@@ -195,7 +203,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                   variant="outline"
                   size="lg"
                   fullWidth
-                  disabled={isLoading}
+                  disabled={authLoading}
                   icon={<MaterialIcons name="arrow-back" size={18} color={colors.primary} />}
                 />
               </View>
@@ -249,13 +257,13 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                   <Text style={styles.resendText}>Tidak menerima email? </Text>
                   <Pressable
                     onPress={handleResend}
-                    disabled={cooldown > 0 || isLoading}
+                    disabled={cooldown > 0 || authLoading}
                     hitSlop={6}
                   >
                     <Text
                       style={[
                         styles.resendLink,
-                        cooldown > 0 && styles.resendLinkDisabled,
+                        (cooldown > 0 || authLoading) && styles.resendLinkDisabled,
                       ]}
                     >
                       {cooldown > 0

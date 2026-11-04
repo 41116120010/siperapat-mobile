@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { ApiEnvelope, ApiUserDto } from './apiTypes';
+import { ApiEnvelope, ApiUserDto, ApiForgotPasswordDto } from './apiTypes';
 
 export interface ApiLoginDto { token: string; token_type: 'Bearer'; expires_in_days: number; user: ApiUserDto }
 export interface ApiPasswordChangeDto extends ApiLoginDto {}
@@ -11,4 +11,4 @@ export const authApi = {
     apiClient.put<ApiEnvelope<ApiPasswordChangeDto>>('/profile/password', payload),
   updateProfile: (payload: { phone?: string; name?: string; email?: string }) =>
     apiClient.put<ApiEnvelope<ApiUserDto>>('/profile', payload),
-};
+  forgotPassword: (identity: string) => apiClient.post<ApiEnvelope<ApiForgotPasswordDto>>('/auth/forgot-password', { identity }),

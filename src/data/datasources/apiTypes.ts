@@ -42,13 +42,6 @@ export interface ApiAttendanceReceiptDto {
   participant: { name: string; nip: string | null; jabatan: string | null; unit_kerja: string } | null;
   validation: { status: 'tercatat'; status_label: string; metode_verifikasi: string; ip_address: string | null; user_agent: string | null; signed_at: string | null };
 }
-export interface ApiAttendanceHistorySummary {
-  total_attended: number;
-  total_eligible_agendas: number;
-  attendance_rate: number;
-  attendance_rate_label: string;
-  period_label: string;
-}
 export interface ApiAgendaAttendanceSummary {
   total_invited: number;
   total_attended: number;
@@ -56,6 +49,3 @@ export interface ApiAgendaAttendanceSummary {
   participation_rate: number;
   participation_rate_label: string;
 }
-export type ApiAttendanceHistoryPage = ApiPaginated<ApiAttendanceDto> & { summary: ApiAttendanceHistorySummary };
-export type ApiAgendaAttendancePage = ApiPaginated<ApiAttendanceDto> & { summary: ApiAgendaAttendanceSummary };
-export interface ApiActivityLogPage extends ApiPaginated<ApiActivityLogDto> { summary?: { total_logs: number; auth_success: number; incident_count: number; today_count: number; categories: Record<string, number> } }
