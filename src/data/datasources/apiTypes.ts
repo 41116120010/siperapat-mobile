@@ -42,10 +42,6 @@ export interface ApiAttendanceReceiptDto {
   participant: { name: string; nip: string | null; jabatan: string | null; unit_kerja: string } | null;
   validation: { status: 'tercatat'; status_label: string; metode_verifikasi: string; ip_address: string | null; user_agent: string | null; signed_at: string | null };
 }
-export interface ApiAgendaAttendanceSummary {
-  total_invited: number;
-  total_attended: number;
-  unattended_count: number;
-  participation_rate: number;
-  participation_rate_label: string;
+export interface ApiForgotPasswordDto {
+  masked_email: string;
 }

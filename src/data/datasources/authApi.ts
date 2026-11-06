@@ -12,3 +12,4 @@ export const authApi = {
   updateProfile: (payload: { phone?: string; name?: string; email?: string }) =>
     apiClient.put<ApiEnvelope<ApiUserDto>>('/profile', payload),
   forgotPassword: (identity: string) => apiClient.post<ApiEnvelope<ApiForgotPasswordDto>>('/auth/forgot-password', { identity }),
+};

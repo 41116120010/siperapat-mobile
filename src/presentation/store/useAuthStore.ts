@@ -116,6 +116,25 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  forgotPassword: async (identity: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const result = await authRepo.forgotPassword(identity);
+      if (result.success) {
+        set({ isLoading: false });
+        return { success: result.success, message: result.message, maskedEmail: result.maskedEmail };
+      } else {
+        set({ isLoading: false, error: result.message });
+        return { success: result.success, message: result.message, maskedEmail: result.maskedEmail };
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Gagal meminta pemulihan kata sandi.';
+      set({ isLoading: false, error: message });
+      return { success: false, message };
+    }
+  },
+
   clearError: () => set({ error: null }),
 }));
 
