@@ -1,6 +1,8 @@
 export interface ApiEnvelope<T> { success: boolean; message: string; data: T }
 export interface ApiPaginationMeta { current_page: number; last_page: number; per_page: number; total: number }
 export interface ApiPaginated<T> extends ApiEnvelope<T[]> { meta: ApiPaginationMeta }
+/** Response shape for GET /users/candidates (non-paginated, meta only carries total). */
+export interface ApiCandidateList<T> extends ApiEnvelope<T[]> { meta: { total: number } }
 export interface ApiDashboardDto {
   stats: { total_agendas: number; ongoing_agendas: number; completed_agendas: number; upcoming_agendas: number; total_users?: number; total_units?: number; total_attendances?: number; my_attendances?: number; attendance_rate?: number; attendance_rate_label?: string; attendance_rate_subtext?: string };
   active_agendas: ApiAgendaDto[]; recent_attendances: ApiAttendanceDto[];
@@ -18,6 +20,7 @@ export interface ApiAgendaDto {
   id: number; judul_rapat: string; slug: string; jenis_rapat: string; tipe_rapat: 'hybrid' | 'offline' | 'online';
   lokasi_ruang: string | null; link_meeting: string | null; waktu_mulai: string; waktu_selesai: string | null;
   rentang_waktu: string | null; jadwal_lengkap: string | null; is_all_units: boolean;
+  target_type?: 'all_units' | 'selected_units' | 'selected_users';
   status: { value: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled'; label: string };
   surat_edaran?: { url: string | null; stream_url?: string | null; extension: string | null; is_pdf: boolean; is_image: boolean };
   creator?: ApiUserDto | null; pimpinan?: ApiUserDto | null; notulis?: ApiUserDto | null; units?: ApiUnitDto[];
@@ -25,6 +28,7 @@ export interface ApiAgendaDto {
   nomor_ba?: string | null; total_invited?: number; total_attended?: number; unattended_count?: number; participation_rate?: number; participation_rate_label?: string;
   export_links?: { pdf?: string; word?: string; csv?: string };
   notulensi_html?: string | null; kesimpulan_html?: string | null; documentations?: Array<{ id: number; url: string; caption?: string | null }>;
+  invited_users?: ApiUserDto[];
   created_at?: string | null; updated_at?: string | null;
 }
 export interface ApiAttendanceDto {

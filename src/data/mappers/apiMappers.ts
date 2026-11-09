@@ -1,4 +1,4 @@
-import { ASN, Meeting, MeetingStatus } from '../../domain/entities/types';
+import { ASN, Meeting, MeetingStatus, UserOption } from '../../domain/entities/types';
 import { ApiAgendaDto, ApiUserDto } from '../datasources/apiTypes';
 import { UpdateAgendaDto } from '../datasources/agendaApi';
 import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
@@ -19,6 +19,25 @@ export function toAsn(user: ApiUserDto): ASN {
     } : undefined,
     security: user.security,
   };
+}
+
+/**
+ * Maps an agenda user-candidate DTO (from GET /users/candidates) to the
+ * canonical domain entity `UserOption`.
+ */
+export function toUserOption(user: ApiUserDto): UserOption {
+  return {
+    id: String(user.id),
+    nip: user.nip ?? undefined,
+    name: user.name,
+    role: user.role?.value ?? undefined,
+    roleLabel: user.role?.label ?? undefined,
+    unit: user.unit?.nama_unit ?? undefined,
+  };
+}
+
+export function toUserOptions(users: ApiUserDto[]): UserOption[] {
+  return users.map(toUserOption);
 }
 
 function toMeetingStatus(value: ApiAgendaDto['status']['value']): MeetingStatus {
@@ -47,6 +66,10 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
   const venue = agenda.tipe_rapat === 'online' ? agenda.link_meeting ?? '' : agenda.lokasi_ruang ?? '';
   const units = agenda.units?.map((unit) => unit.nama_unit) ?? [];
   const resolvedEdaranUrl = resolveSuratEdaranUrl(agenda.surat_edaran?.stream_url);
+
+  // Map invited_users from API to Meeting entity (kept if backend provides the relation)
+  const invitedUsers = toUserOptions(agenda.invited_users ?? []);
+
   return {
     id: String(agenda.id), code: agenda.slug, title: agenda.judul_rapat, type: agenda.tipe_rapat,
     leader: agenda.pimpinan?.name ?? '', leaderId: agenda.pimpinan?.id ?? null,
@@ -58,6 +81,7 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     rawStatus: agenda.status.value,
     classification: agenda.jenis_rapat,
     isAllUnits: agenda.is_all_units,
+    targetType: agenda.target_type ?? (agenda.is_all_units ? 'all_units' : 'selected_units'),
     unitIds: agenda.units?.map((u) => u.id) ?? [],
     unitsList: agenda.units?.map((u) => ({ id: u.id, nama_unit: u.nama_unit, kode_unit: u.kode_unit })) ?? [],
     creatorId: agenda.creator?.id ?? null,
@@ -66,18 +90,11 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     targetAudience: agenda.is_all_units ? 'Semua unit kerja' : units.join(', '),
     zoomUrl: agenda.link_meeting ?? undefined,
     invitationPdfUrl: resolvedEdaranUrl ?? undefined,
-    totalAttended: agenda.total_attended ?? agenda.attendances_count ?? 0,
-    suratEdaran: agenda.surat_edaran
-      ? {
-          url: resolvedEdaranUrl,
-          extension: agenda.surat_edaran.extension,
-          is_pdf: agenda.surat_edaran.is_pdf,
-          is_image: agenda.surat_edaran.is_image,
-        }
-      : undefined,
-    baNumber: agenda.nomor_ba ?? null,
     totalInvited: agenda.total_invited ?? undefined, geofenceRadiusMeters: undefined, latitude: undefined, longitude: undefined,
+    totalAttended: agenda.total_attended ?? 0,
+    baNumber: agenda.nomor_ba ?? null,
     minutesHtml: agenda.notulensi_html ?? null, summaryHtml: agenda.kesimpulan_html ?? null,
+    invitedUsers,
   };
 }
 
@@ -96,6 +113,13 @@ export function toIsoDateTime(date: string, time?: string | null): string {
 export function meetingToUpdateDto(meeting: Meeting): UpdateAgendaDto {
   const isOnline = meeting.type === 'online';
   const isOffline = meeting.type === 'offline';
+  // Preserve selected_users targeting when available. If the detail API does not
+  // return invited_users, user_ids stays undefined and the update fails loudly
+  // (backend requires user_ids for selected_users) instead of silently dropping the target.
+  const invitedUserIds = (meeting.invitedUsers ?? [])
+    .map((user) => Number(user.id))
+    .filter((id) => Number.isFinite(id));
+  const isSelectedUsers = meeting.targetType === 'selected_users';
   return {
     judul_rapat: meeting.title,
     jenis_rapat: meeting.classification || 'koordinasi',
@@ -107,6 +131,8 @@ export function meetingToUpdateDto(meeting: Meeting): UpdateAgendaDto {
     waktu_selesai: meeting.endTime && meeting.endTime !== '—' ? toIsoDateTime(meeting.date, meeting.endTime) || null : null,
     pimpinan_id: meeting.leaderId ?? null,
     notulis_id: meeting.notulisId ?? null,
+    target_type: meeting.targetType,
+    user_ids: isSelectedUsers && invitedUserIds.length > 0 ? invitedUserIds : undefined,
     is_all_units: meeting.isAllUnits ?? true,
     unit_ids: meeting.isAllUnits ? [] : (meeting.unitIds ?? []),
   };

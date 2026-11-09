@@ -43,6 +43,7 @@ export interface Meeting {
   rawStatus?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
   classification?: string;
   isAllUnits?: boolean;
+  targetType?: 'all_units' | 'selected_units' | 'selected_users';
   unitIds?: number[];
   unitsList?: Array<{ id: number; nama_unit: string; kode_unit: string }>;
   creatorId?: number | null;
@@ -65,9 +66,20 @@ export interface Meeting {
   baNumber?: string | null;
   minutesHtml?: string | null;
   summaryHtml?: string | null;
+  invitedUsers?: UserOption[];
 }
 
 export type AttendanceStatus = 'sah' | 'terlambat' | 'izin' | 'ditolak' | 'tercatat' | 'belum_hadir';
+
+/** Canonical agenda user-candidate entity (from GET /users/candidates). */
+export interface UserOption {
+  id: string;
+  nip?: string;
+  name: string;
+  role?: string;
+  roleLabel?: string;
+  unit?: string;
+}
 
 export interface Attendance {
   id: string;

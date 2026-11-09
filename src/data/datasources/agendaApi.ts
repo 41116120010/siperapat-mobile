@@ -7,7 +7,10 @@ export type AgendaFilters = { status?: 'draft' | 'scheduled' | 'ongoing' | 'comp
 export interface CreateAgendaDto {
   judul_rapat: string; jenis_rapat: string; tipe_rapat: 'hybrid' | 'offline' | 'online';
   lokasi_ruang?: string | null; link_meeting?: string | null; waktu_mulai: string; waktu_selesai?: string | null;
-  pimpinan_id?: number | null; notulis_id?: number | null; is_all_units: boolean; unit_ids?: number[]; status?: 'draft' | 'scheduled';
+  pimpinan_id?: number | null; notulis_id?: number | null;
+  /** Agenda target. `all_units` = all units, `selected_units` = unit_ids, `selected_users` = user_ids. */
+  target_type?: 'all_units' | 'selected_units' | 'selected_users';
+  is_all_units: boolean; unit_ids?: number[]; user_ids?: number[]; status?: 'draft' | 'scheduled';
 }
 export interface UpdateAgendaDto extends Omit<Partial<CreateAgendaDto>, 'status'> {
   status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
@@ -175,8 +178,14 @@ export const agendaApi = {
         link_meeting: current.link_meeting,
         pimpinan_id: current.pimpinan?.id,
         notulis_id: current.notulis?.id,
+        target_type: current.target_type,
         is_all_units: current.is_all_units,
         unit_ids: current.units?.map((u) => u.id),
+        // Preserve invited participants only when the API actually returns them.
+        // The current API detail endpoint does not eager-load invited_users, so this
+        // may be undefined for selected_users; the update then fails validation
+        // instead of silently dropping the target. See backend dependency note.
+        user_ids: current.invited_users?.map((u) => u.id),
         status: current.status?.value as any,
       };
       return agendaApi.update(id, fallbackDto, normalizedFile);

@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { Meeting } from '../../domain/entities/types';
+import { Meeting, UserOption } from '../../domain/entities/types';
 import { AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
 import { ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 import { MeetingRepositoryImpl } from '../../data/repositories/MeetingRepositoryImpl';
 
 const repository = new MeetingRepositoryImpl();
+let candidatesInFlightKey: string | null = null;
 type FilterTab = 'all' | 'ongoing' | 'upcoming' | 'completed';
 interface MeetingState {
   meetings: Meeting[]; dashboardMeetings: Meeting[]; dashboardStats: ApiDashboardDto['stats'] | null;
@@ -12,6 +13,7 @@ interface MeetingState {
   isSavingMinutes: boolean;
   filterTab: FilterTab; currentPage: number; lastPage: number; total: number; typeFilter: 'hybrid' | 'offline' | 'online' | undefined;
   formOptions: { users: ApiUserDto[]; units: ApiUnitDto[] } | null; isFormOptionsLoading: boolean;
+  userCandidates: UserOption[]; userCandidatesTotal: number; isUserCandidatesLoading: boolean; userCandidatesError: string | null;
   setFilterTab: (tab: FilterTab) => void; fetchDashboard: () => Promise<void>;
   fetchMeetings: (page?: number, append?: boolean, typeFilter?: 'all' | 'hybrid' | 'offline' | 'online') => Promise<void>;
   getMeetingById: (id: string) => Promise<Meeting>;
@@ -20,6 +22,7 @@ interface MeetingState {
   createMeeting: (payload: CreateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   updateMeeting: (id: string, payload: UpdateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   deleteMeeting: (id: string) => Promise<{ success: boolean; message?: string }>;
+  fetchUserCandidates: (filters?: { search?: string; unitId?: number }) => Promise<{ users: UserOption[]; total: number } | null>;
   fetchAgendaFormOptions: () => Promise<void>; clearError: () => void;
 }
 
@@ -30,6 +33,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   isLoading: false, isLoadingMore: false, error: null, filterTab: 'all', currentPage: 0, lastPage: 1, total: 0,
   isSavingMinutes: false,
   typeFilter: undefined, formOptions: null, isFormOptionsLoading: false,
+  userCandidates: [], userCandidatesTotal: 0, isUserCandidatesLoading: false, userCandidatesError: null,
 
   setFilterTab: (tab) => {
     set({ filterTab: tab });
@@ -156,6 +160,28 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     try { set({ formOptions: await repository.getAgendaFormOptions() }); }
     catch (error) { set({ error: message(error, 'Gagal memuat pilihan pengguna dan unit.') }); }
     finally { set({ isFormOptionsLoading: false }); }
+  },
+
+  fetchUserCandidates: async (filters = {}) => {
+    const search = filters.search?.trim() || undefined;
+    const requestKey = `${search ?? ''}|${filters.unitId ?? ''}`;
+    if (candidatesInFlightKey === requestKey) {
+      return { users: get().userCandidates, total: get().userCandidatesTotal };
+    }
+    candidatesInFlightKey = requestKey;
+    set({ isUserCandidatesLoading: true, userCandidatesError: null });
+    try {
+      const result = await repository.getUserCandidates({ search, unitId: filters.unitId });
+      set({ userCandidates: result.users, userCandidatesTotal: result.total });
+      return result;
+    } catch (error) {
+      const errMsg = message(error, 'Gagal memuat kandidat pegawai.');
+      set({ userCandidatesError: errMsg, userCandidates: [], userCandidatesTotal: 0 });
+      return null;
+    } finally {
+      candidatesInFlightKey = null;
+      set({ isUserCandidatesLoading: false });
+    }
   },
 
   clearError: () => set({ error: null }),

@@ -1,8 +1,9 @@
 import { IMeetingRepository } from '../../domain/repositories/interfaces';
 import { Meeting } from '../../domain/entities/types';
 import { agendaApi, AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../datasources/agendaApi';
+import { userApi } from '../datasources/userApi';
 import { ApiAgendaDto } from '../datasources/apiTypes';
-import { toMeeting } from '../mappers/apiMappers';
+import { toMeeting, toUserOptions } from '../mappers/apiMappers';
 
 export class MeetingRepositoryImpl implements IMeetingRepository {
   async getDashboard() {
@@ -53,4 +54,10 @@ export class MeetingRepositoryImpl implements IMeetingRepository {
   }
 
   getAgendaFormOptions() { return agendaApi.formOptions(); }
+
+  async getUserCandidates(filters: { search?: string; unitId?: number } = {}) {
+    const response = await userApi.candidates(filters);
+    if (!response.success) throw new Error(response.message || 'Gagal memuat kandidat pegawai.');
+    return { users: toUserOptions(response.data), total: response.meta?.total ?? response.data.length };
+  }
 }

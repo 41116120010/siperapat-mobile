@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { ApiActivityLogPage, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
+import { ApiActivityLogPage, ApiCandidateList, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
 
 function query(values: Record<string, string | number | undefined>) {
   const params = new URLSearchParams();
@@ -8,6 +8,9 @@ function query(values: Record<string, string | number | undefined>) {
 }
 
 export const userApi = {
+  /** GET /users/candidates — cross-unit active ASN candidates for agenda targeting. */
+  candidates: (filters: { search?: string; unitId?: number } = {}) =>
+    apiClient.get<ApiCandidateList<ApiUserDto>>(`/users/candidates?${query({ search: filters.search, unit_id: filters.unitId })}`),
   users: (page = 1, filters: { search?: string; role?: string; status?: string; unitId?: number; perPage?: number } = {}) =>
     apiClient.get<ApiPaginated<ApiUserDto>>(`/users?${query({ page, per_page: filters.perPage ?? 10, search: filters.search, role: filters.role, status: filters.status, unit_id: filters.unitId })}`),
   user: (id: string) => apiClient.get<ApiEnvelope<ApiUserDto>>(`/users/${encodeURIComponent(id)}`),

@@ -1,4 +1,4 @@
-import { ASN, Meeting, Attendance, Employee } from '../entities/types';
+import { ASN, Meeting, Attendance, Employee, UserOption } from '../entities/types';
 import { AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
 import { ApiAgendaAttendanceSummary, ApiAttendanceDto, ApiAttendanceHistorySummary, ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 
@@ -23,6 +23,7 @@ export interface IMeetingRepository {
   updateMinutes(id: string, minutes: UpdateMinutesDto): Promise<Meeting>;
   uploadSuratEdaran(id: string, suratEdaran: UploadFileRef, meetingContext?: UpdateAgendaDto): Promise<Meeting>;
   getAgendaFormOptions(): Promise<{ users: ApiUserDto[]; units: ApiUnitDto[] }>;
+  getUserCandidates(filters?: { search?: string; unitId?: number }): Promise<{ users: UserOption[]; total: number }>;
 }
 
 export interface IAttendanceRepository {
