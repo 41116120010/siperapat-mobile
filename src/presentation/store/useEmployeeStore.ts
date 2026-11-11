@@ -1,18 +1,27 @@
 import { create } from 'zustand';
-import { Employee } from '../../domain/entities/types';
+import { CreateEmployeeInput, Employee } from '../../domain/entities/types';
 import { ApiUnitDto } from '../../data/datasources/apiTypes';
-import { EmployeeRepositoryImpl } from '../../data/repositories/EmployeeRepositoryImpl';
+import { ApiError } from '../../data/datasources/apiClient';
+import { EmployeeRepositoryImpl, EmployeeValidationError } from '../../data/repositories/EmployeeRepositoryImpl';
+import { useAuthStore } from './useAuthStore';
 
 const employeeRepo = new EmployeeRepositoryImpl();
+
+function toValidationErrors(error: unknown): Record<string, string[]> | null {
+  if (error instanceof ApiError) return error.errors ?? null;
+  if (error instanceof EmployeeValidationError) return error.fieldErrors;
+  return null;
+}
+type CreateEmployeeRequest = Omit<CreateEmployeeInput, 'password'> & { password?: string };
 interface EmployeeState {
   employees: Employee[]; selectedEmployee: Employee | null; units: ApiUnitDto[]; selectedUnit: ApiUnitDto | null;
   currentPage: number; lastPage: number; total: number; unitsCurrentPage: number; unitsLastPage: number; unitsTotal: number;
-  isLoading: boolean; error: string | null; employeesLoading: boolean; employeesError: string | null; unitsLoading: boolean; unitsError: string | null;
+  isLoading: boolean; error: string | null; validationErrors: Record<string, string[]> | null; employeesLoading: boolean; employeesError: string | null; unitsLoading: boolean; unitsError: string | null;
   fetchEmployees: (page?: number, filters?: { search?: string; role?: string; status?: string; unitId?: number }, append?: boolean) => Promise<void>;
   fetchUnits: (page?: number, append?: boolean) => Promise<void>;
   fetchEmployeeById: (id: string) => Promise<Employee | null>;
   fetchUnitById: (id: number | string) => Promise<ApiUnitDto | null>;
-  addEmployee: (employeeData: Omit<Employee, 'id' | 'initials'>) => Promise<Employee | null>;
+  addEmployee: (employeeData: CreateEmployeeRequest) => Promise<Employee | null>;
   updateEmployee: (id: string, employeeData: Partial<Employee>) => Promise<Employee | null>;
   deleteEmployee: (id: string) => Promise<boolean>;
   addUnit: (data: { kode_unit: string; nama_unit: string; deskripsi?: string | null; is_active?: boolean }) => Promise<ApiUnitDto | null>;
@@ -23,7 +32,7 @@ interface EmployeeState {
 
 export const useEmployeeStore = create<EmployeeState>((set) => ({
   employees: [], selectedEmployee: null, units: [], selectedUnit: null, currentPage: 0, lastPage: 1, total: 0, unitsCurrentPage: 0, unitsLastPage: 1, unitsTotal: 0,
-  isLoading: false, error: null, employeesLoading: false, employeesError: null, unitsLoading: false, unitsError: null,
+  isLoading: false, error: null, validationErrors: null, employeesLoading: false, employeesError: null, unitsLoading: false, unitsError: null,
   fetchEmployees: async (page = 1, filters = {}, append = false) => {
     set({ employeesLoading: true, employeesError: null });
     try {
@@ -41,13 +50,13 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     finally { set({ unitsLoading: false }); }
   },
   fetchEmployeeById: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, validationErrors: null });
     try { const employee = await employeeRepo.getEmployeeById(id); set({ selectedEmployee: employee }); return employee; }
     catch (error) { set({ error: error instanceof Error ? error.message : 'Gagal memuat detail pegawai.' }); return null; }
     finally { set({ isLoading: false }); }
   },
   fetchUnitById: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, validationErrors: null });
     try {
       const unit = await employeeRepo.getUnitById(id);
       set({ selectedUnit: unit });
@@ -60,13 +69,35 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
   addEmployee: async (data) => {
-    set({ isLoading: true, error: null });
-    try { const result = await employeeRepo.createEmployee(data); return result; }
-    catch (error) { set({ error: error instanceof Error ? error.message : 'Gagal menambahkan pegawai.' }); return null; }
+    set({ isLoading: true, error: null, validationErrors: null });
+    try {
+      const password = data.password;
+      if (!password || password.trim() === '') {
+        const message = 'Kata sandi awal wajib diisi.';
+        set({ error: message, validationErrors: { password: [message] } });
+        return null;
+      }
+      const actor = useAuthStore.getState().user;
+      const unitId = data.unitId ?? (actor?.role === 'admin' ? actor.unitId ?? null : undefined);
+      if (actor?.role === 'admin' && unitId == null) {
+        const message = 'Akun Admin Unit tidak memiliki unit kerja. Hubungi Administrator.';
+        set({ error: message, validationErrors: { unit_id: [message] } });
+        return null;
+      }
+      const employee: CreateEmployeeInput = { ...data, password };
+      const result = await employeeRepo.createEmployee(unitId === undefined ? employee : { ...employee, unitId });
+      return result;
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Gagal menambahkan pegawai.',
+        validationErrors: toValidationErrors(error),
+      });
+      return null;
+    }
     finally { set({ isLoading: false }); }
   },
   updateEmployee: async (id, data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, validationErrors: null });
     try {
       const updated = await employeeRepo.updateEmployee(id, data);
       set((state) => ({ employees: state.employees.map((item) => item.id === id ? updated : item), selectedEmployee: updated }));
@@ -75,7 +106,7 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     finally { set({ isLoading: false }); }
   },
   deleteEmployee: async (id: string) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, validationErrors: null });
     try {
       await employeeRepo.deleteEmployee(id);
       set((state) => ({
@@ -91,7 +122,7 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
   addUnit: async (data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, validationErrors: null });
     try {
       const result = await employeeRepo.createUnit(data);
       set((state) => ({
@@ -107,7 +138,7 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
   updateUnit: async (id, data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, validationErrors: null });
     try {
       const updated = await employeeRepo.updateUnit(id, data);
       set((state) => ({
@@ -122,7 +153,7 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
     }
   },
   deleteUnit: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, validationErrors: null });
     try {
       await employeeRepo.deleteUnit(id);
       set((state) => ({
@@ -137,5 +168,5 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       set({ isLoading: false });
     }
   },
-  clearError: () => set({ error: null }),
+  clearError: () => set({ error: null, validationErrors: null }),
 }));

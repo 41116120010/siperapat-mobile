@@ -1,12 +1,44 @@
 import { IEmployeeRepository } from '../../domain/repositories/interfaces';
-import { Employee } from '../../domain/entities/types';
-import { ApiPaginated, ApiUnitDto, ApiUserDto } from '../datasources/apiTypes';
+import { CreateEmployeeInput, Employee } from '../../domain/entities/types';
+import { ApiPaginated, ApiUnitDto, ApiUserDto, CreateUserPayload } from '../datasources/apiTypes';
 import { userApi } from '../datasources/userApi';
+
+export class EmployeeValidationError extends Error {
+  constructor(message: string, readonly fieldErrors: Record<string, string[]>) {
+    super(message);
+    this.name = 'EmployeeValidationError';
+  }
+}
 
 export const computeInitials = (fullName: string): string => {
   const parts = fullName.replace(/,.*$/, '').trim().split(/\s+/).filter(Boolean);
   return parts.length > 1 ? `${parts[0][0]}${parts[1][0]}`.toUpperCase() : (parts[0]?.slice(0, 2) || 'AS').toUpperCase();
 };
+
+function normalizeOptionalText(value?: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed === '' ? null : trimmed;
+}
+
+function normalizePhone(value?: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed === '' || trimmed === '-' ? null : trimmed;
+}
+
+function toApiRole(role: CreateEmployeeInput['role']): CreateUserPayload['role'] {
+  return role === 'Administrator' ? 'administrator' : role === 'Admin Unit' ? 'admin' : 'staff';
+}
+
+function assertValidInitialPassword(password: string): void {
+  if (password.trim() === '') {
+    const message = 'Kata sandi awal wajib diisi.';
+    throw new EmployeeValidationError(message, { password: [message] });
+  }
+  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    const message = 'Kata sandi awal minimal 8 karakter dan harus mengandung huruf dan angka.';
+    throw new EmployeeValidationError(message, { password: [message] });
+  }
+}
 
 export function toEmployee(user: ApiUserDto): Employee {
   const role = user.role.value === 'administrator' ? 'Administrator' : user.role.value === 'admin' ? 'Admin Unit' : 'Staff';
@@ -32,8 +64,32 @@ export class EmployeeRepositoryImpl implements IEmployeeRepository {
     const response = await userApi.user(id);
     return response.success ? toEmployee(response.data) : null;
   }
-  async createEmployee(_employee: Omit<Employee, 'id' | 'initials'>): Promise<Employee> {
-    throw new Error('Pembuatan akun memerlukan password awal, sedangkan formulir mobile belum menyediakan field tersebut.');
+  async createEmployee(employee: CreateEmployeeInput): Promise<Employee> {
+    assertValidInitialPassword(employee.password);
+    const unitId = employee.unitId;
+    if (unitId !== undefined && unitId !== null && (!Number.isInteger(unitId) || unitId <= 0)) {
+      throw new Error('Unit kerja tidak valid. Pilih unit dari daftar unit API.');
+    }
+
+    const payload: CreateUserPayload = {
+      name: employee.name.trim(),
+      nip: employee.nip.trim(),
+      username: employee.username.replace(/^@+/, '').trim().toLowerCase(),
+      email: employee.email.trim(),
+      password: employee.password,
+      role: toApiRole(employee.role),
+      is_active: employee.status === 'Aktif',
+      phone: normalizePhone(employee.phone),
+      jabatan: normalizeOptionalText(employee.jabatan),
+      pangkat_golongan: normalizeOptionalText(employee.pangkatGolongan),
+    };
+    if (unitId !== undefined && unitId !== null) payload.unit_id = unitId;
+
+    const response = await userApi.create(payload);
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Gagal menambahkan pegawai.');
+    }
+    return toEmployee(response.data);
   }
   async updateEmployee(id: string, employee: Partial<Employee>): Promise<Employee> {
     const current = await this.getEmployeeById(id);

@@ -3,6 +3,11 @@ export interface ApiPaginationMeta { current_page: number; last_page: number; pe
 export interface ApiPaginated<T> extends ApiEnvelope<T[]> { meta: ApiPaginationMeta }
 /** Response shape for GET /users/candidates (non-paginated, meta only carries total). */
 export interface ApiCandidateList<T> extends ApiEnvelope<T[]> { meta: { total: number } }
+export type ApiUserRoleValue = 'administrator' | 'admin' | 'staff';
+export interface CreateUserPayload {
+  name: string; nip: string; username: string; email: string; password: string; role: ApiUserRoleValue;
+  unit_id?: number; phone?: string | null; is_active?: boolean; jabatan?: string | null; pangkat_golongan?: string | null;
+}
 export interface ApiDashboardDto {
   stats: { total_agendas: number; ongoing_agendas: number; completed_agendas: number; upcoming_agendas: number; total_users?: number; total_units?: number; total_attendances?: number; my_attendances?: number; attendance_rate?: number; attendance_rate_label?: string; attendance_rate_subtext?: string };
   active_agendas: ApiAgendaDto[]; recent_attendances: ApiAttendanceDto[];

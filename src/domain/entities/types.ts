@@ -158,6 +158,21 @@ export interface ASNUnitMember {
   statusPresensiTerakhir: 'Hadir' | 'Tugas Luar' | 'Belum Presensi';
 }
 
+export interface CreateEmployeeInput {
+  name: string;
+  nip: string;
+  username: string;
+  email: string;
+  password: string;
+  role: 'Administrator' | 'Admin Unit' | 'Staff';
+  status: 'Aktif' | 'Nonaktif';
+  phone?: string | null;
+  jabatan?: string | null;
+  pangkatGolongan?: string | null;
+  unitId?: number | null;
+  unit?: string;
+}
+
 export interface Employee {
   id: string;
   initials: string;

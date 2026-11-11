@@ -1,4 +1,4 @@
-import { ASN, Meeting, Attendance, Employee, UserOption } from '../entities/types';
+import { ASN, Meeting, Attendance, CreateEmployeeInput, Employee, UserOption } from '../entities/types';
 import { AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
 import { ApiAgendaAttendanceSummary, ApiAttendanceDto, ApiAttendanceHistorySummary, ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 
@@ -41,7 +41,7 @@ export interface IEmployeeRepository {
   getEmployeePage(page?: number, filters?: { search?: string; role?: string; status?: string; unitId?: number }): Promise<{ employees: Employee[]; currentPage: number; lastPage: number; total: number }>;
   getUnits(page?: number): Promise<{ units: ApiUnitDto[]; currentPage: number; lastPage: number; total: number }>;
   getEmployeeById(id: string): Promise<Employee | null>;
-  createEmployee(employee: Omit<Employee, 'id' | 'initials'>): Promise<Employee>;
+  createEmployee(employee: CreateEmployeeInput): Promise<Employee>;
   updateEmployee(id: string, employee: Partial<Employee>): Promise<Employee>;
   deleteEmployee(id: string): Promise<boolean>;
   toggleEmployeeStatus(id: string): Promise<Employee>;
