@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  ScrollViewInstance,
   TextInput,
   Pressable,
   Platform,
@@ -39,7 +40,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   const [error, setError] = useState<string | null>(null);
   const currentUser = useAuthStore((state) => state.user);
   const isAdministrator = currentUser?.role === 'administrator';
-  const scrollViewRef = useRef<ScrollView | null>(null);
+  const scrollViewRef = useRef<ScrollViewInstance | null>(null);
 
   const categoryValue = selectedCategory === 'Login' ? 'login' : selectedCategory === 'Agenda' ? 'agenda' : selectedCategory === 'Presensi' ? 'presensi' : selectedCategory === 'User' ? 'user' : undefined;
   const loadLogs = useCallback(async (nextPage = 1, append = false, query = search) => {

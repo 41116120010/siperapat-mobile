@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, Platform, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../../core/theme/colors';
 import { typography } from '../../../core/theme/typography';
@@ -20,71 +21,74 @@ export const Header: React.FC<HeaderProps> = ({
   onBack,
   rightAction,
 }) => {
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0
+  );
+
   return (
-    <View style={styles.container}>
-      {showBack ? (
-        <View style={styles.navRow}>
-          <Pressable
-            onPress={onBack}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Kembali"
-          >
-            <MaterialIcons
-              name="chevron-left"
-              size={28}
-              color={colors.primary}
-            />
-          </Pressable>
-          <View style={[styles.textContainer, rightAction ? { paddingRight: 40 } : undefined]}>
-            <Text style={styles.title} numberOfLines={1}>
-              {title}
-            </Text>
-            {subtitle ? (
+    <View style={[styles.container, { paddingTop: topInset }]}>
+      <View style={styles.contentRow}>
+        {showBack ? (
+          <View style={styles.navRow}>
+            <Pressable
+              onPress={onBack}
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && styles.backButtonPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Kembali"
+            >
+              <MaterialIcons
+                name="chevron-left"
+                size={28}
+                color={colors.primary}
+              />
+            </Pressable>
+            <View style={[styles.textContainer, rightAction ? { paddingRight: 48 } : undefined]}>
+              <Text style={styles.title} numberOfLines={1}>
+                {title}
+              </Text>
+              {subtitle ? (
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.centeredBrandContainer}>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../../../../assets/images/tut-wuri-handayani.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={styles.brandTextContainer}>
+              <Text style={styles.title} numberOfLines={1}>
+                {title}
+              </Text>
               <Text style={styles.subtitle} numberOfLines={1}>
                 {subtitle}
               </Text>
-            ) : null}
+            </View>
           </View>
-        </View>
-      ) : (
-        <View style={styles.centeredBrandContainer}>
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('../../../../assets/images/tut-wuri-handayani.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
-          <View style={styles.brandTextContainer}>
-            <Text style={styles.title} numberOfLines={1}>
-              {title}
-            </Text>
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
-            </Text>
-          </View>
-        </View>
-      )}
+        )}
 
-      {rightAction ? (
-        <View style={styles.rightActionAbsolute}>{rightAction}</View>
-      ) : null}
+        {rightAction ? (
+          <View style={styles.rightActionAbsolute}>{rightAction}</View>
+        ) : null}
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: 60,
     backgroundColor: colors.surfaceContainerLowest,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
     elevation: 2,
@@ -92,6 +96,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
+    zIndex: 10,
+  },
+  contentRow: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    position: 'relative',
+    width: '100%',
   },
   centeredBrandContainer: {
     flexDirection: 'row',
@@ -149,6 +163,8 @@ const styles = StyleSheet.create({
   rightActionAbsolute: {
     position: 'absolute',
     right: spacing.md,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

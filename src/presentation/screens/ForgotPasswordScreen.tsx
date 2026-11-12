@@ -11,6 +11,7 @@ import {
   Linking,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../core/theme/colors';
 import { typography } from '../../core/theme/typography';
 import { rounded, spacing, elevations } from '../../core/theme/tokens';
@@ -28,6 +29,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onBack,
   onSuccessLogin,
 }) => {
+  const insets = useSafeAreaInsets();
   const [identifier, setIdentifier] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedTarget, setSubmittedTarget] = useState('');
@@ -115,7 +117,13 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
       style={styles.keyboardView}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(spacing.xl, insets.top + spacing.md),
+            paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.md),
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
