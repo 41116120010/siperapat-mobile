@@ -20,7 +20,6 @@ import {
   Layers,
   Play,
   Plus,
-  RotateCcw,
   Search,
   Trash2,
   X,
@@ -60,7 +59,7 @@ const STATUS_TABS: readonly {
   countKey: keyof ApiAgendaStatusCounts;
 }[] = [
   { id: 'all', label: 'Semua', countKey: 'all' },
-  { id: 'draft', label: 'Konsep', countKey: 'draft' },
+  { id: 'draft', label: 'Draf / Konsep', countKey: 'draft' },
   { id: 'ongoing', label: 'Sedang Berlangsung', countKey: 'ongoing' },
   { id: 'scheduled', label: 'Terjadwal', countKey: 'scheduled' },
   { id: 'completed', label: 'Selesai', countKey: 'completed' },
@@ -664,10 +663,10 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
               pressed && styles.createButtonPressed,
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Buat Agenda"
+            accessibilityLabel="Buat Agenda Rapat"
           >
             <Plus size={16} strokeWidth={2} color={colors.onPrimary} />
-            <Text style={styles.createButtonText}>Buat Agenda</Text>
+            <Text style={styles.createButtonText}>Buat Agenda Rapat</Text>
           </Pressable>
         ) : null}
       </View>
@@ -708,35 +707,40 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
         })}
       </ScrollView>
 
-      {/* Unified White Bordered Filter Card (Search + Format Select + Unit Select + Cari/Reset) */}
+      {/* Unified White Bordered Filter Bar (1 Horizontal Row: Search + Format + Unit + Cari + Reset) */}
       <View style={styles.filterCard}>
-        <View style={styles.searchBox}>
-          <Search size={17} strokeWidth={2} color={colors.textMuted} />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearchSubmit}
-            placeholder="Cari judul rapat atau ruangan..."
-            placeholderTextColor={colors.textMuted}
-            style={styles.searchInput}
-            returnKeyType="search"
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="Cari judul rapat atau ruangan"
-          />
-          {searchQuery.length > 0 ? (
-            <Pressable
-              onPress={handleClearSearch}
-              style={styles.searchClearButton}
-              accessibilityRole="button"
-              accessibilityLabel="Bersihkan pencarian"
-            >
-              <X size={16} strokeWidth={2} color={colors.textMuted} />
-            </Pressable>
-          ) : null}
-        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.filterBarScrollContent}
+        >
+          <View style={styles.searchBox}>
+            <Search size={16} strokeWidth={2} color={colors.textMuted} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={handleSearchSubmit}
+              placeholder="Cari judul rapat atau ruangan..."
+              placeholderTextColor={colors.textMuted}
+              style={styles.searchInput}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel="Cari judul rapat atau ruangan"
+            />
+            {searchQuery.length > 0 ? (
+              <Pressable
+                onPress={handleClearSearch}
+                style={styles.searchClearButton}
+                accessibilityRole="button"
+                accessibilityLabel="Bersihkan pencarian"
+              >
+                <X size={15} strokeWidth={2} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
+          </View>
 
-        <View style={styles.filterSelectRow}>
           <Pressable
             onPress={() => setIsFormatModalVisible(true)}
             style={({ pressed }) => [
@@ -746,13 +750,10 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
             accessibilityRole="button"
             accessibilityLabel="Filter format pelaksanaan"
           >
-            <View style={styles.filterSelectLeft}>
-              <Layers size={15} strokeWidth={2} color={colors.primary} />
-              <Text style={styles.filterSelectText} numberOfLines={1}>
-                {selectedFormatLabel}
-              </Text>
-            </View>
-            <ChevronDown size={16} strokeWidth={2} color={colors.textMuted} />
+            <Text style={styles.filterSelectText} numberOfLines={1}>
+              {selectedFormatLabel}
+            </Text>
+            <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
           </Pressable>
 
           {isAdministrator ? (
@@ -760,33 +761,28 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
               onPress={() => setIsUnitModalVisible(true)}
               style={({ pressed }) => [
                 styles.filterSelectTrigger,
+                styles.unitFilterSelectTrigger,
                 pressed && styles.filterTabPressed,
               ]}
               accessibilityRole="button"
               accessibilityLabel="Filter sasaran unit kerja"
             >
-              <View style={styles.filterSelectLeft}>
-                <Building size={15} strokeWidth={2} color={colors.primary} />
-                <Text style={styles.filterSelectText} numberOfLines={1}>
-                  {selectedUnitLabel}
-                </Text>
-              </View>
-              <ChevronDown size={16} strokeWidth={2} color={colors.textMuted} />
+              <Text style={styles.filterSelectText} numberOfLines={1}>
+                {selectedUnitLabel}
+              </Text>
+              <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
             </Pressable>
           ) : null}
-        </View>
 
-        <View style={styles.filterActionRow}>
           <Pressable
             onPress={handleSearchSubmit}
             style={({ pressed }) => [
               styles.searchSubmitBtn,
-              pressed && styles.createButtonPressed,
+              pressed && styles.filterTabPressed,
             ]}
             accessibilityRole="button"
             accessibilityLabel="Cari agenda rapat"
           >
-            <Search size={15} strokeWidth={2} color={colors.onPrimary} />
             <Text style={styles.searchSubmitText}>Cari</Text>
           </Pressable>
 
@@ -800,11 +796,10 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
               accessibilityRole="button"
               accessibilityLabel="Reset filter"
             >
-              <RotateCcw size={14} strokeWidth={2} color={colors.onSurfaceVariant} />
               <Text style={styles.resetFilterText}>Reset</Text>
             </Pressable>
           ) : null}
-        </View>
+        </ScrollView>
       </View>
     </View>
   );
@@ -972,25 +967,32 @@ const styles = StyleSheet.create({
   filterCard: {
     ...cardSurface,
     borderRadius: rounded.xl,
-    padding: spacing.md,
-    gap: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.sm + 4,
   },
-  searchBox: {
+  filterBarScrollContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    gap: spacing.xs + 2,
+  },
+  searchBox: {
+    width: 224,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderStrong,
     borderRadius: rounded.lg,
     minHeight: MIN_TOUCH_TARGET,
-    paddingLeft: 12,
-    paddingRight: 4,
-    gap: 8,
+    paddingLeft: 10,
+    paddingRight: 2,
+    gap: 6,
   },
   searchInput: {
     ...typography.bodyMd,
     flex: 1,
     minHeight: MIN_TOUCH_TARGET,
+    fontSize: 12,
     color: colors.onSurface,
     paddingVertical: 8,
   },
@@ -1000,15 +1002,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterSelectRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs + 2,
-  },
   filterSelectTrigger: {
-    flexGrow: 1,
-    flexBasis: '47%',
-    minWidth: 150,
+    width: 196,
     minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1017,15 +1012,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: rounded.lg,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.background,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
   },
-  filterSelectLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-    minWidth: 0,
+  unitFilterSelectTrigger: {
+    width: 210,
   },
   filterSelectText: {
     ...typography.labelSm,
@@ -1034,44 +1025,34 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     flex: 1,
   },
-  filterActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
   searchSubmitBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
     minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: 16,
     borderRadius: rounded.lg,
   },
   searchSubmitText: {
     ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onPrimary,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
     fontSize: 12,
   },
   resetFilterBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 14,
-    borderRadius: rounded.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 10,
   },
   resetFilterText: {
     ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSurfaceVariant,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textSecondary,
     fontSize: 12,
+    textDecorationLine: 'underline',
   },
   cardActionsRow: {
     flexDirection: 'row',

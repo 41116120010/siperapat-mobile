@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   AtSign,
   Building2,
-  Check,
   ChevronRight,
   CreditCard,
   FileSpreadsheet,
@@ -18,13 +17,13 @@ import {
   Info,
   Lock,
   LogOut,
+  LucideIcon,
   Mail,
-  Pencil,
+  Save,
   ShieldCheck,
   Smartphone,
   User,
   Users,
-  X,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
@@ -37,12 +36,22 @@ import { Button } from '../components/common/Button';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 
-interface ProfileScreenProps {
+export interface ProfileScreenProps {
   onLogout: () => void;
-  onNavigateAuditLog: () => void;
+  onNavigateAuditLog: (mode?: 'personal' | 'system') => void;
   onNavigatePegawai: () => void;
   onNavigateChangePassword: () => void;
   onNavigateReports?: () => void;
+  onNavigateUnitDirectory?: () => void;
+}
+
+interface ProfileMenuItem {
+  key: string;
+  title: string;
+  subtitle: string;
+  accessibilityLabel: string;
+  Icon: LucideIcon;
+  onPress: () => void;
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,13 +62,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigatePegawai,
   onNavigateChangePassword,
   onNavigateReports,
+  onNavigateUnitDirectory,
 }) => {
   const { user, logout, refreshProfile, updateProfile } = useAuthStore();
   const isAdministrator = user?.role === 'administrator';
   const canManageEmployees = isAdministrator || user?.role === 'admin';
 
-  // Profile Edit State (Nama Lengkap, Email Kedinasan, No. WhatsApp / HP)
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [nameInput, setNameInput] = useState(user?.name ?? '');
   const [emailInput, setEmailInput] = useState(user?.email ?? '');
   const [phoneInput, setPhoneInput] = useState(user?.phone ?? '');
@@ -67,12 +75,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [registeredAt, setRegisteredAt] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isEditingProfile) {
-      setNameInput(user?.name ?? '');
-      setEmailInput(user?.email ?? '');
-      setPhoneInput(user?.phone ?? '');
-    }
-  }, [user?.name, user?.email, user?.phone, isEditingProfile]);
+    setNameInput(user?.name ?? '');
+    setEmailInput(user?.email ?? '');
+    setPhoneInput(user?.phone ?? '');
+  }, [user?.name, user?.email, user?.phone]);
 
   useFocusEffect(
     useCallback(() => {
@@ -95,20 +101,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       : user?.role === 'admin'
       ? 'Admin Unit'
       : 'Pegawai Unit';
-
-  const handleStartEditProfile = () => {
-    setNameInput(user?.name ?? '');
-    setEmailInput(user?.email ?? '');
-    setPhoneInput(user?.phone ?? '');
-    setIsEditingProfile(true);
-  };
-
-  const handleCancelEditProfile = () => {
-    setNameInput(user?.name ?? '');
-    setEmailInput(user?.email ?? '');
-    setPhoneInput(user?.phone ?? '');
-    setIsEditingProfile(false);
-  };
 
   const handleSaveProfile = async () => {
     const trimmedName = nameInput.trim();
@@ -152,7 +144,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       trimmedEmail === (user?.email ?? '') &&
       cleanedPhone === (user?.phone ?? '')
     ) {
-      setIsEditingProfile(false);
+      useFeedbackStore.getState().showToast({
+        type: 'info',
+        message: 'Tidak ada perubahan data diri untuk disimpan.',
+      });
       return;
     }
 
@@ -169,7 +164,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           type: 'success',
           message: 'Informasi data diri berhasil diperbarui.',
         });
-        setIsEditingProfile(false);
       } else {
         useFeedbackStore.getState().showToast({
           type: 'error',
@@ -204,6 +198,74 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     });
   };
 
+  const menuItems = useMemo<ProfileMenuItem[]>(() => {
+    const items: ProfileMenuItem[] = [];
+
+    if (canManageEmployees && onNavigateReports) {
+      items.push({
+        key: 'reports',
+        title: 'Laporan & Rekap',
+        subtitle: 'Rekap kehadiran rapat, ekspor PDF, Word & CSV',
+        accessibilityLabel: 'Buka Laporan dan Rekap',
+        Icon: FileSpreadsheet,
+        onPress: onNavigateReports,
+      });
+    }
+
+    if (isAdministrator && onNavigateUnitDirectory) {
+      items.push({
+        key: 'units',
+        title: 'Unit Kerja',
+        subtitle: 'Master data bagian dan kelompok kerja (Pokja)',
+        accessibilityLabel: 'Buka Master Data Unit Kerja',
+        Icon: Building2,
+        onPress: onNavigateUnitDirectory,
+      });
+    }
+
+    if (canManageEmployees) {
+      items.push({
+        key: 'users',
+        title: 'Pengguna',
+        subtitle: isAdministrator
+          ? 'Daftar pengguna dan penugasan unit kerja'
+          : 'Daftar aparatur pada unit kerja Anda',
+        accessibilityLabel: 'Buka Kelola Pengguna',
+        Icon: Users,
+        onPress: onNavigatePegawai,
+      });
+    }
+
+    if (isAdministrator) {
+      items.push({
+        key: 'system-logs',
+        title: 'Log Aktivitas Sistem',
+        subtitle: 'Rekam jejak audit seluruh pengguna sistem',
+        accessibilityLabel: 'Buka Log Aktivitas Sistem',
+        Icon: ShieldCheck,
+        onPress: () => onNavigateAuditLog('system'),
+      });
+    }
+
+    items.push({
+      key: 'personal-logs',
+      title: 'Log Aktivitas Saya',
+      subtitle: 'Riwayat aktivitas akun kedinasan Anda',
+      accessibilityLabel: 'Buka Log Aktivitas Saya',
+      Icon: History,
+      onPress: () => onNavigateAuditLog('personal'),
+    });
+
+    return items;
+  }, [
+    canManageEmployees,
+    isAdministrator,
+    onNavigateReports,
+    onNavigateUnitDirectory,
+    onNavigatePegawai,
+    onNavigateAuditLog,
+  ]);
+
   return (
     <View style={styles.container}>
       <Header />
@@ -213,7 +275,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* SUBTITLE & IDENTITAS RESMI */}
+        {/* 1. Heading & Subtitle (Web SSOT profile/edit.blade.php:4-5) */}
         <View style={styles.titleSection}>
           <Text style={styles.mainTitle}>Pengaturan Profil Akun</Text>
           <Text style={styles.mainSubtitle}>
@@ -221,213 +283,33 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </Text>
         </View>
 
-        {/* KARTU PROFIL PEGAWAI RESMI ASN */}
-        <View style={styles.heroCard}>
-          <View style={styles.profileTopRow}>
-            <View style={styles.avatarInitialBox}>
-              <Text style={styles.avatarInitialText}>{initials}</Text>
-            </View>
-
-            <View style={styles.profileMetaInfo}>
-              <Text style={styles.profileName}>{user?.name ?? 'Nama pengguna'}</Text>
-              <Text style={styles.profileRoleTitle}>
-                {user?.jabatan ?? roleDisplayLabel}
-              </Text>
-              <Text style={styles.profileMetaSub} numberOfLines={2}>
-                {[user?.pangkatGolongan, user?.unitKerja].filter(Boolean).join(' • ') ||
-                  'Informasi unit belum tersedia'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.accountStatusGrid}>
-            <View style={styles.accountStatusRow}>
-              <Text style={styles.accountStatusLabel}>Status Akun:</Text>
-              <View style={styles.accountActivePill}>
-                <Text style={styles.accountActiveText}>Aktif</Text>
-              </View>
-            </View>
-            <View style={styles.accountStatusRow}>
-              <Text style={styles.accountStatusLabel}>Terdaftar Sejak:</Text>
-              <Text style={styles.accountStatusValue}>
-                {registeredAt ? formatTanggalIndonesia(registeredAt) : '—'}
-              </Text>
-            </View>
-          </View>
-
-          {/* STATISTIK KEHADIRAN (3-COLUMN PROPORTIONAL GRID) */}
-          <View style={styles.performanceSection}>
-            <Text style={styles.performanceHeader}>Statistik Kehadiran</Text>
-
-            <View style={styles.perfGrid}>
-              <View style={styles.perfCol}>
-                <Text style={styles.perfLabel}>Total Agenda</Text>
-                <Text style={styles.perfValue}>
-                  {user?.attendanceStats?.totalAgendas ?? '—'}
-                </Text>
-                <Text style={styles.perfSub}>Dapat diakses</Text>
-              </View>
-
-              <View style={styles.perfCol}>
-                <Text style={styles.perfLabel}>Kehadiran</Text>
-                <Text style={styles.perfValue}>
-                  {user?.attendanceStats?.attendanceRateLabel ?? '—'}
-                </Text>
-                <Text style={styles.perfSub}>Tervalidasi</Text>
-              </View>
-
-              <View style={styles.perfCol}>
-                <Text style={styles.perfLabel}>Tepat Waktu</Text>
-                <Text style={styles.perfValue}>
-                  {user?.attendanceStats?.onTimeRateLabel ?? '—'}
-                </Text>
-                <Text style={styles.perfSub}>Presensi Awal</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* SECTION 2: INFORMASI DATA DIRI & AKUN KEDINASAN */}
+        {/* 2. Card: Informasi Data Diri (langsung siap edit 1:1 Web) */}
         <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Informasi Data Diri</Text>
-            {!isEditingProfile ? (
-              <Pressable
-                onPress={handleStartEditProfile}
-                style={({ pressed }) => [
-                  styles.editToggleBtn,
-                  pressed && styles.btnPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Ubah informasi profil"
-              >
-                <Pencil size={14} strokeWidth={2} color={colors.primary} />
-                <Text style={styles.editToggleBtnText}>Ubah Profil</Text>
-              </Pressable>
-            ) : null}
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardHeaderIconBox}>
+              <User size={19} strokeWidth={2} color={colors.primary} />
+            </View>
+            <View style={styles.cardHeaderTextWrap}>
+              <Text style={styles.sectionTitle}>Informasi Data Diri</Text>
+              <Text style={styles.cardHeaderSubtitle}>
+                Perbarui nama lengkap, email kedinasan, dan nomor kontak aktif
+              </Text>
+            </View>
           </View>
 
-          {isEditingProfile ? (
-            <View style={styles.editFormWrap}>
-              <Input
-                label="Nama Lengkap *"
-                placeholder="Masukkan nama lengkap beserta gelar..."
-                value={nameInput}
-                onChangeText={setNameInput}
-                editable={!isSavingProfile}
-                leftIcon={<User size={18} strokeWidth={2} color={colors.primary} />}
-              />
-
-              <Input
-                label="Alamat Email *"
-                placeholder="nama@lldikti.kemdikbud.go.id"
-                value={emailInput}
-                onChangeText={setEmailInput}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isSavingProfile}
-                leftIcon={<Mail size={18} strokeWidth={2} color={colors.primary} />}
-              />
-
-              <Input
-                label="Nomor Telepon / WhatsApp"
-                placeholder="081234567890"
-                value={phoneInput}
-                onChangeText={setPhoneInput}
-                keyboardType="phone-pad"
-                isMono
-                editable={!isSavingProfile}
-                helperText="Digunakan untuk notifikasi & koordinasi rapat dinas."
-                leftIcon={<Smartphone size={18} strokeWidth={2} color={colors.primary} />}
-              />
-
-              <View style={styles.editActionsRow}>
-                <View style={styles.editActionHalf}>
-                  <Button
-                    title="Batal"
-                    variant="outline"
-                    onPress={handleCancelEditProfile}
-                    disabled={isSavingProfile}
-                    icon={<X size={16} strokeWidth={2} color={colors.onSurfaceVariant} />}
-                    fullWidth
-                  />
-                </View>
-                <View style={styles.editActionSave}>
-                  <Button
-                    title={isSavingProfile ? 'Menyimpan...' : 'Simpan Perubahan Data Diri'}
-                    variant="primary"
-                    onPress={() => void handleSaveProfile()}
-                    isLoading={isSavingProfile}
-                    disabled={isSavingProfile}
-                    icon={<Check size={16} strokeWidth={2} color={colors.onPrimary} />}
-                    fullWidth
-                  />
-                </View>
-              </View>
-            </View>
-          ) : (
-            <>
-              <View style={styles.fieldItem}>
-                <Text style={styles.fieldLabel}>Nama Lengkap</Text>
-                <View style={styles.readonlyInputRow}>
-                  <User size={17} strokeWidth={2} color={colors.textMuted} />
-                  <Text style={styles.readonlyInputValue} numberOfLines={1}>
-                    {user?.name || '—'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.fieldItem}>
-                <Text style={styles.fieldLabel}>Alamat Email</Text>
-                <View style={styles.readonlyInputRow}>
-                  <Mail size={17} strokeWidth={2} color={colors.textMuted} />
-                  <Text style={styles.readonlyInputValue} numberOfLines={1}>
-                    {user?.email || '—'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.fieldItem}>
-                <Text style={styles.fieldLabel}>Nomor Telepon / WhatsApp</Text>
-                <View style={styles.readonlyInputRow}>
-                  <Smartphone
-                    size={17}
-                    strokeWidth={2}
-                    color={user?.phone ? colors.primary : colors.textMuted}
-                  />
-                  <Text
-                    style={
-                      user?.phone
-                        ? styles.readonlyInputValueMono
-                        : styles.readonlyInputPlaceholder
-                    }
-                    numberOfLines={1}
-                  >
-                    {user?.phone ? user.phone : 'Belum ditambahkan'}
-                  </Text>
-                </View>
-              </View>
-            </>
-          )}
-
-          {/* READONLY SYSTEM FIELDS */}
-          <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Nomor Induk Pegawai (NIP)</Text>
-            <View style={styles.readonlyInputRow}>
-              <CreditCard size={17} strokeWidth={2} color={colors.textMuted} />
-              <Text style={styles.readonlyInputValueMono}>{user?.nip || 'Tidak tercatat'}</Text>
-              <Lock size={14} strokeWidth={2} color={colors.textMuted} />
-            </View>
-            <Text style={styles.fieldHelperText}>
-              Perubahan NIP hanya dapat dilakukan melalui Administrator.
-            </Text>
-          </View>
+          <Input
+            label="Nama Lengkap *"
+            placeholder="Masukkan nama lengkap beserta gelar..."
+            value={nameInput}
+            onChangeText={setNameInput}
+            editable={!isSavingProfile}
+            leftIcon={<User size={17} strokeWidth={2} color={colors.primary} />}
+          />
 
           <View style={styles.fieldItem}>
             <Text style={styles.fieldLabel}>Nama Pengguna (Username)</Text>
             <View style={styles.readonlyInputRow}>
-              <AtSign size={17} strokeWidth={2} color={colors.textMuted} />
+              <AtSign size={16} strokeWidth={2} color={colors.textMuted} />
               <Text style={styles.readonlyInputValueMono}>{user?.username ?? '—'}</Text>
               <Lock size={14} strokeWidth={2} color={colors.textMuted} />
             </View>
@@ -437,135 +319,177 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
 
           <View style={styles.fieldItem}>
+            <Text style={styles.fieldLabel}>Nomor Induk Pegawai (NIP)</Text>
+            <View style={styles.readonlyInputRow}>
+              <CreditCard size={16} strokeWidth={2} color={colors.textMuted} />
+              <Text style={styles.readonlyInputValueMono}>
+                {user?.nip || 'Tidak tercatat'}
+              </Text>
+              <Lock size={14} strokeWidth={2} color={colors.textMuted} />
+            </View>
+            <Text style={styles.fieldHelperText}>
+              Perubahan NIP hanya dapat dilakukan melalui Administrator.
+            </Text>
+          </View>
+
+          <Input
+            label="Alamat Email *"
+            placeholder="nama@lldikti.kemdikbud.go.id"
+            value={emailInput}
+            onChangeText={setEmailInput}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isSavingProfile}
+            leftIcon={<Mail size={17} strokeWidth={2} color={colors.primary} />}
+          />
+
+          <Input
+            label="Nomor Telepon / WhatsApp"
+            placeholder="081234567890"
+            value={phoneInput}
+            onChangeText={setPhoneInput}
+            keyboardType="phone-pad"
+            isMono
+            editable={!isSavingProfile}
+            leftIcon={<Smartphone size={17} strokeWidth={2} color={colors.primary} />}
+          />
+
+          <View style={styles.fieldItem}>
             <Text style={styles.fieldLabel}>Unit Kerja Organisasi</Text>
             <View style={styles.readonlyInputRow}>
-              <Building2 size={17} strokeWidth={2} color={colors.textMuted} />
-              <Text style={styles.readonlyInputValue} numberOfLines={1}>
+              <Building2 size={16} strokeWidth={2} color={colors.textMuted} />
+              <Text style={styles.readonlyInputValue} numberOfLines={2}>
                 {user?.unitKerja || 'Tingkat Lembaga (Tanpa Unit Kerja Terikat)'}
               </Text>
               <Lock size={14} strokeWidth={2} color={colors.textMuted} />
             </View>
           </View>
 
-          <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Hak Akses</Text>
-            <View style={styles.readonlyInputRow}>
-              <ShieldCheck size={17} strokeWidth={2} color={colors.textMuted} />
-              <Text style={styles.readonlyInputValueBold}>{roleDisplayLabel}</Text>
-            </View>
+          <View style={styles.cardFooterSaveWrap}>
+            <Button
+              title={isSavingProfile ? 'Menyimpan...' : 'Simpan Perubahan Data Diri'}
+              variant="primary"
+              onPress={() => void handleSaveProfile()}
+              isLoading={isSavingProfile}
+              disabled={isSavingProfile}
+              icon={<Save size={15} strokeWidth={2} color={colors.onPrimary} />}
+              fullWidth
+            />
           </View>
         </View>
 
-        {/* SECTION 3: KEAMANAN AKUN */}
+        {/* 3. Card: Perbarui Kata Sandi Akun */}
         <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderStatic}>
-            <Text style={styles.sectionTitle}>Keamanan Akun</Text>
-          </View>
-
-          <View style={styles.authActionRow}>
-            <View style={styles.authActionTextWrap}>
-              <Text style={styles.authActionTitle}>Kata Sandi</Text>
-              <Text style={styles.authActionSub}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardHeaderIconBox}>
+              <Lock size={19} strokeWidth={2} color={colors.primary} />
+            </View>
+            <View style={styles.cardHeaderTextWrap}>
+              <Text style={styles.sectionTitle}>Perbarui Kata Sandi Akun</Text>
+              <Text style={styles.cardHeaderSubtitle}>
                 {user?.security?.last_password_changed_label ||
-                  'Tersedia opsi pembaruan berkala'}
+                  'Pastikan menggunakan kombinasi kata sandi yang kuat dan aman'}
               </Text>
             </View>
-            <Pressable
-              onPress={onNavigateChangePassword}
-              style={({ pressed }) => [
-                styles.changePassBtn,
-                pressed && styles.itemPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Ubah Kata Sandi"
-            >
-              <Text style={styles.changePassBtnText}>Ubah Sandi</Text>
-            </Pressable>
           </View>
-        </View>
-
-        {/* SECTION 4: ADMINISTRASI SISTEM (UNIFIED MENU CARD) */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderStatic}>
-            <Text style={styles.sectionTitle}>Administrasi Sistem</Text>
-          </View>
-
-          {canManageEmployees ? (
-            <>
-              <Pressable
-                onPress={onNavigatePegawai}
-                style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Buka Direktori Pegawai"
-              >
-                <View style={styles.menuNavIconWrap}>
-                  <Users size={20} strokeWidth={2} color={colors.primary} />
-                </View>
-                <View style={styles.menuNavTextCol}>
-                  <Text style={styles.menuNavTitle}>Direktori Pegawai ASN</Text>
-                  <Text style={styles.menuNavSub}>
-                    {isAdministrator
-                      ? 'Daftar pegawai dan pembagian unit kerja'
-                      : 'Pegawai pada unit kerja Anda'}
-                  </Text>
-                </View>
-                <ChevronRight size={20} strokeWidth={2} color={colors.textMuted} />
-              </Pressable>
-
-              <View style={styles.menuDivider} />
-            </>
-          ) : null}
-
-          {canManageEmployees && onNavigateReports ? (
-            <>
-              <Pressable
-                onPress={onNavigateReports}
-                style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Buka Laporan dan Rekapitulasi"
-              >
-                <View style={styles.menuNavIconWrap}>
-                  <FileSpreadsheet size={20} strokeWidth={2} color={colors.primary} />
-                </View>
-                <View style={styles.menuNavTextCol}>
-                  <Text style={styles.menuNavTitle}>Laporan & Rekapitulasi</Text>
-                  <Text style={styles.menuNavSub}>
-                    Rekap kehadiran rapat, ekspor PDF, Word & CSV
-                  </Text>
-                </View>
-                <ChevronRight size={20} strokeWidth={2} color={colors.textMuted} />
-              </Pressable>
-
-              <View style={styles.menuDivider} />
-            </>
-          ) : null}
 
           <Pressable
-            onPress={onNavigateAuditLog}
-            style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
+            onPress={onNavigateChangePassword}
+            style={({ pressed }) => [
+              styles.changePassBtn,
+              pressed && styles.changePassBtnPressed,
+            ]}
             accessibilityRole="button"
-            accessibilityLabel={
-              isAdministrator ? 'Buka Log Aktivitas Sistem' : 'Buka Log Aktivitas Saya'
-            }
+            accessibilityLabel="Perbarui Kata Sandi"
           >
-            <View style={styles.menuNavIconWrap}>
-              <History size={20} strokeWidth={2} color={colors.primary} />
-            </View>
-            <View style={styles.menuNavTextCol}>
-              <Text style={styles.menuNavTitle}>
-                {isAdministrator ? 'Log Audit Sistem' : 'Log Aktivitas Saya'}
-              </Text>
-              <Text style={styles.menuNavSub}>
-                {isAdministrator
-                  ? 'Rekam jejak aktivitas seluruh pengguna'
-                  : 'Riwayat aktivitas akun Anda'}
-              </Text>
-            </View>
-            <ChevronRight size={20} strokeWidth={2} color={colors.textMuted} />
+            <ShieldCheck size={16} strokeWidth={2} color={colors.onPrimary} />
+            <Text style={styles.changePassBtnText}>Perbarui Kata Sandi</Text>
           </Pressable>
         </View>
 
-        {/* SECTION 3.5: KETENTUAN KEAMANAN AKUN (edit.blade.php:323-333) */}
+        {/* 4. Dark Account Summary Card (primaryDarkest) */}
+        <View style={styles.darkSummaryCard}>
+          <View style={styles.darkSummaryTop}>
+            <View style={styles.darkAvatarBox}>
+              <Text style={styles.darkAvatarText}>{initials}</Text>
+            </View>
+            <Text style={styles.darkSummaryName}>{user?.name ?? 'Nama pengguna'}</Text>
+            <View style={styles.darkUsernameBadge}>
+              <Text style={styles.darkUsernameText}>@{user?.username ?? '—'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.darkSummaryRows}>
+            <View style={styles.darkSummaryRow}>
+              <Text style={styles.darkSummaryLabel}>NIP</Text>
+              <Text style={styles.darkSummaryMono}>{user?.nip || 'Tidak tercatat'}</Text>
+            </View>
+
+            <View style={styles.darkSummaryRow}>
+              <Text style={styles.darkSummaryLabel}>Unit Kerja</Text>
+              <Text style={styles.darkSummaryValue} numberOfLines={2}>
+                {user?.unitKerja || 'Tingkat Lembaga'}
+              </Text>
+            </View>
+
+            <View style={styles.darkSummaryRow}>
+              <Text style={styles.darkSummaryLabel}>Peran (Role)</Text>
+              <View style={styles.darkRolePill}>
+                <Text style={styles.darkRolePillText}>{roleDisplayLabel}</Text>
+              </View>
+            </View>
+
+            <View style={styles.darkSummaryRow}>
+              <Text style={styles.darkSummaryLabel}>Status Akun</Text>
+              <View style={styles.accountActivePill}>
+                <Text style={styles.accountActiveText}>Aktif</Text>
+              </View>
+            </View>
+
+            <View style={styles.darkSummaryRow}>
+              <Text style={styles.darkSummaryLabel}>Terdaftar Sejak</Text>
+              <Text style={styles.darkSummaryValue}>
+                {registeredAt ? formatTanggalIndonesia(registeredAt) : '—'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 5. Menu Pengelolaan & Akun sesuai Kebijakan Role Web */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderStatic}>
+            <Text style={styles.sectionTitle}>
+              {canManageEmployees ? 'Menu Pengelolaan & Akun' : 'Menu Akun'}
+            </Text>
+          </View>
+
+          {menuItems.map((item, idx) => {
+            const IconComp = item.Icon;
+            return (
+              <React.Fragment key={item.key}>
+                {idx > 0 ? <View style={styles.menuDivider} /> : null}
+                <Pressable
+                  onPress={item.onPress}
+                  style={({ pressed }) => [styles.menuNavCard, pressed && styles.itemPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.accessibilityLabel}
+                >
+                  <View style={styles.menuNavIconWrap}>
+                    <IconComp size={20} strokeWidth={2} color={colors.primary} />
+                  </View>
+                  <View style={styles.menuNavTextCol}>
+                    <Text style={styles.menuNavTitle}>{item.title}</Text>
+                    <Text style={styles.menuNavSub}>{item.subtitle}</Text>
+                  </View>
+                  <ChevronRight size={20} strokeWidth={2} color={colors.textMuted} />
+                </Pressable>
+              </React.Fragment>
+            );
+          })}
+        </View>
+
+        {/* 6. Card: Ketentuan Keamanan Akun (edit.blade.php:323-333) */}
         <View style={styles.sectionCard}>
           <View style={styles.securityGuideHeader}>
             <Info size={16} strokeWidth={2} color={colors.primary} />
@@ -584,7 +508,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
         </View>
 
-        {/* SECTION 5: LOGOUT BUTTON */}
+        {/* 7. Tombol Keluar dari Sistem */}
         <Pressable
           onPress={handleLogout}
           style={({ pressed }) => [
@@ -597,8 +521,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <LogOut size={18} strokeWidth={2} color={colors.error} />
           <Text style={styles.logoutButtonText}>Keluar dari Sistem</Text>
         </Pressable>
-
-        <Text style={styles.versionNote}>SIPERAPAT LLDIKTI Wilayah X • v2.2</Text>
       </ScrollView>
     </View>
   );
@@ -619,103 +541,13 @@ const styles = StyleSheet.create({
   },
   mainTitle: {
     ...typography.headlineMd,
-    fontFamily: fontFamilies.sansBold,
+    fontFamily: fontFamilies.sansExtraBold,
     fontSize: 20,
-    color: colors.onSurface,
+    color: colors.primaryDarkest,
   },
   mainSubtitle: {
     ...typography.bodySm,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
-  },
-  heroCard: {
-    ...cardSurface,
-    borderRadius: rounded.card,
-    padding: spacing.md,
-    gap: spacing.md,
-    overflow: 'hidden',
-  },
-  profileTopRow: {
-    flexDirection: 'row',
-    gap: 14,
-    alignItems: 'center',
-  },
-  avatarWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-  },
-  profileMetaInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  profileName: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 16,
-    color: colors.onSurface,
-  },
-  profileRoleTitle: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 12,
-    color: colors.primary,
-  },
-  profileMetaSub: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
-  },
-  performanceSection: {
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    paddingTop: spacing.sm + 2,
-  },
-  performanceHeader: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 11,
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  perfGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  perfCol: {
-    flex: 1,
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: rounded.md,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    justifyContent: 'space-between',
-    minHeight: 74,
-  },
-  perfLabel: {
-    ...typography.labelSm,
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-  },
-  perfValue: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.monoBold,
-    fontSize: 16,
-    color: colors.primary,
-    marginTop: 2,
-  },
-  perfSub: {
-    ...typography.labelSm,
-    fontSize: 9.5,
+    fontSize: 13,
     color: colors.textMuted,
     marginTop: 2,
   },
@@ -723,17 +555,35 @@ const styles = StyleSheet.create({
     ...cardSurface,
     borderRadius: rounded.card,
     padding: spacing.md,
-    gap: spacing.sm + 2,
+    gap: spacing.sm + 4,
     overflow: 'hidden',
   },
-  sectionHeaderRow: {
+  cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.sm + 4,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
-    paddingBottom: spacing.xs + 2,
-    gap: spacing.sm,
+    paddingBottom: spacing.sm + 2,
+  },
+  cardHeaderIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardHeaderTextWrap: {
+    flex: 1,
+  },
+  cardHeaderSubtitle: {
+    ...typography.bodySm,
+    fontSize: 11.5,
+    color: colors.textMuted,
+    marginTop: 2,
   },
   sectionHeaderStatic: {
     borderBottomWidth: 1,
@@ -744,44 +594,15 @@ const styles = StyleSheet.create({
     ...typography.headlineSm,
     fontFamily: fontFamilies.sansBold,
     fontSize: 14,
-    color: colors.onSurface,
-  },
-  editToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 12,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surfaceSoft,
-  },
-  editToggleBtnText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 11.5,
-    color: colors.primary,
-  },
-  editFormWrap: {
-    gap: spacing.sm + 2,
-  },
-  editActionsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: 2,
-  },
-  editActionHalf: {
-    flex: 1,
+    color: colors.primaryDarkest,
   },
   fieldItem: {
     gap: 4,
   },
   fieldLabel: {
     ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 11,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
     color: colors.onSurfaceVariant,
   },
   readonlyInputRow: {
@@ -793,74 +614,165 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
+    paddingVertical: 8,
     gap: 8,
   },
   readonlyInputValue: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 12.5,
     color: colors.onSurface,
     flex: 1,
   },
   readonlyInputValueMono: {
     ...typography.labelMono,
-    fontFamily: fontFamilies.monoSemiBold,
+    fontFamily: fontFamilies.monoBold,
     fontSize: 12,
     color: colors.onSurface,
     flex: 1,
     letterSpacing: 0.3,
   },
-  readonlyInputPlaceholder: {
-    ...typography.bodySm,
-    fontSize: 12.5,
-    color: colors.textMuted,
-    fontStyle: 'italic',
-    flex: 1,
-  },
-  readonlyInputValueBold: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 12.5,
-    color: colors.primary,
-    flex: 1,
-  },
-  btnPressed: {
-    opacity: 0.78,
-  },
-  authActionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  authActionTextWrap: {
-    flex: 1,
-  },
-  authActionTitle: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 13,
-    color: colors.onSurface,
-  },
-  authActionSub: {
-    ...typography.bodySm,
+  fieldHelperText: {
+    ...typography.labelSm,
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 2,
   },
+  cardFooterSaveWrap: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingTop: spacing.sm + 4,
+  },
   changePassBtn: {
     minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primaryDarkest,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surfaceCard,
+    gap: 8,
+    paddingHorizontal: spacing.md,
+  },
+  changePassBtnPressed: {
+    backgroundColor: colors.primaryContainer,
   },
   changePassBtnText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 13,
+    color: colors.onPrimary,
+  },
+  darkSummaryCard: {
+    backgroundColor: colors.primaryDarkest,
+    borderRadius: rounded.card,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  darkSummaryTop: {
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  darkAvatarBox: {
+    width: 64,
+    height: 64,
+    borderRadius: rounded.xl,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  darkAvatarText: {
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 20,
+    color: colors.onPrimary,
+  },
+  darkSummaryName: {
+    ...typography.headlineSm,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 16,
+    color: colors.onPrimary,
+    textAlign: 'center',
+  },
+  darkUsernameBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+  },
+  darkUsernameText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
     fontSize: 12,
-    color: colors.primary,
+    color: colors.onPrimaryContainer,
+  },
+  darkSummaryRows: {
+    borderTopWidth: 1,
+    borderTopColor: colors.primaryContainer,
+    paddingTop: spacing.sm + 4,
+    gap: 10,
+  },
+  darkSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  darkSummaryLabel: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.secondaryFixedDim,
+  },
+  darkSummaryValue: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.onPrimary,
+    textAlign: 'right',
+    flexShrink: 1,
+  },
+  darkSummaryMono: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 12,
+    color: colors.onPrimary,
+    textAlign: 'right',
+    flexShrink: 1,
+  },
+  darkRolePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.sm + 2,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+  },
+  darkRolePillText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.onPrimary,
+  },
+  accountActivePill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  accountActiveText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.onSuccessContainer,
   },
   menuNavCard: {
     flexDirection: 'row',
@@ -901,6 +813,20 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.borderSubtle,
   },
+  securityGuideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  securityGuideList: {
+    gap: 6,
+  },
+  securityGuideItem: {
+    ...typography.bodySm,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
   logoutButton: {
     minHeight: MIN_TOUCH_TARGET + 4,
     borderRadius: rounded.lg,
@@ -921,87 +847,5 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansBold,
     fontSize: 13,
     color: colors.error,
-  },
-  versionNote: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  avatarInitialBox: {
-    width: 64,
-    height: 64,
-    borderRadius: rounded.xl,
-    backgroundColor: colors.primaryDarkest,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitialText: {
-    ...typography.headlineMd,
-    fontFamily: fontFamilies.sansExtraBold,
-    fontSize: 20,
-    color: colors.onPrimary,
-  },
-  accountStatusGrid: {
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    paddingTop: spacing.sm,
-    gap: 6,
-  },
-  accountStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  accountStatusLabel: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  accountStatusValue: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 12,
-    color: colors.onSurface,
-  },
-  accountActivePill: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: rounded.full,
-    backgroundColor: colors.successContainer,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
-  },
-  accountActiveText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 11,
-    color: colors.onSuccessContainer,
-  },
-  editActionSave: {
-    flex: 2,
-  },
-  fieldHelperText: {
-    ...typography.labelSm,
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 3,
-  },
-  securityGuideHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
-  securityGuideList: {
-    gap: 6,
-  },
-  securityGuideItem: {
-    ...typography.bodySm,
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 18,
   },
 });

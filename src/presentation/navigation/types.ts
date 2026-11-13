@@ -14,8 +14,10 @@ export type RootStackParamList = {
   EditEmployee: { employeeId: string };
   AddUnit: undefined;
   EditUnit: { unitId: number | string };
-  AuditLog: undefined;
+  UnitDirectory: undefined;
+  AuditLog: { mode?: 'personal' | 'system' } | undefined;
   Reports: undefined;
+  ReportDetail: { meetingId: string };
   ChangePassword: undefined;
 };
 

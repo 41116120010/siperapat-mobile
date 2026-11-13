@@ -1,70 +1,51 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
+  ScrollViewInstance,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
-  ArrowUpRight,
-  Award,
   BarChart3,
-  BookOpen,
   Building2,
   Calendar,
   CheckCircle2,
-  ChevronsUpDown,
+  ChevronDown,
   ClipboardCheck,
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   Filter,
-  Link2,
-  MapPin,
   RotateCcw,
-  Search,
-  ShieldCheck,
-  UserCheck,
   Users,
-  X,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { formatTanggalIndonesia } from '../../core/utils/dateFormatter';
 import {
-  resolveAttendanceMediaUrl,
-  resolveSuratEdaranUrl,
-} from '../../core/utils/mediaUrl';
-import { authTokenStore } from '../../data/datasources/authTokenStore';
-import {
   ApiAgendaDto,
-  ApiAttendanceDto,
   ApiPaginationMeta,
 } from '../../data/datasources/apiTypes';
-import { attendanceApi } from '../../data/datasources/attendanceApi';
 import {
   AgendaExportFormat,
-  ApiReportAgendaRecapDto,
   ApiReportSummaryDto,
   reportApi,
   ReportFilterParams,
 } from '../../data/datasources/reportApi';
 import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
-import { Button } from '../components/common/Button';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
-import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { CalendarDatePickerModal } from '../components/modals/CalendarDatePickerModal';
@@ -77,15 +58,30 @@ export interface ReportsScreenProps {
   onOpenAgenda?: (agendaId: string) => void;
 }
 
-type StatusFilterValue = 'all' | 'completed' | 'ongoing' | 'scheduled' | 'cancelled';
+type StatusFilterValue = 'all' | 'completed' | 'ongoing' | 'scheduled';
 type FormatFilterValue = 'all' | 'offline' | 'online' | 'hybrid';
+
+interface AppliedReportFilters {
+  startDate: string;
+  endDate: string;
+  status: StatusFilterValue;
+  format: FormatFilterValue;
+  unitId: string;
+}
+
+const DEFAULT_REPORT_FILTERS: AppliedReportFilters = {
+  startDate: '',
+  endDate: '',
+  status: 'all',
+  format: 'all',
+  unitId: '',
+};
 
 const STATUS_OPTIONS: Array<{ value: StatusFilterValue; label: string }> = [
   { value: 'all', label: 'Semua Status' },
   { value: 'completed', label: 'Selesai' },
   { value: 'ongoing', label: 'Sedang Berlangsung' },
   { value: 'scheduled', label: 'Terjadwal' },
-  { value: 'cancelled', label: 'Dibatalkan' },
 ];
 
 const FORMAT_OPTIONS: Array<{ value: FormatFilterValue; label: string }> = [
@@ -94,6 +90,21 @@ const FORMAT_OPTIONS: Array<{ value: FormatFilterValue; label: string }> = [
   { value: 'online', label: 'Daring (Virtual)' },
   { value: 'hybrid', label: 'Hibrida' },
 ];
+
+const COL_WIDTHS = {
+  agenda: 245,
+  peserta: 105,
+  status: 135,
+  notulensi: 122,
+  ekspor: 230,
+} as const;
+
+const TABLE_MIN_WIDTH =
+  COL_WIDTHS.agenda +
+  COL_WIDTHS.peserta +
+  COL_WIDTHS.status +
+  COL_WIDTHS.notulensi +
+  COL_WIDTHS.ekspor;
 
 function mapAgendaStatusToPill(value: ApiAgendaDto['status']['value']): StatusPillType {
   switch (value) {
@@ -135,97 +146,26 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-const BearerImage: React.FC<{
-  rawUrl?: string | null;
-  attendanceId?: number;
-  style: object;
-  resizeMode?: 'contain' | 'cover';
-  fallbackLabel?: string;
-}> = ({ rawUrl, attendanceId, style, resizeMode = 'contain', fallbackLabel }) => {
-  const [localUri, setLocalUri] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const resolved =
-      attendanceId != null
-        ? resolveAttendanceMediaUrl(rawUrl, String(attendanceId), 'signature')
-        : resolveSuratEdaranUrl(rawUrl);
-    if (!resolved) {
-      setLocalUri(null);
-      setFailed(true);
-      return () => {
-        active = false;
-      };
-    }
-
-    setFailed(false);
-    const load = async () => {
-      try {
-        const cacheDir = FileSystem.cacheDirectory;
-        if (!cacheDir) {
-          if (active) setFailed(true);
-          return;
-        }
-        const token = authTokenStore.get();
-        const safeKey = resolved.replace(/[^a-zA-Z0-9]/g, '_').slice(-40);
-        const dest = `${cacheDir}report_media_${safeKey}.png`;
-        const result = await FileSystem.downloadAsync(resolved, dest, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (!active) return;
-        if (result.status >= 200 && result.status < 300) {
-          setLocalUri(result.uri);
-        } else {
-          setFailed(true);
-        }
-      } catch {
-        if (active) setFailed(true);
-      }
-    };
-
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [rawUrl]);
-
-  if (localUri) {
-    return <Image source={{ uri: localUri }} style={style} resizeMode={resizeMode} />;
-  }
-
-  return (
-    <View style={[style, styles.bearerImageFallback]}>
-      {failed ? (
-        <Text style={styles.bearerFallbackText}>
-          {fallbackLabel || 'Tidak dapat memuat media'}
-        </Text>
-      ) : (
-        <ActivityIndicator size="small" color={colors.primary} />
-      )}
-    </View>
-  );
-};
-
 export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   onBack,
   onOpenAgenda,
 }) => {
+  const navigation = useNavigation<any>();
   const { showToast } = useFeedbackStore();
   const isAdministrator = useAuthStore((state) => state.user?.role === 'administrator');
   const { allUnits, fetchAllUnits } = useEmployeeStore();
   const exportRepoRef = useRef(new AgendaExportRepository());
+  const scrollViewRef = useRef<ScrollViewInstance | null>(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all');
-  const [formatFilter, setFormatFilter] = useState<FormatFilterValue>('all');
-  const [selectedUnitId, setSelectedUnitId] = useState('');
-  const [unitModalVisible, setUnitModalVisible] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [draftStartDate, setDraftStartDate] = useState('');
+  const [draftEndDate, setDraftEndDate] = useState('');
+  const [draftStatus, setDraftStatus] = useState<StatusFilterValue>('all');
+  const [draftFormat, setDraftFormat] = useState<FormatFilterValue>('all');
+  const [draftUnitId, setDraftUnitId] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState<AppliedReportFilters>(DEFAULT_REPORT_FILTERS);
+
   const [activeDateField, setActiveDateField] = useState<'start' | 'end' | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'none' | 'status' | 'format' | 'unit'>('none');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [summary, setSummary] = useState<ApiReportSummaryDto | null>(null);
@@ -241,16 +181,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isListLoading, setIsListLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
   const [isExportingSummaryCsv, setIsExportingSummaryCsv] = useState(false);
   const [exportingKey, setExportingKey] = useState<string | null>(null);
-
-  const [recapModalVisible, setRecapModalVisible] = useState(false);
-  const [recapAgendaPreview, setRecapAgendaPreview] = useState<ApiAgendaDto | null>(null);
-  const [recapDetail, setRecapDetail] = useState<ApiReportAgendaRecapDto | null>(null);
-  const [recapAttendances, setRecapAttendances] = useState<ApiAttendanceDto[]>([]);
-  const [recapLoading, setRecapLoading] = useState(false);
-  const [recapError, setRecapError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAdministrator) {
@@ -258,62 +190,77 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     }
   }, [isAdministrator, fetchAllUnits]);
 
-  const unitFilterOptions = useMemo<AgendaOption[]>(() => {
+  const statusModalOptions = useMemo<AgendaOption[]>(
+    () =>
+      STATUS_OPTIONS.map((item) => ({
+        id: item.value,
+        title: item.label,
+        icon: Filter,
+      })),
+    [],
+  );
+
+  const formatModalOptions = useMemo<AgendaOption[]>(
+    () =>
+      FORMAT_OPTIONS.map((item) => ({
+        id: item.value,
+        title: item.label,
+        icon: BarChart3,
+      })),
+    [],
+  );
+
+  const unitModalOptions = useMemo<AgendaOption[]>(() => {
     const items: AgendaOption[] = [
-      {
-        id: '',
-        title: 'Semua Unit Kerja',
-        subtitle: 'Tampilkan laporan seluruh unit kerja LLDIKTI Wilayah X',
-        icon: Building2,
-      },
+      { id: '', title: 'Semua Unit Kerja', icon: Building2 },
     ];
     allUnits.forEach((u) => {
       items.push({
         id: String(u.id),
         title: `${u.kode_unit} — ${u.nama_unit}`,
-        subtitle: u.is_active ? u.deskripsi ?? undefined : 'Unit Nonaktif',
         icon: Building2,
       });
     });
     return items;
   }, [allUnits]);
 
+  const selectedStatusLabel =
+    STATUS_OPTIONS.find((item) => item.value === draftStatus)?.label ?? 'Semua Status';
+  const selectedFormatLabel =
+    FORMAT_OPTIONS.find((item) => item.value === draftFormat)?.label ?? 'Semua Format';
   const selectedUnitLabel = useMemo(() => {
-    if (!selectedUnitId) return 'Semua Unit Kerja';
-    const found = allUnits.find((u) => String(u.id) === selectedUnitId);
-    return found ? `${found.kode_unit} — ${found.nama_unit}` : `Unit #${selectedUnitId}`;
-  }, [allUnits, selectedUnitId]);
+    if (!draftUnitId) return 'Semua Unit Kerja';
+    const found = allUnits.find((u) => String(u.id) === draftUnitId);
+    return found ? `${found.kode_unit} — ${found.nama_unit}` : `Unit #${draftUnitId}`;
+  }, [allUnits, draftUnitId]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery.trim());
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  const activeFilters = useMemo<ReportFilterParams>(() => {
+  const activeApiFilters = useMemo<ReportFilterParams>(() => {
     const filters: ReportFilterParams = {};
-    if (statusFilter !== 'all') filters.status = statusFilter;
-    if (formatFilter !== 'all') filters.tipe = formatFilter;
-    if (isAdministrator && selectedUnitId) {
-      filters.unit_id = Number(selectedUnitId);
+    if (appliedFilters.status !== 'all') filters.status = appliedFilters.status;
+    if (appliedFilters.format !== 'all') filters.tipe = appliedFilters.format;
+    if (isAdministrator && appliedFilters.unitId) {
+      filters.unit_id = Number(appliedFilters.unitId);
     }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(startDate.trim())) {
-      filters.start_date = startDate.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(appliedFilters.startDate)) {
+      filters.start_date = appliedFilters.startDate;
     }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(endDate.trim())) {
-      filters.end_date = endDate.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(appliedFilters.endDate)) {
+      filters.end_date = appliedFilters.endDate;
     }
     return filters;
-  }, [statusFilter, formatFilter, isAdministrator, selectedUnitId, startDate, endDate]);
+  }, [appliedFilters, isAdministrator]);
 
   const hasActiveFilters = Boolean(
-    statusFilter !== 'all' ||
-      formatFilter !== 'all' ||
-      (isAdministrator && selectedUnitId !== '') ||
-      debouncedSearch.length > 0 ||
-      startDate.trim().length > 0 ||
-      endDate.trim().length > 0,
+    appliedFilters.status !== 'all' ||
+      appliedFilters.format !== 'all' ||
+      appliedFilters.unitId !== '' ||
+      appliedFilters.startDate !== '' ||
+      appliedFilters.endDate !== '' ||
+      draftStatus !== 'all' ||
+      draftFormat !== 'all' ||
+      draftUnitId !== '' ||
+      draftStartDate !== '' ||
+      draftEndDate !== '',
   );
 
   const loadReports = useCallback(
@@ -325,12 +272,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
       setErrorMessage(null);
       try {
         const [summaryRes, agendasRes] = await Promise.all([
-          reportApi.getSummary(activeFilters),
+          reportApi.getSummary(activeApiFilters),
           reportApi.getAgendas({
-            ...activeFilters,
+            ...activeApiFilters,
             page,
             per_page: 10,
-            search: debouncedSearch || undefined,
           }),
         ]);
 
@@ -345,78 +291,62 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           },
         );
       } catch (err) {
-        const message =
+        setErrorMessage(
           err instanceof Error
             ? err.message
-            : 'Gagal memuat data laporan dan rekapitulasi.';
-        setErrorMessage(message);
+            : 'Gagal memuat data laporan dan rekapitulasi.',
+        );
       } finally {
         setIsInitialLoading(false);
         setIsRefreshing(false);
         setIsListLoading(false);
       }
     },
-    [activeFilters, debouncedSearch],
+    [activeApiFilters],
   );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeFilters, debouncedSearch]);
 
   useEffect(() => {
     void loadReports(currentPage, summary === null ? 'initial' : 'list');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, activeFilters, debouncedSearch]);
+  }, [currentPage, activeApiFilters]);
+
+  const handleApplyFilters = () => {
+    setCurrentPage(1);
+    setAppliedFilters({
+      startDate: draftStartDate.trim(),
+      endDate: draftEndDate.trim(),
+      status: draftStatus,
+      format: draftFormat,
+      unitId: draftUnitId,
+    });
+  };
+
+  const handleResetFilters = () => {
+    setDraftStartDate('');
+    setDraftEndDate('');
+    setDraftStatus('all');
+    setDraftFormat('all');
+    setDraftUnitId('');
+    setCurrentPage(1);
+    setAppliedFilters(DEFAULT_REPORT_FILTERS);
+  };
 
   const handleRefresh = () => {
     void loadReports(currentPage, 'refresh');
   };
 
-  const handleResetFilters = () => {
-    setSearchQuery('');
-    setDebouncedSearch('');
-    setStatusFilter('all');
-    setFormatFilter('all');
-    setSelectedUnitId('');
-    setStartDate('');
-    setEndDate('');
-    setCurrentPage(1);
+  const handlePageChange = (targetPage: number) => {
+    if (isListLoading || targetPage < 1 || targetPage > pagination.last_page) return;
+    setCurrentPage(targetPage);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
-  const handleApplyFilters = () => {
-    setDebouncedSearch(searchQuery.trim());
-    setCurrentPage(1);
-    void loadReports(1, 'list');
-  };
-
-  const handleOpenRecap = async (agenda: ApiAgendaDto) => {
-    setRecapAgendaPreview(agenda);
-    setRecapDetail(null);
-    setRecapAttendances(agenda.attendances ?? []);
-    setRecapError(null);
-    setRecapModalVisible(true);
-    setRecapLoading(true);
-    try {
-      const [recapRes, attendanceRes] = await Promise.all([
-        reportApi.getAgendaRecap(String(agenda.id)),
-        attendanceApi
-          .agendaAttendances(String(agenda.id), 1, 50, { status: 'attended' })
-          .catch(() => null),
-      ]);
-      setRecapDetail(recapRes.data);
-      if (recapRes.data.agenda.attendances && recapRes.data.agenda.attendances.length > 0) {
-        setRecapAttendances(recapRes.data.agenda.attendances);
-      } else if (attendanceRes?.data) {
-        setRecapAttendances(attendanceRes.data);
-      }
-    } catch (err) {
-      setRecapError(
-        err instanceof Error
-          ? err.message
-          : 'Gagal memuat pratinjau detail rekapitulasi laporan.',
-      );
-    } finally {
-      setRecapLoading(false);
+  const handleOpenDetail = (agendaId: number) => {
+    const idStr = String(agendaId);
+    if (onOpenAgenda) {
+      onOpenAgenda(idStr);
+    } else {
+      navigation.navigate('ReportDetail', { meetingId: idStr });
     }
   };
 
@@ -424,7 +354,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     if (isExportingSummaryCsv) return;
     setIsExportingSummaryCsv(true);
     try {
-      const result = await reportApi.exportSummaryCsv(activeFilters);
+      const result = await reportApi.exportSummaryCsv(activeApiFilters);
       const directory = FileSystem.cacheDirectory;
       if (!directory) {
         throw new Error('Penyimpanan sementara perangkat tidak tersedia.');
@@ -502,29 +432,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     ? Math.max(0, summary.completed_agendas - summary.count_with_notulen)
     : 0;
 
-  const activeRecapAgenda = recapDetail?.agenda ?? recapAgendaPreview;
-  const activeRecapPenutup =
-    typeof recapDetail?.report_config?.penutup === 'string' &&
-    recapDetail.report_config.penutup.trim().length > 0
-      ? recapDetail.report_config.penutup.trim()
-      : 'Demikian notulensi rapat kedinasan ini disusun secara sah sebagai bagian dari dokumentasi administrasi rapat di lingkungan LLDIKTI Wilayah X.';
-
-  const pimpinanAttendance = useMemo(() => {
-    if (!activeRecapAgenda?.pimpinan?.id) return null;
-    return (
-      recapAttendances.find((a) => a.user_id === activeRecapAgenda.pimpinan?.id) ?? null
-    );
-  }, [activeRecapAgenda, recapAttendances]);
-
-  const notulisAttendance = useMemo(() => {
-    if (!activeRecapAgenda?.notulis?.id) return null;
-    return (
-      recapAttendances.find((a) => a.user_id === activeRecapAgenda.notulis?.id) ?? null
-    );
-  }, [activeRecapAgenda, recapAttendances]);
-
   return (
-    <View style={styles.container}>
+    <View style={styles.root}>
       <Header
         title="Rekapitulasi & Laporan Rapat"
         subtitle="Rekapitulasi kehadiran, notulensi resmi, dan ekspor dokumen rapat kedinasan."
@@ -533,6 +442,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
       />
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -568,10 +478,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               />
             ) : null}
 
-            {/* 1. 3 SUMMARY KPI CARDS */}
+            {/* 1. 3 KPI CARDS */}
             {summary ? (
               <View style={styles.summarySection}>
-                {/* Card 1: Agenda Rapat */}
                 <View style={styles.summaryCard}>
                   <View style={styles.summaryCardHeader}>
                     <View style={styles.summaryIconBox}>
@@ -596,7 +505,6 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   </View>
                 </View>
 
-                {/* Card 2: Kehadiran Pegawai */}
                 <View style={styles.summaryCard}>
                   <View style={styles.summaryCardHeader}>
                     <View style={styles.summaryIconBox}>
@@ -605,9 +513,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     <View style={styles.summaryTitleCol}>
                       <Text style={styles.summaryLabel}>KEHADIRAN PEGAWAI</Text>
                       <View style={styles.kpiInlineRow}>
-                        <Text style={styles.summaryKpi}>
-                          {summary.total_attendances}
-                        </Text>
+                        <Text style={styles.summaryKpi}>{summary.total_attendances}</Text>
                         <View style={styles.emeraldPill}>
                           <Text style={styles.emeraldPillText}>
                             {summary.attendance_rate}% Rasio
@@ -622,22 +528,15 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   </Text>
                 </View>
 
-                {/* Card 3: Kelengkapan Notulensi */}
                 <View style={styles.summaryCard}>
                   <View style={styles.summaryCardHeader}>
                     <View style={styles.summaryIconBoxSuccess}>
-                      <ClipboardCheck
-                        size={18}
-                        color={colors.success}
-                        strokeWidth={2}
-                      />
+                      <ClipboardCheck size={18} color={colors.success} strokeWidth={2} />
                     </View>
                     <View style={styles.summaryTitleCol}>
                       <Text style={styles.summaryLabel}>KELENGKAPAN NOTULENSI</Text>
                       <View style={styles.kpiInlineRow}>
-                        <Text style={styles.summaryKpi}>
-                          {summary.governance_rate}%
-                        </Text>
+                        <Text style={styles.summaryKpi}>{summary.governance_rate}%</Text>
                         <View style={styles.emeraldPill}>
                           <Text style={styles.emeraldPillText}>Rampung</Text>
                         </View>
@@ -657,9 +556,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                           color={colors.onSuccessContainer}
                           strokeWidth={2}
                         />
-                        <Text style={styles.emeraldPillText}>
-                          Semua Notulen Lengkap
-                        </Text>
+                        <Text style={styles.emeraldPillText}>Semua Notulen Lengkap</Text>
                       </View>
                     ) : (
                       <View style={styles.warningMiniPill}>
@@ -673,13 +570,11 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </View>
             ) : null}
 
-            {/* 2. DISTRIBUSI FORMAT PELAKSANAAN & PARTISIPASI */}
+            {/* 2. VISUAL PANELS: DISTRIBUSI FORMAT & PARTISIPASI */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeaderRow}>
                 <BarChart3 size={18} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.sectionTitle}>
-                  Distribusi Format Pelaksanaan
-                </Text>
+                <Text style={styles.sectionTitle}>Distribusi Format Pelaksanaan Rapat</Text>
               </View>
 
               <View style={styles.stackedBarTrack}>
@@ -687,26 +582,17 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   <>
                     {formatStats.offline > 0 ? (
                       <View
-                        style={[
-                          styles.stackedSegmentOffline,
-                          { flex: formatStats.offline },
-                        ]}
+                        style={[styles.stackedSegmentOffline, { flex: formatStats.offline }]}
                       />
                     ) : null}
                     {formatStats.online > 0 ? (
                       <View
-                        style={[
-                          styles.stackedSegmentOnline,
-                          { flex: formatStats.online },
-                        ]}
+                        style={[styles.stackedSegmentOnline, { flex: formatStats.online }]}
                       />
                     ) : null}
                     {formatStats.hybrid > 0 ? (
                       <View
-                        style={[
-                          styles.stackedSegmentHybrid,
-                          { flex: formatStats.hybrid },
-                        ]}
+                        style={[styles.stackedSegmentHybrid, { flex: formatStats.hybrid }]}
                       />
                     ) : null}
                   </>
@@ -725,7 +611,6 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     {formatStats.offline} ({formatStats.pct_offline}%)
                   </Text>
                 </View>
-
                 <View style={styles.formatRow}>
                   <View style={styles.formatLabelWrap}>
                     <View style={styles.dotOnline} />
@@ -735,7 +620,6 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     {formatStats.online} ({formatStats.pct_online}%)
                   </Text>
                 </View>
-
                 <View style={styles.formatRow}>
                   <View style={styles.formatLabelWrap}>
                     <View style={styles.dotHybrid} />
@@ -752,7 +636,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               <View style={styles.sectionCard}>
                 <View style={styles.sectionHeaderRow}>
                   <Building2 size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.sectionTitle}>Partisipasi per Unit Kerja</Text>
+                  <Text style={styles.sectionTitle}>Partisipasi Per Unit Kerja</Text>
                 </View>
                 <View style={styles.participationList}>
                   {summary.unit_stats.map((unit) => (
@@ -785,9 +669,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               <View style={styles.sectionCard}>
                 <View style={styles.sectionHeaderRow}>
                   <Users size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.sectionTitle}>
-                    Partisipasi Anggota Unit
-                  </Text>
+                  <Text style={styles.sectionTitle}>Partisipasi Pegawai di Unit</Text>
                 </View>
                 <View style={styles.participationList}>
                   {summary.member_stats.map((member) => (
@@ -811,902 +693,408 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </View>
             ) : null}
 
-            {/* 3. FILTER BAR & EXPORT CSV/EXCEL */}
+            {/* 3. FILTER CARD (1:1 reports/index.blade.php) */}
             <View style={styles.sectionCard}>
-              <View style={styles.filterHeaderRow}>
-                <View style={styles.sectionHeaderRow}>
-                  <Filter size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.sectionTitle}>Filter & Ekspor Rekapitulasi</Text>
-                </View>
-                <Pressable
-                  onPress={() => setShowDateFilter((prev) => !prev)}
-                  style={styles.filterToggleBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Tampilkan filter tanggal"
-                >
-                  <Calendar size={14} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.filterToggleText}>
-                    {showDateFilter || startDate || endDate ? 'Sembunyikan Tanggal' : 'Rentang Tanggal'}
-                  </Text>
-                </Pressable>
+              <View style={styles.sectionHeaderRow}>
+                <Filter size={17} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.sectionTitle}>Filter Laporan & Rekapitulasi</Text>
               </View>
 
-              {/* Search Input */}
-              <View style={styles.searchBox}>
-                <Search size={18} color={colors.textMuted} strokeWidth={2} />
-                <TextInput
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Cari judul rapat atau lokasi..."
-                  placeholderTextColor={colors.textMuted}
-                  style={styles.searchInput}
-                  returnKeyType="search"
-                  onSubmitEditing={handleApplyFilters}
-                />
-                {searchQuery.length > 0 ? (
+              <View style={styles.filterGrid}>
+                {/* Dari Tanggal */}
+                <View style={styles.filterFieldHalf}>
+                  <Text style={styles.filterFieldLabel}>Dari Tanggal</Text>
                   <Pressable
-                    onPress={() => setSearchQuery('')}
-                    style={styles.clearSearchBtn}
+                    onPress={() => setActiveDateField('start')}
+                    style={({ pressed }) => [styles.dropdownTrigger, pressed && styles.pressed]}
                     accessibilityRole="button"
-                    accessibilityLabel="Hapus pencarian"
+                    accessibilityLabel="Pilih Dari Tanggal"
                   >
-                    <X size={16} color={colors.textMuted} strokeWidth={2} />
+                    <Calendar size={15} strokeWidth={2} color={colors.textMuted} />
+                    <Text
+                      style={[
+                        styles.dropdownTriggerText,
+                        !draftStartDate && styles.dropdownPlaceholderText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {draftStartDate || 'Pilih tanggal'}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Sampai Tanggal */}
+                <View style={styles.filterFieldHalf}>
+                  <Text style={styles.filterFieldLabel}>Sampai Tanggal</Text>
+                  <Pressable
+                    onPress={() => setActiveDateField('end')}
+                    style={({ pressed }) => [styles.dropdownTrigger, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pilih Sampai Tanggal"
+                  >
+                    <Calendar size={15} strokeWidth={2} color={colors.textMuted} />
+                    <Text
+                      style={[
+                        styles.dropdownTriggerText,
+                        !draftEndDate && styles.dropdownPlaceholderText,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {draftEndDate || 'Pilih tanggal'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.filterGrid}>
+                {/* Status Rapat */}
+                <View style={styles.filterFieldHalf}>
+                  <Text style={styles.filterFieldLabel}>Status Rapat</Text>
+                  <Pressable
+                    onPress={() => setActiveDropdown('status')}
+                    style={({ pressed }) => [styles.dropdownTrigger, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pilih Status Rapat"
+                  >
+                    <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+                      {selectedStatusLabel}
+                    </Text>
+                    <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
+                  </Pressable>
+                </View>
+
+                {/* Format Rapat */}
+                <View style={styles.filterFieldHalf}>
+                  <Text style={styles.filterFieldLabel}>Format Rapat</Text>
+                  <Pressable
+                    onPress={() => setActiveDropdown('format')}
+                    style={({ pressed }) => [styles.dropdownTrigger, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pilih Format Rapat"
+                  >
+                    <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+                      {selectedFormatLabel}
+                    </Text>
+                    <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
+                  </Pressable>
+                </View>
+              </View>
+
+              {isAdministrator ? (
+                <View style={styles.filterFieldFull}>
+                  <Text style={styles.filterFieldLabel}>Unit Kerja</Text>
+                  <Pressable
+                    onPress={() => setActiveDropdown('unit')}
+                    style={({ pressed }) => [styles.dropdownTrigger, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pilih Unit Kerja"
+                  >
+                    <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+                      {selectedUnitLabel}
+                    </Text>
+                    <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <View style={styles.filterActionsRow}>
+                <Pressable
+                  onPress={handleApplyFilters}
+                  style={({ pressed }) => [styles.applyPrimaryBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Terapkan Filter"
+                >
+                  <Text style={styles.applyPrimaryBtnText}>Terapkan</Text>
+                </Pressable>
+
+                {hasActiveFilters ? (
+                  <Pressable
+                    onPress={handleResetFilters}
+                    style={({ pressed }) => [styles.resetSecondaryBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Reset Filter"
+                  >
+                    <RotateCcw size={14} strokeWidth={2} color={colors.textSecondary} />
+                    <Text style={styles.resetSecondaryBtnText}>Reset</Text>
                   </Pressable>
                 ) : null}
               </View>
 
-              {/* Date Range Pickers */}
-              {(showDateFilter || startDate.length > 0 || endDate.length > 0) ? (
-                <View style={styles.dateRow}>
-                  <View style={styles.dateField}>
-                    <Text style={styles.dateLabel}>Dari Tanggal</Text>
-                    <Pressable
-                      onPress={() => setActiveDateField('start')}
-                      style={({ pressed }) => [
-                        styles.dateTriggerBtn,
-                        pressed && styles.pressedChip,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Pilih tanggal mulai laporan"
-                    >
-                      <Calendar size={15} color={colors.primary} strokeWidth={2} />
-                      <Text
-                        style={[
-                          styles.dateTriggerText,
-                          !startDate && styles.dateTriggerPlaceholder,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {startDate || 'Pilih tanggal...'}
-                      </Text>
-                      {startDate ? (
-                        <Pressable
-                          onPress={() => setStartDate('')}
-                          hitSlop={8}
-                          accessibilityRole="button"
-                          accessibilityLabel="Hapus tanggal mulai"
-                        >
-                          <X size={14} color={colors.textMuted} strokeWidth={2} />
-                        </Pressable>
-                      ) : null}
-                    </Pressable>
-                  </View>
+              <View style={styles.filterDivider} />
 
-                  <View style={styles.dateField}>
-                    <Text style={styles.dateLabel}>Sampai Tanggal</Text>
-                    <Pressable
-                      onPress={() => setActiveDateField('end')}
-                      style={({ pressed }) => [
-                        styles.dateTriggerBtn,
-                        pressed && styles.pressedChip,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Pilih tanggal akhir laporan"
-                    >
-                      <Calendar size={15} color={colors.primary} strokeWidth={2} />
-                      <Text
-                        style={[
-                          styles.dateTriggerText,
-                          !endDate && styles.dateTriggerPlaceholder,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {endDate || 'Pilih tanggal...'}
-                      </Text>
-                      {endDate ? (
-                        <Pressable
-                          onPress={() => setEndDate('')}
-                          hitSlop={8}
-                          accessibilityRole="button"
-                          accessibilityLabel="Hapus tanggal akhir"
-                        >
-                          <X size={14} color={colors.textMuted} strokeWidth={2} />
-                        </Pressable>
-                      ) : null}
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
-
-              {/* Status Rapat */}
-              <View style={styles.filterGroupBlock}>
-                <Text style={styles.filterGroupLabel}>Status Rapat</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.chipsRow}
-                >
-                  {STATUS_OPTIONS.map((opt) => {
-                    const selected = statusFilter === opt.value;
-                    return (
-                      <Pressable
-                        key={opt.value}
-                        onPress={() => setStatusFilter(opt.value)}
-                        style={[styles.filterChip, selected && styles.filterChipActive]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected }}
-                      >
-                        <Text
-                          style={[
-                            styles.filterChipText,
-                            selected && styles.filterChipTextActive,
-                          ]}
-                        >
-                          {opt.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {/* Format Rapat */}
-              <View style={styles.filterGroupBlock}>
-                <Text style={styles.filterGroupLabel}>Format Rapat</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.chipsRow}
-                >
-                  {FORMAT_OPTIONS.map((opt) => {
-                    const selected = formatFilter === opt.value;
-                    return (
-                      <Pressable
-                        key={opt.value}
-                        onPress={() => setFormatFilter(opt.value)}
-                        style={[styles.filterChip, selected && styles.filterChipActive]}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected }}
-                      >
-                        <Text
-                          style={[
-                            styles.filterChipText,
-                            selected && styles.filterChipTextActive,
-                          ]}
-                        >
-                          {opt.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {/* Unit Kerja Filter (Administrator Only) */}
-              {isAdministrator ? (
-                <View style={styles.filterGroupBlock}>
-                  <Text style={styles.filterGroupLabel}>Unit Kerja</Text>
-                  <Pressable
-                    onPress={() => setUnitModalVisible(true)}
-                    style={({ pressed }) => [
-                      styles.unitFilterTrigger,
-                      selectedUnitId !== '' && styles.unitFilterTriggerActive,
-                      pressed && styles.pressedChip,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Filter unit kerja laporan"
-                  >
-                    <View style={styles.unitFilterLeft}>
-                      <Building2 size={16} color={colors.primary} strokeWidth={2} />
-                      <Text style={styles.unitFilterText} numberOfLines={1}>
-                        {selectedUnitLabel}
-                      </Text>
-                    </View>
-                    <ChevronsUpDown size={16} color={colors.outline} strokeWidth={2} />
-                  </Pressable>
-                </View>
-              ) : null}
-
-              {/* Explicit Terapkan / Reset + Unduh Rekap CSV / Excel */}
-              <View style={styles.filterButtonsRow}>
-                <Button
-                  title="Terapkan"
-                  onPress={handleApplyFilters}
-                  variant="primary"
-                  size="sm"
-                  icon={<Filter size={15} color={colors.onPrimary} strokeWidth={2} />}
-                  style={styles.filterActionBtn}
-                />
-                <Button
-                  title="Reset"
-                  onPress={handleResetFilters}
-                  variant="outline"
-                  size="sm"
-                  disabled={!hasActiveFilters}
-                  icon={<RotateCcw size={15} color={colors.primary} strokeWidth={2} />}
-                  style={styles.filterActionBtn}
-                />
-              </View>
-
-              <View style={styles.exportSummaryDivider}>
-                <Button
-                  title="Unduh Rekap CSV / Excel"
+              {/* Ekspor Ringkasan Laporan Keseluruhan */}
+              <View style={styles.csvExportRow}>
+                <Text style={styles.csvExportLabel}>
+                  Ekspor Ringkasan Laporan Keseluruhan:
+                </Text>
+                <Pressable
                   onPress={handleExportSummaryCsv}
-                  variant="secondary"
-                  size="md"
-                  isLoading={isExportingSummaryCsv}
-                  icon={<Download size={16} color={colors.primary} strokeWidth={2} />}
-                />
+                  disabled={isExportingSummaryCsv}
+                  style={({ pressed }) => [styles.csvExportBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Unduh Rekap CSV / Excel"
+                >
+                  {isExportingSummaryCsv ? (
+                    <ActivityIndicator size="small" color={colors.onPrimary} />
+                  ) : (
+                    <FileSpreadsheet size={15} strokeWidth={2} color={colors.onPrimary} />
+                  )}
+                  <Text style={styles.csvExportBtnText}>Unduh Rekap CSV / Excel</Text>
+                </Pressable>
               </View>
             </View>
 
-            {/* 4. REKAPITULASI AGENDA LIST */}
-            <View style={styles.listHeaderRow}>
-              <Text style={styles.listTitle}>
-                Daftar Rekapitulasi ({pagination.total})
-              </Text>
+            {/* 4. PANEL TABEL: DAFTAR REKAPITULASI RAPAT */}
+            <View style={styles.tablePanel}>
+              <View style={styles.tableTopHeader}>
+                <Text style={styles.tableTopTitle}>Daftar Rekapitulasi Rapat</Text>
+                <View style={styles.neutralMiniPill}>
+                  <Text style={styles.neutralMiniText}>
+                    {pagination.total} Agenda Ditampilkan
+                  </Text>
+                </View>
+              </View>
+
               {isListLoading ? (
-                <ActivityIndicator size="small" color={colors.primary} />
+                <View style={styles.loadingCardInline}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.loadingText}>Memuat halaman agenda...</Text>
+                </View>
+              ) : agendas.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <EmptyState
+                    icon={FileText}
+                    title="Belum Ada Agenda Rapat"
+                    description="Tidak ditemukan agenda rapat yang sesuai dengan filter laporan saat ini."
+                    actionLabel={hasActiveFilters ? 'Reset Filter' : undefined}
+                    onAction={hasActiveFilters ? handleResetFilters : undefined}
+                  />
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                  contentContainerStyle={styles.tableScrollContent}
+                >
+                  <View style={styles.tableInner}>
+                    {/* Column Header Row */}
+                    <View style={styles.tableColumnHeaderRow}>
+                      <Text style={[styles.thCell, { width: COL_WIDTHS.agenda }]}>
+                        Agenda & Jadwal
+                      </Text>
+                      <Text style={[styles.thCell, { width: COL_WIDTHS.peserta }]}>Peserta</Text>
+                      <Text style={[styles.thCell, { width: COL_WIDTHS.status }]}>
+                        Status Rapat
+                      </Text>
+                      <Text style={[styles.thCell, { width: COL_WIDTHS.notulensi }]}>
+                        Notulensi
+                      </Text>
+                      <Text
+                        style={[styles.thCell, styles.thCellRight, { width: COL_WIDTHS.ekspor }]}
+                      >
+                        Ekspor Dokumen
+                      </Text>
+                    </View>
+
+                    {/* Body Rows */}
+                    {agendas.map((agenda, idx) => {
+                      const attended = agenda.total_attended ?? agenda.attendances_count ?? 0;
+                      const invited = agenda.total_invited ?? 0;
+                      const isPdfBusy = exportingKey === `${agenda.id}:pdf`;
+                      const isWordBusy = exportingKey === `${agenda.id}:word`;
+
+                      return (
+                        <View
+                          key={agenda.id}
+                          style={[
+                            styles.tableRow,
+                            idx === agendas.length - 1 && styles.tableRowLast,
+                          ]}
+                        >
+                          {/* Agenda & Jadwal */}
+                          <View style={[styles.tdCell, { width: COL_WIDTHS.agenda }]}>
+                            <Text style={styles.agendaTitleCell} numberOfLines={2}>
+                              {agenda.judul_rapat}
+                            </Text>
+                            <Text style={styles.agendaScheduleCell} numberOfLines={1}>
+                              {formatTanggalIndonesia(agenda.waktu_mulai)}
+                              {agenda.rentang_waktu ? ` · ${agenda.rentang_waktu}` : ''}
+                            </Text>
+                            <Text style={styles.agendaMetaCell} numberOfLines={1}>
+                              {formatMeetingTypeLabel(agenda.tipe_rapat)} •{' '}
+                              {agenda.lokasi_ruang || 'Virtual'}
+                            </Text>
+                          </View>
+
+                          {/* Peserta */}
+                          <View style={[styles.tdCell, { width: COL_WIDTHS.peserta }]}>
+                            <Text style={styles.pesertaCountText}>
+                              {attended} / {invited}
+                            </Text>
+                            <Text style={styles.pesertaRateText}>
+                              {agenda.participation_rate_label || '0%'}
+                            </Text>
+                          </View>
+
+                          {/* Status Rapat */}
+                          <View style={[styles.tdCell, { width: COL_WIDTHS.status }]}>
+                            <StatusPill
+                              status={mapAgendaStatusToPill(agenda.status.value)}
+                              label={agenda.status.label}
+                            />
+                          </View>
+
+                          {/* Notulensi */}
+                          <View style={[styles.tdCell, { width: COL_WIDTHS.notulensi }]}>
+                            <View
+                              style={[
+                                styles.notulenBadge,
+                                agenda.has_notulensi
+                                  ? styles.notulenBadgeComplete
+                                  : styles.notulenBadgePending,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.notulenBadgeText,
+                                  agenda.has_notulensi
+                                    ? styles.notulenBadgeTextComplete
+                                    : styles.notulenBadgeTextPending,
+                                ]}
+                              >
+                                {agenda.has_notulensi ? 'Lengkap' : 'Belum Diisi'}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Ekspor Dokumen: PDF, Word, Detail (NO per-row CSV) */}
+                          <View
+                            style={[styles.tdCell, styles.eksporCell, { width: COL_WIDTHS.ekspor }]}
+                          >
+                            <Pressable
+                              onPress={() => handleExportAgenda(agenda.id, 'pdf')}
+                              disabled={exportingKey !== null}
+                              style={({ pressed }) => [styles.exportMiniBtn, pressed && styles.pressed]}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Unduh PDF ${agenda.judul_rapat}`}
+                            >
+                              {isPdfBusy ? (
+                                <ActivityIndicator size="small" color={colors.error} />
+                              ) : (
+                                <FileText size={13} strokeWidth={2} color={colors.error} />
+                              )}
+                              <Text style={styles.exportMiniBtnText}>PDF</Text>
+                            </Pressable>
+
+                            <Pressable
+                              onPress={() => handleExportAgenda(agenda.id, 'word')}
+                              disabled={exportingKey !== null}
+                              style={({ pressed }) => [styles.exportMiniBtn, pressed && styles.pressed]}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Unduh Word ${agenda.judul_rapat}`}
+                            >
+                              {isWordBusy ? (
+                                <ActivityIndicator size="small" color={colors.infoText} />
+                              ) : (
+                                <Download size={13} strokeWidth={2} color={colors.infoText} />
+                              )}
+                              <Text style={styles.exportMiniBtnText}>Word</Text>
+                            </Pressable>
+
+                            <Pressable
+                              onPress={() => handleOpenDetail(agenda.id)}
+                              style={({ pressed }) => [styles.detailMiniBtn, pressed && styles.pressed]}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Detail laporan ${agenda.judul_rapat}`}
+                            >
+                              <Eye size={13} strokeWidth={2} color={colors.onPrimary} />
+                              <Text style={styles.detailMiniBtnText}>Detail</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              )}
+
+              {pagination.total > 0 ? (
+                <PaginationBar
+                  currentPage={pagination.current_page}
+                  lastPage={pagination.last_page}
+                  total={pagination.total}
+                  label="Agenda"
+                  isLoading={isListLoading}
+                  onPageChange={handlePageChange}
+                  containerStyle={styles.tablePagination}
+                />
               ) : null}
             </View>
-
-            {agendas.length === 0 ? (
-              <EmptyState
-                icon="calendar"
-                title="Belum Ada Agenda Laporan"
-                description={
-                  hasActiveFilters
-                    ? 'Tidak ada agenda yang sesuai dengan filter atau pencarian saat ini.'
-                    : 'Belum ada agenda rapat yang tercatat pada unit kerja Anda.'
-                }
-              />
-            ) : (
-              <View style={styles.agendaList}>
-                {agendas.map((agenda) => {
-                  const hasNotulen = Boolean(agenda.notulensi_html?.trim());
-                  const isCompleted = agenda.status.value === 'completed';
-                  const unitCode = agenda.creator?.unit?.kode_unit;
-
-                  return (
-                    <View key={agenda.id} style={styles.agendaCard}>
-                      <View style={styles.agendaHeaderRow}>
-                        <Pressable
-                          onPress={() => onOpenAgenda?.(String(agenda.id))}
-                          disabled={!onOpenAgenda}
-                          style={styles.agendaTitleBtn}
-                          accessibilityRole={onOpenAgenda ? 'button' : 'text'}
-                        >
-                          <Text style={styles.agendaTitle} numberOfLines={2}>
-                            {agenda.judul_rapat}
-                          </Text>
-                        </Pressable>
-                        <StatusPill
-                          status={mapAgendaStatusToPill(agenda.status.value)}
-                          label={agenda.status.label}
-                        />
-                      </View>
-
-                      <View style={styles.agendaMetaRow}>
-                        <Text style={styles.agendaMetaText}>
-                          {formatTanggalIndonesia(agenda.waktu_mulai)}
-                        </Text>
-                        <Text style={styles.metaDot}>·</Text>
-                        <Text style={styles.agendaMetaText}>
-                          {formatMeetingTypeLabel(agenda.tipe_rapat)}
-                        </Text>
-                        {unitCode ? (
-                          <>
-                            <Text style={styles.metaDot}>·</Text>
-                            <Text style={styles.agendaMetaMono}>{unitCode}</Text>
-                          </>
-                        ) : null}
-                      </View>
-
-                      <View style={styles.agendaBadgesRow}>
-                        <View style={styles.emeraldPill}>
-                          <Users
-                            size={12}
-                            color={colors.onSuccessContainer}
-                            strokeWidth={2}
-                          />
-                          <Text style={styles.emeraldPillText}>
-                            {agenda.attendances_count ?? 0} Hadir
-                          </Text>
-                        </View>
-
-                        {hasNotulen ? (
-                          <View style={styles.emeraldPill}>
-                            <CheckCircle2
-                              size={12}
-                              color={colors.onSuccessContainer}
-                              strokeWidth={2}
-                            />
-                            <Text style={styles.emeraldPillText}>
-                              Notulensi Lengkap
-                            </Text>
-                          </View>
-                        ) : isCompleted ? (
-                          <View style={styles.warningMiniPill}>
-                            <Text style={styles.warningMiniText}>
-                              Notulensi Belum Diisi
-                            </Text>
-                          </View>
-                        ) : (
-                          <View style={styles.neutralMiniPill}>
-                            <Text style={styles.neutralMiniText}>
-                              Notulensi —
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-
-                      {/* ONE-TAP EXPORT & DETAIL BAR */}
-                      <View style={styles.exportActionsRow}>
-                        {(['pdf', 'word', 'csv'] as AgendaExportFormat[]).map(
-                          (fmt) => {
-                            const key = `${agenda.id}:${fmt}`;
-                            const isThisExporting = exportingKey === key;
-                            const IconComp =
-                              fmt === 'csv' ? FileSpreadsheet : FileText;
-                            return (
-                              <Pressable
-                                key={fmt}
-                                onPress={() => handleExportAgenda(agenda.id, fmt)}
-                                disabled={Boolean(exportingKey)}
-                                style={({ pressed }) => [
-                                  styles.exportChipBtn,
-                                  pressed && styles.pressedChip,
-                                  Boolean(exportingKey) &&
-                                    !isThisExporting &&
-                                    styles.disabledChip,
-                                ]}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Ekspor ${fmt.toUpperCase()} untuk ${agenda.judul_rapat}`}
-                              >
-                                {isThisExporting ? (
-                                  <ActivityIndicator
-                                    size="small"
-                                    color={colors.primary}
-                                  />
-                                ) : (
-                                  <IconComp
-                                    size={14}
-                                    color={colors.primary}
-                                    strokeWidth={2}
-                                  />
-                                )}
-                                <Text style={styles.exportChipText}>
-                                  {fmt.toUpperCase()}
-                                </Text>
-                              </Pressable>
-                            );
-                          },
-                        )}
-
-                        <Pressable
-                          onPress={() => handleOpenRecap(agenda)}
-                          style={({ pressed }) => [
-                            styles.detailChipBtn,
-                            pressed && styles.pressedChip,
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Lihat detail rekap laporan ${agenda.judul_rapat}`}
-                        >
-                          <Text style={styles.detailChipText}>Detail</Text>
-                          <ArrowUpRight
-                            size={14}
-                            color={colors.onPrimary}
-                            strokeWidth={2}
-                          />
-                        </Pressable>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            <PaginationBar
-              currentPage={pagination.current_page}
-              lastPage={pagination.last_page}
-              total={pagination.total}
-              label="agenda"
-              isLoading={isListLoading}
-              onPageChange={(page) => setCurrentPage(page)}
-              containerStyle={styles.paginationWrap}
-            />
           </>
         )}
       </ScrollView>
 
-      {/* PRATINJAU DETAIL REKAP LAPORAN MODAL (Web reports/show.blade.php parity) */}
-      <Modal
-        visible={recapModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setRecapModalVisible(false)}
-      >
-        <View style={styles.recapModalContainer}>
-          <View style={styles.recapModalTopBar}>
-            <View style={styles.recapTopBarTextWrap}>
-              <Text style={styles.recapTopBarTitle}>Detail Rekap Laporan Rapat</Text>
-              {activeRecapAgenda?.slug ? (
-                <Text style={styles.recapTopBarSlug} numberOfLines={1}>
-                  {activeRecapAgenda.slug}
-                </Text>
-              ) : null}
-            </View>
-            <Pressable
-              onPress={() => setRecapModalVisible(false)}
-              style={({ pressed }) => [
-                styles.recapCloseBtn,
-                pressed && styles.pressedChip,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Tutup pratinjau laporan"
-            >
-              <X size={20} color={colors.primary} strokeWidth={2} />
-            </Pressable>
-          </View>
-
-          <ScrollView
-            style={styles.recapScroll}
-            contentContainerStyle={styles.recapScrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {recapLoading && !recapDetail ? (
-              <View style={styles.loadingCard}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>
-                  Memuat pratinjau lengkap notulensi & bukti kehadiran...
-                </Text>
-              </View>
-            ) : null}
-
-            {recapError ? (
-              <ErrorState
-                title="Sebagian Detail Tidak Tersedia"
-                message={recapError}
-                onRetry={() => {
-                  if (recapAgendaPreview) {
-                    void handleOpenRecap(recapAgendaPreview);
-                  }
-                }}
-              />
-            ) : null}
-
-            {activeRecapAgenda ? (
-              <>
-                {/* Hero Banner */}
-                <View style={styles.recapHeroCard}>
-                  <View style={styles.recapHeroBadgesRow}>
-                    <View style={styles.recapStatusPill}>
-                      <Text style={styles.recapStatusText}>
-                        {activeRecapAgenda.status.label}
-                      </Text>
-                    </View>
-                    <View style={styles.recapFormatPill}>
-                      <Text style={styles.recapFormatText}>
-                        {formatMeetingTypeLabel(activeRecapAgenda.tipe_rapat)}
-                      </Text>
-                    </View>
-                    {activeRecapAgenda.jenis_rapat ? (
-                      <View style={styles.recapFormatPill}>
-                        <Text style={styles.recapFormatText}>
-                          {activeRecapAgenda.jenis_rapat}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-
-                  <Text style={styles.recapHeroTitle}>
-                    {activeRecapAgenda.judul_rapat}
-                  </Text>
-
-                  <View style={styles.recapHeroMetaList}>
-                    <View style={styles.recapHeroMetaRow}>
-                      <Calendar size={14} color={colors.onPrimary} strokeWidth={2} />
-                      <Text style={styles.recapHeroMetaText}>
-                        {activeRecapAgenda.jadwal_lengkap ||
-                          formatTanggalIndonesia(activeRecapAgenda.waktu_mulai)}
-                      </Text>
-                    </View>
-                    <View style={styles.recapHeroMetaRow}>
-                      <MapPin size={14} color={colors.onPrimary} strokeWidth={2} />
-                      <Text style={styles.recapHeroMetaText}>
-                        {activeRecapAgenda.lokasi_ruang || 'Daring / Ruang Virtual'}
-                      </Text>
-                    </View>
-                    <View style={styles.recapHeroMetaRow}>
-                      <Building2 size={14} color={colors.onPrimary} strokeWidth={2} />
-                      <Text style={styles.recapHeroMetaText}>
-                        Penyelenggara:{' '}
-                        {activeRecapAgenda.creator?.name || 'Administrator Sistem'}
-                        {activeRecapAgenda.creator?.unit?.kode_unit
-                          ? ` (${activeRecapAgenda.creator.unit.kode_unit})`
-                          : ''}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.recapHeroActions}>
-                    <Pressable
-                      onPress={() => handleExportAgenda(activeRecapAgenda.id, 'pdf')}
-                      disabled={Boolean(exportingKey)}
-                      style={({ pressed }) => [
-                        styles.recapExportBtn,
-                        pressed && styles.pressedChip,
-                      ]}
-                      accessibilityRole="button"
-                    >
-                      <FileText size={15} color={colors.primary} strokeWidth={2} />
-                      <Text style={styles.recapExportBtnText}>Unduh PDF (.pdf)</Text>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={() => handleExportAgenda(activeRecapAgenda.id, 'word')}
-                      disabled={Boolean(exportingKey)}
-                      style={({ pressed }) => [
-                        styles.recapExportBtn,
-                        pressed && styles.pressedChip,
-                      ]}
-                      accessibilityRole="button"
-                    >
-                      <FileText size={15} color={colors.primary} strokeWidth={2} />
-                      <Text style={styles.recapExportBtnText}>Unduh Format Word (.docx)</Text>
-                    </Pressable>
-
-                    {onOpenAgenda ? (
-                      <Pressable
-                        onPress={() => {
-                          const targetId = String(activeRecapAgenda.id);
-                          setRecapModalVisible(false);
-                          onOpenAgenda(targetId);
-                        }}
-                        style={({ pressed }) => [
-                          styles.recapManageBtn,
-                          pressed && styles.pressedChip,
-                        ]}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.recapManageBtnText}>Kelola Agenda</Text>
-                        <ArrowUpRight size={15} color={colors.onPrimary} strokeWidth={2} />
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-
-                {/* Metadata Bar */}
-                <View style={styles.sectionCard}>
-                  <Text style={styles.recapSectionLabel}>INFORMASI ADMINISTRATIF</Text>
-                  <View style={styles.recapMetaGrid}>
-                    <View style={styles.recapMetaItem}>
-                      <Text style={styles.recapMetaKey}>MPI No. / Kode</Text>
-                      <Text style={styles.recapMetaValueMono}>
-                        {activeRecapAgenda.nomor_ba || activeRecapAgenda.slug}
-                      </Text>
-                    </View>
-                    <View style={styles.recapMetaItem}>
-                      <Text style={styles.recapMetaKey}>Penyelenggara</Text>
-                      <Text style={styles.recapMetaValue}>
-                        {activeRecapAgenda.creator?.unit?.nama_unit ||
-                          activeRecapAgenda.creator?.name ||
-                          'Tingkat Lembaga'}
-                      </Text>
-                    </View>
-                    <View style={styles.recapMetaItem}>
-                      <Text style={styles.recapMetaKey}>Pemimpin Rapat</Text>
-                      <View style={styles.recapInlineBadgeRow}>
-                        <Text style={styles.recapMetaValue}>
-                          {activeRecapAgenda.nama_pimpinan ||
-                            activeRecapAgenda.pimpinan?.name ||
-                            '—'}
-                        </Text>
-                        {activeRecapAgenda.pimpinan?.id ? (
-                          <View style={styles.neutralMiniPill}>
-                            <Text style={styles.neutralMiniText}>Khusus</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                    <View style={styles.recapMetaItem}>
-                      <Text style={styles.recapMetaKey}>Notulis Rapat</Text>
-                      <View style={styles.recapInlineBadgeRow}>
-                        <Text style={styles.recapMetaValue}>
-                          {activeRecapAgenda.nama_notulis ||
-                            activeRecapAgenda.notulis?.name ||
-                            '—'}
-                        </Text>
-                        {activeRecapAgenda.notulis?.id ? (
-                          <View style={styles.neutralMiniPill}>
-                            <Text style={styles.neutralMiniText}>Khusus</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                    <View style={styles.recapMetaItem}>
-                      <Text style={styles.recapMetaKey}>Total Kehadiran</Text>
-                      <Text style={styles.recapMetaValue}>
-                        {recapAttendances.length > 0
-                          ? recapAttendances.length
-                          : activeRecapAgenda.attendances_count ?? 0}{' '}
-                        Pegawai Hadir
-                      </Text>
-                    </View>
-                  </View>
-
-                  {activeRecapAgenda.link_meeting ? (
-                    <View style={styles.recapLinkBox}>
-                      <Link2 size={14} color={colors.primary} strokeWidth={2} />
-                      <Text style={styles.recapLinkText} selectable>
-                        {activeRecapAgenda.link_meeting}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                {/* Target Partisipan Rapat */}
-                <View style={styles.sectionCard}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Users size={17} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.sectionTitle}>Target Partisipan Rapat</Text>
-                  </View>
-                  {activeRecapAgenda.is_all_units ||
-                  activeRecapAgenda.target_type === 'all_units' ? (
-                    <View style={styles.emeraldPill}>
-                      <CheckCircle2
-                        size={13}
-                        color={colors.onSuccessContainer}
-                        strokeWidth={2}
-                      />
-                      <Text style={styles.emeraldPillText}>
-                        Seluruh Pegawai LLDIKTI Wilayah X
-                      </Text>
-                    </View>
-                  ) : activeRecapAgenda.target_type === 'selected_users' ? (
-                    <View style={styles.recapTargetWrap}>
-                      <Text style={styles.recapTargetSub}>
-                        Peserta Terundang Khusus (
-                        {activeRecapAgenda.invited_users?.length ?? 0} pegawai)
-                      </Text>
-                      <View style={styles.summaryBadgeRow}>
-                        {(activeRecapAgenda.invited_users ?? []).map((u) => (
-                          <View key={u.id} style={styles.neutralMiniPill}>
-                            <Text style={styles.neutralMiniText}>{u.name}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  ) : (
-                    <View style={styles.summaryBadgeRow}>
-                      {(activeRecapAgenda.units ?? []).length > 0 ? (
-                        activeRecapAgenda.units?.map((u) => (
-                          <View key={u.id} style={styles.neutralMiniPill}>
-                            <Text style={styles.neutralMiniText}>
-                              {u.kode_unit} — {u.nama_unit}
-                            </Text>
-                          </View>
-                        ))
-                      ) : (
-                        <Text style={styles.summarySubtext}>
-                          {activeRecapAgenda.target_label || 'Unit penyelenggara'}
-                        </Text>
-                      )}
-                    </View>
-                  )}
-                </View>
-
-                {/* Notulensi Rapat */}
-                <View style={styles.sectionCard}>
-                  <View style={styles.sectionHeaderRow}>
-                    <BookOpen size={17} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.sectionTitle}>Notulensi Rapat</Text>
-                  </View>
-
-                  <View style={styles.notulenSubsection}>
-                    <Text style={styles.notulenHeading}>
-                      Pembahasan Jalannya Rapat
-                    </Text>
-                    {activeRecapAgenda.notulensi_html?.trim() ? (
-                      <SimpleHtmlView html={activeRecapAgenda.notulensi_html} />
-                    ) : (
-                      <Text style={styles.notulenEmptyText}>
-                        Pembahasan notulensi rapat belum diisi.
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={styles.notulenSubsection}>
-                    <Text style={styles.notulenHeading}>
-                      Kesimpulan, Keputusan & Rencana Tindak Lanjut (RTL)
-                    </Text>
-                    {activeRecapAgenda.kesimpulan_html?.trim() ? (
-                      <SimpleHtmlView html={activeRecapAgenda.kesimpulan_html} />
-                    ) : (
-                      <Text style={styles.notulenEmptyText}>
-                        Kesimpulan dan tindak lanjut belum diisi.
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={styles.notulenSubsection}>
-                    <Text style={styles.notulenHeading}>Penutup</Text>
-                    <Text style={styles.notulenBodyText}>{activeRecapPenutup}</Text>
-                  </View>
-                </View>
-
-                {/* Verifikasi Tanda Tangan Pemimpin & Notulis */}
-                <View style={styles.sectionCard}>
-                  <View style={styles.sectionHeaderRow}>
-                    <ShieldCheck size={17} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.sectionTitle}>Verifikasi Tanda Tangan</Text>
-                  </View>
-
-                  <View style={styles.signatureVerifyGrid}>
-                    <View style={styles.signatureVerifyCard}>
-                      <View style={styles.signatureVerifyHeader}>
-                        <Award size={15} color={colors.primary} strokeWidth={2} />
-                        <Text style={styles.signatureVerifyRole}>Pemimpin Rapat</Text>
-                      </View>
-                      <Text style={styles.signatureVerifyName}>
-                        {activeRecapAgenda.nama_pimpinan ||
-                          activeRecapAgenda.pimpinan?.name ||
-                          '—'}
-                      </Text>
-                      {pimpinanAttendance?.signature_url ? (
-                        <>
-                          <BearerImage
-                            rawUrl={pimpinanAttendance.signature_url}
-                            attendanceId={pimpinanAttendance.id}
-                            style={styles.signatureVerifyImage}
-                            fallbackLabel="TTD Pemimpin Rapat"
-                          />
-                          <View style={styles.emeraldPill}>
-                            <CheckCircle2
-                              size={12}
-                              color={colors.onSuccessContainer}
-                              strokeWidth={2}
-                            />
-                            <Text style={styles.emeraldPillText}>
-                              Tervalidasi Hadir
-                            </Text>
-                          </View>
-                        </>
-                      ) : (
-                        <View style={styles.neutralMiniPill}>
-                          <Text style={styles.neutralMiniText}>
-                            Belum Mengisi Presensi
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.signatureVerifyCard}>
-                      <View style={styles.signatureVerifyHeader}>
-                        <UserCheck size={15} color={colors.primary} strokeWidth={2} />
-                        <Text style={styles.signatureVerifyRole}>Notulis Rapat</Text>
-                      </View>
-                      <Text style={styles.signatureVerifyName}>
-                        {activeRecapAgenda.nama_notulis ||
-                          activeRecapAgenda.notulis?.name ||
-                          '—'}
-                      </Text>
-                      {notulisAttendance?.signature_url ? (
-                        <>
-                          <BearerImage
-                            rawUrl={notulisAttendance.signature_url}
-                            attendanceId={notulisAttendance.id}
-                            style={styles.signatureVerifyImage}
-                            fallbackLabel="TTD Notulis Rapat"
-                          />
-                          <View style={styles.emeraldPill}>
-                            <CheckCircle2
-                              size={12}
-                              color={colors.onSuccessContainer}
-                              strokeWidth={2}
-                            />
-                            <Text style={styles.emeraldPillText}>
-                              Tervalidasi Hadir
-                            </Text>
-                          </View>
-                        </>
-                      ) : (
-                        <View style={styles.neutralMiniPill}>
-                          <Text style={styles.neutralMiniText}>
-                            Belum Mengisi Presensi
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </View>
-
-                {/* Dokumentasi Rapat */}
-                {activeRecapAgenda.documentations &&
-                activeRecapAgenda.documentations.length > 0 ? (
-                  <View style={styles.sectionCard}>
-                    <Text style={styles.sectionTitle}>
-                      Dokumentasi Rapat ({activeRecapAgenda.documentations.length})
-                    </Text>
-                    <View style={styles.docGrid}>
-                      {activeRecapAgenda.documentations.map((doc) => (
-                        <View key={doc.id} style={styles.docCard}>
-                          <BearerImage
-                            rawUrl={doc.url || doc.file_url}
-                            style={styles.docThumb}
-                            resizeMode="cover"
-                            fallbackLabel="Foto Dokumentasi"
-                          />
-                          {doc.caption ? (
-                            <Text style={styles.docCaption} numberOfLines={2}>
-                              {doc.caption}
-                            </Text>
-                          ) : null}
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-              </>
-            ) : null}
-          </ScrollView>
-        </View>
-      </Modal>
-
+      {/* DATE PICKER MODAL */}
       <CalendarDatePickerModal
         visible={activeDateField !== null}
         onClose={() => setActiveDateField(null)}
-        selectedDate={activeDateField === 'start' ? startDate : endDate}
-        title={
-          activeDateField === 'start'
-            ? 'Pilih Tanggal Mulai'
-            : 'Pilih Tanggal Akhir'
-        }
-        subtitle="Filter rekapitulasi agenda berdasarkan rentang tanggal"
-        onSelectDate={(dateIso) => {
+        selectedDate={activeDateField === 'end' ? draftEndDate : draftStartDate}
+        title={activeDateField === 'end' ? 'Pilih Sampai Tanggal' : 'Pilih Dari Tanggal'}
+        subtitle="Filter rentang tanggal pelaksanaan rapat"
+        minDate={activeDateField === 'end' && draftStartDate ? draftStartDate : undefined}
+        onSelectDate={(iso) => {
           if (activeDateField === 'start') {
-            setStartDate(dateIso);
+            setDraftStartDate(iso);
+            if (draftEndDate && iso > draftEndDate) {
+              setDraftEndDate(iso);
+            }
           } else if (activeDateField === 'end') {
-            setEndDate(dateIso);
+            setDraftEndDate(iso);
           }
           setActiveDateField(null);
         }}
       />
 
-      {isAdministrator ? (
-        <AgendaOptionModal
-          visible={unitModalVisible}
-          onClose={() => setUnitModalVisible(false)}
-          title="Filter Unit Kerja"
-          subtitle="Saring laporan dan statistik berdasarkan unit kerja"
-          options={unitFilterOptions}
-          selectedId={selectedUnitId}
-          searchable
-          searchPlaceholder="Cari nama atau kode unit..."
-          onSelect={(opt) => {
-            setSelectedUnitId(opt.id);
-            setUnitModalVisible(false);
-          }}
-        />
-      ) : null}
+      {/* DROPDOWN MODALS */}
+      <AgendaOptionModal
+        visible={activeDropdown === 'status'}
+        onClose={() => setActiveDropdown('none')}
+        title="Pilih Status Rapat"
+        options={statusModalOptions}
+        selectedId={draftStatus}
+        searchable={false}
+        onSelect={(opt) => setDraftStatus((opt.id as StatusFilterValue) || 'all')}
+      />
+
+      <AgendaOptionModal
+        visible={activeDropdown === 'format'}
+        onClose={() => setActiveDropdown('none')}
+        title="Pilih Format Pelaksanaan Rapat"
+        options={formatModalOptions}
+        selectedId={draftFormat}
+        searchable={false}
+        onSelect={(opt) => setDraftFormat((opt.id as FormatFilterValue) || 'all')}
+      />
+
+      <AgendaOptionModal
+        visible={activeDropdown === 'unit'}
+        onClose={() => setActiveDropdown('none')}
+        title="Pilih Unit Kerja"
+        subtitle="Filter laporan berdasarkan unit kerja penyelenggara/target"
+        options={unitModalOptions}
+        selectedId={draftUnitId}
+        searchable={true}
+        searchPlaceholder="Cari kode atau nama unit kerja..."
+        onSelect={(opt) => setDraftUnitId(opt.id)}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   scrollView: {
     flex: 1,
@@ -1714,60 +1102,57 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.md,
     gap: spacing.md,
-    paddingBottom: spacing.xl + spacing.lg,
+    paddingBottom: spacing.xl * 2,
   },
-  topActionCard: {
-    ...cardSurface,
-    padding: spacing.md,
-    gap: spacing.sm + 4,
-  },
-  topActionTextWrap: {
-    gap: 2,
-  },
-  topActionTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  topActionSubtitle: {
-    ...typography.bodySm,
-    color: colors.textMuted,
+  pressed: {
+    opacity: 0.78,
   },
   loadingCard: {
     ...cardSurface,
+    borderRadius: rounded.lg,
     padding: spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
   },
-  loadingText: {
-    ...typography.bodySm,
-    color: colors.textSecondary,
+  loadingCardInline: {
+    padding: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
   },
+  loadingText: {
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textMuted,
+  },
+
+  /* KPI Cards */
   summarySection: {
-    gap: spacing.sm + 2,
+    gap: spacing.sm,
   },
   summaryCard: {
     ...cardSurface,
+    borderRadius: rounded.lg,
     padding: spacing.md,
-    gap: spacing.sm,
+    gap: spacing.xs + 2,
   },
   summaryCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm + 2,
+    gap: spacing.sm,
   },
   summaryIconBox: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   summaryIconBoxSuccess: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: rounded.md,
     backgroundColor: colors.successContainer,
     alignItems: 'center',
@@ -1781,54 +1166,52 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     fontFamily: fontFamilies.sansBold,
     color: colors.textMuted,
-    letterSpacing: 0.5,
+  },
+  summaryKpi: {
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
   },
   kpiInlineRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  summaryKpi: {
-    ...typography.headlineLgMobile,
-    fontFamily: fontFamilies.sansExtraBold,
-    color: colors.primary,
-  },
-  summarySubtext: {
-    ...typography.bodySm,
-    color: colors.textSecondary,
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   summaryBadgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: spacing.xs,
+  },
+  summarySubtext: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
   },
   neutralMiniPill: {
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: rounded.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
   neutralMiniText: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 11,
     color: colors.textSecondary,
   },
   warningMiniPill: {
     backgroundColor: colors.warningContainer,
     borderWidth: 1,
     borderColor: colors.warningBorder,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: rounded.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
   warningMiniText: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 11,
     color: colors.onWarningContainer,
   },
   emeraldPill: {
@@ -1838,56 +1221,55 @@ const styles = StyleSheet.create({
     backgroundColor: colors.successContainer,
     borderWidth: 1,
     borderColor: colors.successBorder,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: rounded.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
   },
   emeraldPillText: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 11,
     color: colors.onSuccessContainer,
   },
+
+  /* Visual & Filter Sections */
   sectionCard: {
     ...cardSurface,
+    borderRadius: rounded.lg,
     padding: spacing.md,
-    gap: spacing.sm + 4,
+    gap: spacing.sm + 2,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xs + 2,
   },
   sectionTitle: {
-    ...typography.headlineSm,
+    ...typography.labelLg,
     fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
   },
   stackedBarTrack: {
-    height: 12,
+    height: 10,
     borderRadius: rounded.full,
-    backgroundColor: colors.surfaceContainer,
-    flexDirection: 'row',
+    backgroundColor: colors.surfaceSoft,
     overflow: 'hidden',
+    flexDirection: 'row',
   },
   stackedSegmentOffline: {
     backgroundColor: colors.primary,
-    height: '100%',
   },
   stackedSegmentOnline: {
-    backgroundColor: colors.secondaryContainer,
-    height: '100%',
+    backgroundColor: colors.infoText,
   },
   stackedSegmentHybrid: {
-    backgroundColor: colors.successLight,
-    height: '100%',
+    backgroundColor: colors.success,
   },
   stackedSegmentEmpty: {
     flex: 1,
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.borderSubtle,
   },
   formatList: {
-    gap: spacing.xs + 4,
+    gap: spacing.xs + 2,
   },
   formatRow: {
     flexDirection: 'row',
@@ -1897,7 +1279,7 @@ const styles = StyleSheet.create({
   formatLabelWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xs + 2,
   },
   dotOffline: {
     width: 10,
@@ -1909,625 +1291,328 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: colors.secondaryContainer,
+    backgroundColor: colors.infoText,
   },
   dotHybrid: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: colors.successLight,
+    backgroundColor: colors.success,
   },
   formatLabel: {
-    ...typography.bodySm,
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansMedium,
     color: colors.textSecondary,
   },
   formatCount: {
-    ...typography.labelMono,
+    ...typography.labelMd,
     fontFamily: fontFamilies.monoSemiBold,
     color: colors.onSurface,
   },
+
+  /* Participation */
   participationList: {
-    gap: spacing.sm,
+    gap: spacing.xs + 2,
   },
   participationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: rounded.md,
+    padding: spacing.sm,
   },
   unitCodeBadge: {
-    backgroundColor: colors.surfaceSoft,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
     borderColor: colors.borderStrong,
     borderRadius: rounded.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: spacing.xs + 3,
+    paddingVertical: 3,
   },
   unitCodeText: {
     ...typography.labelMono,
     fontFamily: fontFamilies.monoBold,
-    fontSize: 11,
     color: colors.primary,
   },
   participationMeta: {
     flex: 1,
-    gap: 2,
+    gap: 1,
   },
   participationName: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansSemiBold,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
   },
   participationSub: {
     ...typography.bodySm,
-    fontSize: 11,
+    fontFamily: fontFamilies.sansRegular,
     color: colors.textMuted,
   },
-  filterHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  filterHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  filterToggleBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 10,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surfaceSoft,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  filterToggleText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.primary,
-  },
-  resetFilterBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 10,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.errorBorder,
-    backgroundColor: colors.errorContainer,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  resetFilterText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onErrorContainer,
-  },
-  searchBox: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceCard,
-    paddingLeft: spacing.sm + 4,
-    paddingRight: spacing.xs,
-  },
-  searchInput: {
-    flex: 1,
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    paddingVertical: 10,
-  },
-  clearSearchBtn: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateRow: {
+
+  /* Filter Form */
+  filterGrid: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  dateField: {
+  filterFieldHalf: {
     flex: 1,
     gap: 4,
   },
-  dateLabel: {
+  filterFieldFull: {
+    gap: 4,
+  },
+  filterFieldLabel: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansSemiBold,
     color: colors.textSecondary,
   },
-  dateTriggerBtn: {
-    minHeight: MIN_TOUCH_TARGET,
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
     borderColor: colors.borderStrong,
     borderRadius: rounded.md,
-    backgroundColor: colors.surfaceCard,
     paddingHorizontal: spacing.sm + 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dateTriggerText: {
-    ...typography.labelMono,
-    color: colors.onSurface,
-    flex: 1,
-  },
-  dateTriggerPlaceholder: {
-    ...typography.bodySm,
-    color: colors.textMuted,
-  },
-  filterGroupBlock: {
-    gap: 6,
-  },
-  filterGroupLabel: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.textSecondary,
-  },
-  filterButtonsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  filterActionBtn: {
-    flex: 1,
-  },
-  exportSummaryDivider: {
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-  },
-  chipsRow: {
-    gap: 8,
-  },
-  filterChip: {
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 14,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surfaceCard,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  filterChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  filterChipText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.textSecondary,
-  },
-  filterChipTextActive: {
-    color: colors.onPrimary,
-  },
-  listHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.xs,
-  },
-  listTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  agendaList: {
-    gap: spacing.sm + 2,
-  },
-  agendaCard: {
-    ...cardSurface,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  agendaHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  agendaTitleBtn: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-  },
-  agendaTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  agendaMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  agendaMetaText: {
-    ...typography.bodySm,
-    color: colors.textMuted,
-  },
-  agendaMetaMono: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 11,
-    color: colors.primary,
-  },
-  metaDot: {
-    ...typography.bodySm,
-    color: colors.textMuted,
-  },
-  agendaBadgesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  exportActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-  },
-  exportChipBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 12,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surfaceSoft,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  exportChipText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-  detailChipBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 12,
-    borderRadius: rounded.md,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginLeft: 'auto',
-  },
-  detailChipText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onPrimary,
-  },
-  pressedChip: {
-    opacity: 0.78,
-  },
-  disabledChip: {
-    opacity: 0.5,
-  },
-  paginationWrap: {
-    marginTop: spacing.xs,
-  },
-  unitFilterTrigger: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: 10,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surfaceCard,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  unitFilterTriggerActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceSoft,
-  },
-  unitFilterLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  unitFilterText: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSurface,
-    flex: 1,
-  },
-  bearerImageFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: rounded.md,
-    padding: spacing.xs,
-  },
-  bearerFallbackText: {
-    ...typography.labelSm,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  recapModalContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  recapModalTopBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 4,
-    backgroundColor: colors.surfaceCard,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  recapTopBarTextWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  recapTopBarTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-  recapTopBarSlug: {
-    ...typography.labelMono,
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  recapCloseBtn: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    borderRadius: rounded.full,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recapScroll: {
-    flex: 1,
-  },
-  recapScrollContent: {
-    padding: spacing.md,
-    gap: spacing.md,
-    paddingBottom: spacing.xl + spacing.lg,
-  },
-  recapHeroCard: {
-    backgroundColor: colors.primaryDarkest,
-    borderRadius: rounded.lg,
-    padding: spacing.md,
-    gap: spacing.sm + 2,
-  },
-  recapHeroBadgesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  recapStatusPill: {
-    backgroundColor: colors.success,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: rounded.full,
-  },
-  recapStatusText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onPrimary,
-  },
-  recapFormatPill: {
-    backgroundColor: colors.primaryContainer,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: rounded.full,
-  },
-  recapFormatText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onPrimary,
-  },
-  recapHeroTitle: {
-    ...typography.headlineMd,
-    fontFamily: fontFamilies.sansExtraBold,
-    color: colors.onPrimary,
-  },
-  recapHeroMetaList: {
-    gap: 6,
-  },
-  recapHeroMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  recapHeroMetaText: {
-    ...typography.bodySm,
-    color: colors.onPrimary,
-    flex: 1,
-  },
-  recapHeroActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingTop: spacing.xs,
-  },
-  recapExportBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 12,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceCard,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  recapExportBtnText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-  recapManageBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 12,
-    borderRadius: rounded.md,
-    backgroundColor: colors.success,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  recapManageBtnText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onPrimary,
-  },
-  recapSectionLabel: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-  },
-  recapMetaGrid: {
-    gap: spacing.sm,
-  },
-  recapMetaItem: {
-    gap: 2,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  recapMetaKey: {
-    ...typography.labelSm,
-    color: colors.textMuted,
-  },
-  recapMetaValue: {
+  dropdownTriggerText: {
     ...typography.bodyMd,
-    fontFamily: fontFamilies.sansSemiBold,
+    fontFamily: fontFamilies.sansMedium,
     color: colors.onSurface,
+    flex: 1,
   },
-  recapMetaValueMono: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoBold,
-    color: colors.primary,
+  dropdownPlaceholderText: {
+    color: colors.textMuted,
   },
-  recapInlineBadgeRow: {
+  filterActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
-  recapLinkBox: {
+  applyPrimaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    padding: spacing.sm,
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
     borderRadius: rounded.md,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    paddingHorizontal: spacing.lg,
+    minHeight: MIN_TOUCH_TARGET,
   },
-  recapLinkText: {
+  applyPrimaryBtnText: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onPrimary,
+  },
+  resetSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.md,
+    minHeight: MIN_TOUCH_TARGET,
+  },
+  resetSecondaryBtnText: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
+  },
+  filterDivider: {
+    height: 1,
+    backgroundColor: colors.borderSubtle,
+  },
+  csvExportRow: {
+    gap: spacing.xs + 2,
+  },
+  csvExportLabel: {
     ...typography.bodySm,
     fontFamily: fontFamilies.sansMedium,
-    color: colors.primary,
-    flex: 1,
-  },
-  recapTargetWrap: {
-    gap: 6,
-  },
-  recapTargetSub: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansSemiBold,
     color: colors.textSecondary,
   },
-  notulenSubsection: {
-    gap: 6,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-  },
-  notulenHeading: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-  notulenEmptyText: {
-    ...typography.bodySm,
-    color: colors.textMuted,
-  },
-  notulenBodyText: {
-    ...typography.bodyMd,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  signatureVerifyGrid: {
-    gap: spacing.sm,
-  },
-  signatureVerifyCard: {
-    padding: spacing.sm + 4,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    gap: 8,
-    alignItems: 'flex-start',
-  },
-  signatureVerifyHeader: {
+  csvExportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xs + 2,
+    backgroundColor: colors.success,
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.md,
+    minHeight: MIN_TOUCH_TARGET,
   },
-  signatureVerifyRole: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
+  csvExportBtnText: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onPrimary,
   },
-  signatureVerifyName: {
-    ...typography.bodyMd,
+
+  /* Table Panel */
+  tablePanel: {
+    ...cardSurface,
+    borderRadius: rounded.lg,
+    overflow: 'hidden',
+  },
+  tableTopHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+  },
+  tableTopTitle: {
+    ...typography.labelLg,
     fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
   },
-  signatureVerifyImage: {
+  emptyBox: {
+    padding: spacing.md,
+  },
+  tableScrollContent: {
+    flexGrow: 1,
+  },
+  tableInner: {
+    minWidth: TABLE_MIN_WIDTH,
     width: '100%',
-    height: 84,
+  },
+  tableColumnHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerLow,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.sm,
+  },
+  thCell: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    paddingHorizontal: spacing.xs,
+  },
+  thCellRight: {
+    textAlign: 'right',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
     backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.md,
+  },
+  tableRowLast: {
+    borderBottomWidth: 0,
+  },
+  tdCell: {
+    paddingHorizontal: spacing.xs,
+    justifyContent: 'center',
+  },
+  agendaTitleCell: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  agendaScheduleCell: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  agendaMetaCell: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  pesertaCountText: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  pesertaRateText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.success,
+  },
+  notulenBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: rounded.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+  },
+  notulenBadgeComplete: {
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
+  },
+  notulenBadgePending: {
+    backgroundColor: colors.warningContainer,
+    borderColor: colors.warningBorder,
+  },
+  notulenBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+  },
+  notulenBadgeTextComplete: {
+    color: colors.onSuccessContainer,
+  },
+  notulenBadgeTextPending: {
+    color: colors.onWarningContainer,
+  },
+  eksporCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.xs,
+  },
+  exportMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
     borderColor: colors.borderStrong,
-  },
-  docGrid: {
-    gap: spacing.sm,
-  },
-  docCard: {
-    gap: 6,
-    padding: spacing.xs,
     borderRadius: rounded.md,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    paddingHorizontal: spacing.sm,
+    minHeight: MIN_TOUCH_TARGET,
   },
-  docThumb: {
-    width: '100%',
-    height: 160,
-    borderRadius: rounded.sm,
+  exportMiniBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
   },
-  docCaption: {
-    ...typography.bodySm,
-    color: colors.textSecondary,
+  detailMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.sm + 2,
+    minHeight: MIN_TOUCH_TARGET,
+  },
+  detailMiniBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onPrimary,
+  },
+  tablePagination: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceContainerLow,
   },
 });

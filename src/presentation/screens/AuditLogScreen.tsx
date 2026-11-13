@@ -39,6 +39,7 @@ import { triggerPageTransition } from '../store/useTransitionStore';
 
 interface AuditLogScreenProps {
   onBack?: () => void;
+  mode?: 'personal' | 'system';
 }
 
 type LogTone = 'success' | 'warning' | 'danger' | 'info' | 'export';
@@ -134,13 +135,17 @@ const formatDateShort = (isoDate: string): string => {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
-export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
+export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack, mode }) => {
   const currentUser = useAuthStore((state) => state.user);
   const isAdministrator = currentUser?.role === 'administrator';
 
   const [logScope, setLogScope] = useState<'system' | 'personal'>(
-    isAdministrator ? 'system' : 'personal'
+    isAdministrator ? (mode ?? 'system') : 'personal'
   );
+
+  useEffect(() => {
+    setLogScope(isAdministrator ? (mode ?? 'system') : 'personal');
+  }, [mode, isAdministrator]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [selectedType, setSelectedType] = useState<string>('');

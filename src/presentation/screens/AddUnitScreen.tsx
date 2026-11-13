@@ -280,16 +280,26 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
             </View>
           </View>
 
-          {/* SUBMIT BUTTON */}
-          <View style={styles.actionContainer}>
+          {/* SUBMIT & CANCEL ACTIONS (1:1 Web units/create.blade.php) */}
+          <View style={styles.actionRow}>
+            {onBack ? (
+              <Button
+                title="Batal"
+                onPress={handleBack}
+                variant="secondary"
+                size="lg"
+                disabled={isLoading}
+                style={styles.cancelActionBtn}
+              />
+            ) : null}
             <Button
               title="Simpan Unit Kerja"
               onPress={handleSubmit}
               variant="primary"
-              fullWidth
               size="lg"
               isLoading={isLoading}
               disabled={!isFormValid || isLoading}
+              style={styles.submitActionBtn}
               icon={
                 <PlusCircle
                   size={20}
@@ -494,8 +504,17 @@ const styles = StyleSheet.create({
     color: colors.onErrorContainer,
     fontFamily: fontFamilies.sansBold,
   },
-  actionContainer: {
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     marginTop: spacing.xs,
+  },
+  cancelActionBtn: {
+    flex: 1,
+  },
+  submitActionBtn: {
+    flex: 2,
   },
   guideDarkCard: {
     backgroundColor: colors.primaryDarkest,

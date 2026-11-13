@@ -31,8 +31,10 @@ import { AddEmployeeScreen } from '../screens/AddEmployeeScreen';
 import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
 import { AddUnitScreen } from '../screens/AddUnitScreen';
 import { EditUnitScreen } from '../screens/EditUnitScreen';
+import { UnitDirectoryScreen } from '../screens/UnitDirectoryScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
 import { ReportsScreen } from '../screens/ReportsScreen';
+import { ReportDetailScreen } from '../screens/ReportDetailScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import { GlobalFeedbackHost } from '../components/common/GlobalFeedbackHost';
 import { PageTransitionOverlay } from '../components/transitions/PageTransitionOverlay';
@@ -115,7 +117,9 @@ const CustomBottomTabBar: React.FC<BottomTabBarProps> = ({
 
 export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: rootStackNav }) => {
   const user = useAuthStore((state) => state.user);
-  const canManageMeetings = user?.role === 'administrator' || user?.role === 'admin';
+  const isAdministrator = user?.role === 'administrator';
+  const canManageEmployees = isAdministrator || user?.role === 'admin';
+  const canManageMeetings = isAdministrator || user?.role === 'admin';
   const detailRoute = user?.role === 'staff' ? 'AgendaDetail' : 'Monitoring';
   useEffect(() => {
     if (!user) rootStackNav.replace('Login');
@@ -200,9 +204,9 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
               triggerPageTransition();
               rootStackNav.replace('Login');
             }}
-            onNavigateAuditLog={() => {
+            onNavigateAuditLog={(mode) => {
               triggerPageTransition();
-              rootStackNav.navigate('AuditLog');
+              rootStackNav.navigate('AuditLog', mode ? { mode } : undefined);
             }}
             onNavigatePegawai={() => {
               triggerPageTransition();
@@ -212,10 +216,22 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
               triggerPageTransition();
               rootStackNav.navigate('ChangePassword');
             }}
-            onNavigateReports={() => {
-              triggerPageTransition();
-              rootStackNav.navigate('Reports');
-            }}
+            onNavigateReports={
+              canManageEmployees
+                ? () => {
+                    triggerPageTransition();
+                    rootStackNav.navigate('Reports');
+                  }
+                : undefined
+            }
+            onNavigateUnitDirectory={
+              isAdministrator
+                ? () => {
+                    triggerPageTransition();
+                    rootStackNav.navigate('UnitDirectory');
+                  }
+                : undefined
+            }
           />
         )}
       </Tab.Screen>
@@ -387,7 +403,7 @@ export const AppNavigator: React.FC = () => {
               triggerPageTransition();
               navigation.navigate('AddUnit');
             }}
-            onNavigateEditUnit={(unitId) => {
+            onNavigateEditUnit={(unitId: number | string) => {
               triggerPageTransition();
               navigation.navigate('EditUnit', { unitId });
             }}
@@ -414,28 +430,47 @@ export const AppNavigator: React.FC = () => {
         ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
       </Stack.Screen>
 
+      <Stack.Screen name="UnitDirectory">
+        {({ navigation }) => isAdministrator ? (
+          <UnitDirectoryScreen
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
+            onNavigateAddUnit={() => {
+              triggerPageTransition();
+              navigation.navigate('AddUnit');
+            }}
+            onNavigateEditUnit={(unitId: number | string) => {
+              triggerPageTransition();
+              navigation.navigate('EditUnit', { unitId });
+            }}
+          />
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
+      </Stack.Screen>
+
       <Stack.Screen name="AddUnit">
         {({ navigation }) => isAdministrator ? (
           <AddUnitScreen
-            onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
-            onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
+            onBack={() => safeGoBack(navigation, 'UnitDirectory')}
+            onSuccess={() => safeGoBack(navigation, 'UnitDirectory')}
           />
-        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'EmployeeDirectory')} />}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
       </Stack.Screen>
 
       <Stack.Screen name="EditUnit">
         {({ navigation, route }) => isAdministrator ? (
           <EditUnitScreen
             unitId={route.params.unitId}
-            onBack={() => safeGoBack(navigation, 'EmployeeDirectory')}
-            onSuccess={() => safeGoBack(navigation, 'EmployeeDirectory')}
+            onBack={() => safeGoBack(navigation, 'UnitDirectory')}
+            onSuccess={() => safeGoBack(navigation, 'UnitDirectory')}
           />
-        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'EmployeeDirectory')} />}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
       </Stack.Screen>
 
       <Stack.Screen name="AuditLog">
-        {({ navigation }) => (
-          <AuditLogScreen onBack={() => safeGoBack(navigation, 'MainTabs')} />
+        {({ navigation, route }) => (
+          <AuditLogScreen
+            mode={route.params?.mode}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
+          />
         )}
       </Stack.Screen>
 
@@ -444,6 +479,19 @@ export const AppNavigator: React.FC = () => {
           <ReportsScreen
             onBack={() => safeGoBack(navigation, 'MainTabs')}
             onOpenAgenda={(id) => {
+              triggerPageTransition();
+              navigation.navigate('ReportDetail', { meetingId: id });
+            }}
+          />
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
+      </Stack.Screen>
+
+      <Stack.Screen name="ReportDetail">
+        {({ navigation, route }) => canManageMeetings ? (
+          <ReportDetailScreen
+            meetingId={route.params.meetingId}
+            onBack={() => safeGoBack(navigation, 'Reports')}
+            onNavigateMonitoring={(id: string) => {
               triggerPageTransition();
               navigation.navigate('Monitoring', { meetingId: id });
             }}

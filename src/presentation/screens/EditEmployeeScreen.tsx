@@ -1,25 +1,22 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Platform,
-  KeyboardAvoidingView,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import {
   AlertCircle,
   AtSign,
-  Award,
-  Briefcase,
   Building2,
-  Calendar,
+  Check,
   CheckCircle2,
-  ChevronsUpDown,
+  ChevronDown,
   Clock,
-  Contact,
   Eye,
   EyeOff,
   Fingerprint,
@@ -28,14 +25,12 @@ import {
   KeyRound,
   Lock,
   Mail,
-  Network,
-  PauseCircle,
   Phone,
   Save,
   ShieldCheck,
   User,
   UserCheck,
-  UserCog,
+  Users,
   UserX,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
@@ -46,7 +41,6 @@ import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { FeedbackModal } from '../components/modals/FeedbackModal';
-import { PANGKAT_GOLONGAN_OPTIONS } from '../constants/employeeOptions';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { cleanNIP, validateNIP } from '../../core/utils/nipValidator';
@@ -92,22 +86,18 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
 
   const [isInitializing, setIsInitializing] = useState(true);
 
-  // Form State
   const [name, setName] = useState('');
   const [nip, setNip] = useState('');
-  const [jabatan, setJabatan] = useState('');
-  const [pangkatGolongan, setPangkatGolongan] = useState('');
-  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
-  const [role, setRole] = useState<'Administrator' | 'Admin Unit' | 'Staff'>('Staff');
-  const [status, setStatus] = useState<'Aktif' | 'Nonaktif'>('Aktif');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<'Administrator' | 'Admin Unit' | 'Staff'>('Staff');
+  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isActive, setIsActive] = useState(true);
 
-  // Modals
-  const [activeModal, setActiveModal] = useState<'none' | 'unit' | 'pangkat'>('none');
+  const [activeModal, setActiveModal] = useState<'none' | 'role' | 'unit'>('none');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [updatedSummary, setUpdatedSummary] = useState<{
     name: string;
@@ -117,7 +107,8 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
     status: string;
   } | null>(null);
 
-  // Load employee data & units on mount
+  const isActionHandledRef = useRef(false);
+
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
@@ -129,14 +120,12 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
       if (emp && isMounted) {
         setName(emp.name);
         setNip(cleanNIP(emp.nip || ''));
-        setJabatan(emp.jabatan || '');
-        setPangkatGolongan(emp.pangkatGolongan || 'Penata Tingkat I (III/d)');
-        setSelectedUnitId(emp.unitId ?? null);
-        setRole(emp.role);
-        setStatus(emp.status);
-        setUsername(emp.username);
+        setUsername((emp.username || '').replace(/^@+/, ''));
         setEmail(emp.email || '');
         setPhone(emp.phone && emp.phone !== '-' ? emp.phone : '');
+        setRole(emp.role);
+        setSelectedUnitId(emp.unitId ?? null);
+        setIsActive(emp.status === 'Aktif');
         setPassword('');
       }
       if (isMounted) {
@@ -148,6 +137,32 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
       isMounted = false;
     };
   }, [employeeId, fetchEmployeeById, fetchAllUnits]);
+
+  const roleModalOptions = useMemo<AgendaOption[]>(() => {
+    const items: AgendaOption[] = [
+      {
+        id: 'Staff',
+        title: 'Staff Pegawai',
+        subtitle: 'Portal presensi, riwayat kehadiran pribadi, dan agenda terkait',
+        icon: Users,
+      },
+      {
+        id: 'Admin Unit',
+        title: 'Admin Unit',
+        subtitle: 'Mengelola agenda dan pegawai di dalam unit kerjanya saja',
+        icon: UserCheck,
+      },
+    ];
+    if (isAdministrator) {
+      items.push({
+        id: 'Administrator',
+        title: 'Administrator',
+        subtitle: 'Akses penuh master data, audit trail, rekapitulasi, dan lembaga',
+        icon: ShieldCheck,
+      });
+    }
+    return items;
+  }, [isAdministrator]);
 
   const unitModalOptions = useMemo<AgendaOption[]>(() => {
     const items: AgendaOption[] = [];
@@ -189,6 +204,13 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
     );
   }, [allUnits, selectedUnitId, selectedUserDetail?.unit]);
 
+  const displayRoleLabel = useMemo(() => {
+    if (isEditingSelf && isAdministrator && role === 'Administrator') {
+      return 'Administrator (Akun Anda Sendiri)';
+    }
+    return role === 'Staff' ? 'Staff Pegawai' : role;
+  }, [isEditingSelf, isAdministrator, role]);
+
   const displayUnitLabel = useMemo(() => {
     if (selectedUnitId == null) {
       return '-- Tingkat Lembaga (Tanpa Unit) --';
@@ -220,29 +242,29 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
 
   const handleSubmit = async () => {
     if (!isFormValid || isLoading) return;
-
     clearError();
-    const finalUsername = username.trim().startsWith('@')
-      ? username.trim()
-      : `@${username.trim()}`;
 
     const effectiveUnitId = isAdministrator
       ? selectedUnitId
       : (selectedEmployee?.unitId ?? authUser?.unitId ?? null);
 
+    const nextStatus = isEditingSelf
+      ? (selectedEmployee?.status ?? (isActive ? 'Aktif' : 'Nonaktif'))
+      : isActive
+      ? 'Aktif'
+      : 'Nonaktif';
+
     const result = await updateEmployee(employeeId, {
       name: name.trim(),
       nip,
-      jabatan: jabatan.trim(),
-      pangkatGolongan,
-      unit: selectedUnitRecord?.nama_unit ?? '',
-      unitId: effectiveUnitId,
-      role: isEditingSelf ? (selectedEmployee?.role ?? role) : role,
-      status: isEditingSelf ? (selectedEmployee?.status ?? status) : status,
-      username: finalUsername || selectedEmployee?.username || '@asn',
+      username: cleanUsernameVal || selectedEmployee?.username.replace(/^@+/, '') || 'asn',
       email: email.trim(),
       phone: phone.trim(),
+      role: isEditingSelf ? (selectedEmployee?.role ?? role) : role,
+      unit: selectedUnitRecord?.nama_unit ?? '',
+      unitId: effectiveUnitId,
       password: password || undefined,
+      status: nextStatus,
     });
 
     if (result) {
@@ -256,8 +278,6 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
       setShowSuccessModal(true);
     }
   };
-
-  const isActionHandledRef = React.useRef(false);
 
   const handleBack = () => {
     if (isActionHandledRef.current) return;
@@ -279,54 +299,53 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
   if (isInitializing) {
     return (
       <View style={styles.container}>
-        <Header
-          title="Edit Pegawai ASN"
-          subtitle="Pembaruan Data & Penugasan Personel"
-          showBack={Boolean(onBack)}
-          onBack={handleBack}
-        />
+        <Header title="Edit Data Pengguna" showBack={Boolean(onBack)} onBack={handleBack} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Memuat data kepegawaian ASN...</Text>
+          <Text style={styles.loadingText}>Memuat data pengguna...</Text>
         </View>
       </View>
     );
   }
 
-  if (!selectedEmployee && !isInitializing) {
+  if (!selectedEmployee) {
     return (
       <View style={styles.container}>
-        <Header
-          title="Edit Pegawai ASN"
-          subtitle="Pembaruan Data & Penugasan Personel"
-          showBack={Boolean(onBack)}
-          onBack={handleBack}
-        />
+        <Header title="Edit Data Pengguna" showBack={Boolean(onBack)} onBack={handleBack} />
         <View style={styles.notFoundContainer}>
-          <UserX size={48} color={colors.outline} strokeWidth={2} />
-          <Text style={styles.notFoundTitle}>Pegawai Tidak Ditemukan</Text>
+          <UserX size={48} color={colors.textMuted} strokeWidth={2} />
+          <Text style={styles.notFoundTitle}>Pengguna Tidak Ditemukan</Text>
           <Text style={styles.notFoundSubtitle}>
-            Data aparatur dengan ID {employeeId} tidak ditemukan dalam arsip lokal sistem.
+            Data pengguna dengan ID #{employeeId} tidak tersedia atau telah dihapus.
           </Text>
-          {onBack && (
-            <Button
-              title="Kembali ke Direktori"
-              onPress={handleBack}
-              variant="primary"
-              size="md"
-              style={{ marginTop: spacing.md }}
-            />
-          )}
+          {onBack ? (
+            <Button title="Kembali" onPress={handleBack} variant="primary" size="md" />
+          ) : null}
         </View>
       </View>
     );
   }
+
+  const initials =
+    selectedEmployee.initials ||
+    (name || selectedEmployee.name)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') ||
+    'PN';
+
+  const totalAttended =
+    selectedUserDetail?.attendance_stats?.total_attended ??
+    selectedEmployee.totalMeetings ??
+    0;
 
   return (
     <View style={styles.container}>
       <Header
-        title="Edit Pegawai ASN"
-        subtitle="Pembaruan Data & Penugasan Personel"
+        title="Edit Data Pengguna"
+        subtitle={`Perbarui informasi akun dan hak akses ${selectedEmployee.name}`}
         showBack={Boolean(onBack)}
         onBack={handleBack}
       />
@@ -341,7 +360,6 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Error Banner */}
           {error ? (
             <View style={styles.errorBanner}>
               <AlertCircle size={18} color={colors.error} strokeWidth={2} />
@@ -349,131 +367,46 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
             </View>
           ) : null}
 
-          {/* IDENTITY & ATTENDANCE SUMMARY CARD */}
-          <View style={styles.contextCard}>
-            <View style={styles.contextTopRow}>
-              <View style={styles.contextAvatar}>
-                <Text style={styles.contextAvatarText}>
-                  {selectedEmployee?.initials || 'AS'}
-                </Text>
-              </View>
-              <View style={styles.contextMeta}>
-                <Text style={styles.contextName} numberOfLines={1}>
-                  {selectedEmployee?.name}
-                </Text>
-                <View style={styles.contextBadgeRow}>
-                  <View style={styles.lockBadge}>
-                    <Fingerprint size={11} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.lockBadgeText}>
-                      NIP {selectedEmployee?.nip || '-'}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusPill,
-                      selectedEmployee?.status === 'Aktif'
-                        ? styles.statusPillActive
-                        : styles.statusPillInactive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        selectedEmployee?.status === 'Aktif'
-                          ? styles.statusPillTextActive
-                          : styles.statusPillTextInactive,
-                      ]}
-                    >
-                      {selectedEmployee?.status}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.contextStatsRow}>
-              <View style={styles.contextStatItem}>
-                <View style={styles.contextStatHeader}>
-                  <CheckCircle2 size={13} color={colors.success} strokeWidth={2} />
-                  <Text style={styles.contextStatLabel}>Total Hadir Rapat</Text>
-                </View>
-                <Text style={styles.contextStatValue}>
-                  {selectedUserDetail?.attendance_stats?.total_attended ?? 0} Rapat
-                </Text>
-                <Text style={styles.contextStatHint}>
-                  Tingkat hadir {selectedUserDetail?.attendance_stats?.attendance_rate_label ?? '0%'}
-                </Text>
-              </View>
-              <View style={styles.contextStatDivider} />
-              <View style={styles.contextStatItem}>
-                <View style={styles.contextStatHeader}>
-                  <Calendar size={13} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.contextStatLabel}>Terdaftar Sejak</Text>
-                </View>
-                <Text style={styles.contextStatValue}>
-                  {formatIndonesianDate(selectedUserDetail?.created_at)}
-                </Text>
-                <Text style={styles.contextStatHint}>
-                  {selectedUserDetail?.attendance_stats?.period_label || 'Data kedinasan'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* BAGIAN 1: IDENTITAS APARATUR */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconWrap}>
-                <UserCheck size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={styles.sectionTitle}>Identitas Aparatur Sipil Negara</Text>
-            </View>
-
-            {/* Nama Lengkap & Gelar */}
+          {/* FORM CARD (1:1 users/edit.blade.php field order) */}
+          <View style={styles.formCard}>
+            {/* 1. Nama Lengkap & Gelar * */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Nama Lengkap & Gelar Resmi <Text style={styles.required}>*</Text>
+                Nama Lengkap & Gelar <Text style={styles.required}>*</Text>
               </Text>
               <Input
-                placeholder="Nama aparatur..."
+                placeholder="Cth: Dr. Budi Santoso, M.Kom"
                 value={name}
                 onChangeText={setName}
                 error={validationErrors?.name?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <User size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<User size={18} color={colors.outline} strokeWidth={2} />}
               />
             </View>
 
-            {/* NIP 18 Digit (Editable) */}
+            {/* 2. Nomor Induk Pegawai (NIP) * */}
             <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>
-                  NIP 18 Digit Resmi <Text style={styles.required}>*</Text>
-                </Text>
-                <Text style={styles.nipCounter}>{nip.length}/18 digit</Text>
-              </View>
+              <Text style={styles.label}>
+                Nomor Induk Pegawai (NIP) <Text style={styles.required}>*</Text>
+              </Text>
               <Input
-                placeholder="19XXXXXXXXXXXXXXNN"
+                placeholder="18 Digit Angka NIP"
                 value={nip}
                 onChangeText={(val) => setNip(cleanNIP(val))}
                 keyboardType="numeric"
                 maxLength={18}
-                isMono
                 error={validationErrors?.nip?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Fingerprint size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<Fingerprint size={18} color={colors.outline} strokeWidth={2} />}
+                rightAction={<Text style={styles.nipCounter}>{nip.length}/18</Text>}
               />
-              {nip.length > 0 && (
+              {nip.length > 0 ? (
                 <View
                   style={[
-                    styles.nipValidationPill,
+                    styles.validationPill,
                     isNipComplete && nipValidation.isValid
-                      ? styles.nipValidationSuccess
-                      : styles.nipValidationPending,
+                      ? styles.validationPillSuccess
+                      : styles.validationPillPending,
                   ]}
                 >
                   {isNipComplete && nipValidation.isValid ? (
@@ -483,330 +416,136 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                   )}
                   <Text
                     style={[
-                      styles.nipValidationText,
+                      styles.validationText,
                       isNipComplete && nipValidation.isValid
-                        ? styles.nipValidationTextSuccess
-                        : styles.nipValidationTextPending,
+                        ? styles.validationTextSuccess
+                        : styles.validationTextPending,
                     ]}
                   >
                     {isNipComplete
                       ? nipValidation.isValid
-                        ? `Valid: Lahir ${nipValidation.birthYear} · Jenis Kelamin: ${nipValidation.gender}`
+                        ? `Valid: Lahir ${nipValidation.birthYear} · ${nipValidation.gender}`
                         : 'Format 18 digit tidak sesuai ketentuan BKN'
-                      : `Kurang ${18 - nip.length} digit lagi untuk validasi resmi`}
+                      : `Kurang ${18 - nip.length} digit lagi`}
                   </Text>
                 </View>
-              )}
-            </View>
-
-            {/* Jabatan Kedinasan */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Jabatan Kedinasan / Fungsional</Text>
-              <Input
-                placeholder="Jabatan kedinasan..."
-                value={jabatan}
-                onChangeText={setJabatan}
-                error={validationErrors?.jabatan?.[0] ?? null}
-                containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Briefcase size={18} color={colors.outline} strokeWidth={2} />
-                }
-              />
-            </View>
-
-            {/* Pangkat & Golongan Selector */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>
-                Pangkat & Golongan Ruang <Text style={styles.required}>*</Text>
-              </Text>
-              <Pressable
-                onPress={() => setActiveModal('pangkat')}
-                style={({ pressed }) => [
-                  styles.selectorTrigger,
-                  pressed && styles.pressedState,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Pilih Pangkat dan Golongan"
-              >
-                <View style={styles.selectorLeft}>
-                  <Award size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.selectorValue} numberOfLines={1}>
-                    {pangkatGolongan}
-                  </Text>
-                </View>
-                <View style={styles.selectorRight}>
-                  <Text style={styles.selectorActionText}>Ubah</Text>
-                  <ChevronsUpDown size={18} color={colors.outline} strokeWidth={2} />
-                </View>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* BAGIAN 2: PENUGASAN UNIT & PERAN SISTEM */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconWrap}>
-                <Network size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={styles.sectionTitle}>Penugasan Unit & Peran Sistem</Text>
-            </View>
-
-            {/* Unit Kerja / Pokja Selector */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>
-                Unit Kerja / Tim Kerja{' '}
-                {!isAdministrator ? <Text style={styles.required}>*</Text> : null}
-              </Text>
-              {isAdministrator ? (
-                <Pressable
-                  onPress={() => setActiveModal('unit')}
-                  style={({ pressed }) => [
-                    styles.selectorTrigger,
-                    pressed && styles.pressedState,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Pilih Unit Kerja"
-                >
-                  <View style={styles.selectorLeft}>
-                    <Building2 size={18} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.selectorValue} numberOfLines={1}>
-                      {displayUnitLabel}
-                    </Text>
-                  </View>
-                  <View style={styles.selectorRight}>
-                    <Text style={styles.selectorActionText}>Ubah</Text>
-                    <ChevronsUpDown size={18} color={colors.outline} strokeWidth={2} />
-                  </View>
-                </Pressable>
-              ) : (
-                <View style={styles.readonlyTrigger}>
-                  <View style={styles.selectorLeft}>
-                    <Building2 size={18} color={colors.outline} strokeWidth={2} />
-                    <Text style={styles.readonlyText} numberOfLines={1}>
-                      {displayUnitLabel}
-                    </Text>
-                  </View>
-                  <Lock size={15} color={colors.outline} strokeWidth={2} />
-                </View>
-              )}
-              <Text style={styles.fieldHintText}>
-                {isAdministrator
-                  ? 'Pilih unit kerja atau biarkan Tingkat Lembaga (Tanpa Unit).'
-                  : 'Admin Unit tidak dapat memindahkan pegawai ke unit kerja lain.'}
-              </Text>
-              {validationErrors?.unit_id?.[0] ? (
-                <Text style={styles.fieldErrorText}>{validationErrors.unit_id[0]}</Text>
               ) : null}
             </View>
 
-            {/* Peran Sistem */}
+            {/* 3. Username * */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Peran Akses Sistem SIPERAPAT <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.roleGrid}>
-                {(isAdministrator
-                  ? (['Staff', 'Admin Unit', 'Administrator'] as const)
-                  : (['Staff', 'Admin Unit'] as const)
-                ).map((r) => {
-                  const isSelected = role === r;
-                  const RoleIcon =
-                    r === 'Administrator'
-                      ? ShieldCheck
-                      : r === 'Admin Unit'
-                      ? UserCog
-                      : User;
-                  return (
-                    <Pressable
-                      key={r}
-                      onPress={() => {
-                        if (!isEditingSelf) {
-                          setRole(r);
-                        }
-                      }}
-                      disabled={isEditingSelf}
-                      style={[
-                        styles.roleCard,
-                        isSelected && styles.roleCardActive,
-                        isEditingSelf && styles.disabledControl,
-                      ]}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: isSelected, disabled: isEditingSelf }}
-                    >
-                      <View style={styles.roleCardHeader}>
-                        <RoleIcon
-                          size={18}
-                          color={isSelected ? colors.primary : colors.outline}
-                          strokeWidth={2}
-                        />
-                        <View
-                          style={[
-                            styles.radioDot,
-                            isSelected && styles.radioDotActive,
-                          ]}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.roleTitle,
-                          isSelected && styles.roleTitleActive,
-                        ]}
-                      >
-                        {r}
-                      </Text>
-                      <Text style={styles.roleDesc}>
-                        {r === 'Administrator'
-                          ? 'Akses penuh lembaga'
-                          : r === 'Admin Unit'
-                          ? 'Pengelola agenda unit'
-                          : 'Peserta presensi'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              {isEditingSelf ? (
-                <Text style={styles.fieldHintText}>
-                  Anda tidak dapat mengubah peran akun Anda sendiri.
-                </Text>
-              ) : null}
-            </View>
-
-            {/* Status Akun */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Status Akun Kedinasan</Text>
-              <View style={styles.segmentedControl}>
-                <Pressable
-                  onPress={() => {
-                    if (!isEditingSelf) setStatus('Aktif');
-                  }}
-                  disabled={isEditingSelf}
-                  style={[
-                    styles.segmentedBtn,
-                    status === 'Aktif' && styles.segmentedBtnActive,
-                    isEditingSelf && styles.disabledControl,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: isEditingSelf }}
-                >
-                  <CheckCircle2
-                    size={15}
-                    color={status === 'Aktif' ? colors.success : colors.outline}
-                    strokeWidth={2}
-                  />
-                  <Text
-                    style={[
-                      styles.segmentedBtnText,
-                      status === 'Aktif' && styles.segmentedBtnTextActive,
-                    ]}
-                  >
-                    Aktif Bertugas
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    if (!isEditingSelf) setStatus('Nonaktif');
-                  }}
-                  disabled={isEditingSelf}
-                  style={[
-                    styles.segmentedBtn,
-                    status === 'Nonaktif' && styles.segmentedBtnActive,
-                    isEditingSelf && styles.disabledControl,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: isEditingSelf }}
-                >
-                  <PauseCircle
-                    size={15}
-                    color={status === 'Nonaktif' ? colors.error : colors.outline}
-                    strokeWidth={2}
-                  />
-                  <Text
-                    style={[
-                      styles.segmentedBtnText,
-                      status === 'Nonaktif' && styles.segmentedBtnTextActive,
-                    ]}
-                  >
-                    Nonaktif / Cuti
-                  </Text>
-                </Pressable>
-              </View>
-              {isEditingSelf ? (
-                <Text style={styles.fieldHintText}>
-                  Anda tidak dapat menonaktifkan akun Anda sendiri.
-                </Text>
-              ) : null}
-            </View>
-          </View>
-
-          {/* BAGIAN 3: AKUN & KONTAK KEDINASAN */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconWrap}>
-                <Contact size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={styles.sectionTitle}>Akun & Kontak Kedinasan</Text>
-            </View>
-
-            {/* Username */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>
-                Username Aplikasi <Text style={styles.required}>*</Text>
+                Username <Text style={styles.required}>*</Text>
               </Text>
               <Input
-                placeholder="@username"
+                placeholder="Cth: budi_santoso"
                 value={username}
-                onChangeText={setUsername}
+                onChangeText={(val) => setUsername(val.replace(/^@+/, '').toLowerCase())}
                 autoCapitalize="none"
+                autoCorrect={false}
                 error={validationErrors?.username?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <AtSign size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<AtSign size={18} color={colors.outline} strokeWidth={2} />}
               />
             </View>
 
-            {/* Email Kedinasan */}
+            {/* 4. Alamat Email Resmi * */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Email Kedinasan Resmi <Text style={styles.required}>*</Text>
+                Alamat Email Resmi <Text style={styles.required}>*</Text>
               </Text>
               <Input
-                placeholder="nama@lldikti10.kemdikbud.go.id"
+                placeholder="nama@lldikti10.go.id"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoCorrect={false}
                 error={validationErrors?.email?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Mail size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<Mail size={18} color={colors.outline} strokeWidth={2} />}
               />
             </View>
 
-            {/* Telepon / WhatsApp */}
+            {/* 5. Nomor Telepon / WhatsApp */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Nomor Kontak / WhatsApp</Text>
+              <Text style={styles.label}>Nomor Telepon / WhatsApp</Text>
               <Input
                 placeholder="08xxxxxxxxxx"
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
-                error={validationErrors?.no_hp?.[0] ?? null}
+                error={validationErrors?.no_hp?.[0] ?? validationErrors?.phone?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Phone size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<Phone size={18} color={colors.outline} strokeWidth={2} />}
               />
             </View>
 
-            {/* Kata Sandi Baru (Opsional) */}
+            {/* 6. Peran Pengguna (Role) * */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Kata Sandi Baru</Text>
+              <Text style={styles.label}>
+                Peran Pengguna (Role) <Text style={styles.required}>*</Text>
+              </Text>
+              {isEditingSelf ? (
+                <View style={styles.lockedFieldBox}>
+                  <Lock size={16} color={colors.textMuted} strokeWidth={2} />
+                  <Text style={styles.lockedFieldText} numberOfLines={1}>
+                    {displayRoleLabel}
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setActiveModal('role')}
+                  style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pilih Peran Pengguna"
+                >
+                  <Text style={styles.selectorValue} numberOfLines={1}>
+                    {displayRoleLabel}
+                  </Text>
+                  <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
+                </Pressable>
+              )}
+              {isEditingSelf ? (
+                <Text style={styles.fieldHint}>
+                  Peran akun Anda sendiri tidak dapat diubah dari halaman ini.
+                </Text>
+              ) : null}
+            </View>
+
+            {/* 7. Unit Kerja Organisasi */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>
+                Unit Kerja Organisasi{' '}
+                {!isAdministrator ? <Text style={styles.required}>*</Text> : null}
+              </Text>
+              {isAdministrator ? (
+                <Pressable
+                  onPress={() => setActiveModal('unit')}
+                  style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pilih Unit Kerja Organisasi"
+                >
+                  <Text style={styles.selectorValue} numberOfLines={1}>
+                    {displayUnitLabel}
+                  </Text>
+                  <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
+                </Pressable>
+              ) : (
+                <View style={styles.lockedFieldBox}>
+                  <Building2 size={16} color={colors.textMuted} strokeWidth={2} />
+                  <Text style={styles.lockedFieldText} numberOfLines={1}>
+                    {displayUnitLabel}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* 8. Kata Sandi Baru (Kosongkan jika tidak diubah) */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Kata Sandi Baru (Kosongkan jika tidak diubah)</Text>
               <Input
-                placeholder="Kosongkan jika tidak ingin mengubah kata sandi"
+                placeholder="Minimal 8 karakter (huruf & angka)"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -814,9 +553,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 autoCorrect={false}
                 error={validationErrors?.password?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <KeyRound size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<KeyRound size={18} color={colors.outline} strokeWidth={2} />}
                 rightAction={
                   <Pressable
                     onPress={() => setShowPassword((prev) => !prev)}
@@ -837,8 +574,8 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
               {password.length > 0 ? (
                 <View
                   style={[
-                    styles.nipValidationPill,
-                    isPasswordRuleOk ? styles.nipValidationSuccess : styles.nipValidationPending,
+                    styles.validationPill,
+                    isPasswordRuleOk ? styles.validationPillSuccess : styles.validationPillPending,
                   ]}
                 >
                   {isPasswordRuleOk ? (
@@ -848,10 +585,10 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                   )}
                   <Text
                     style={[
-                      styles.nipValidationText,
+                      styles.validationText,
                       isPasswordRuleOk
-                        ? styles.nipValidationTextSuccess
-                        : styles.nipValidationTextPending,
+                        ? styles.validationTextSuccess
+                        : styles.validationTextPending,
                     ]}
                   >
                     {isPasswordRuleOk
@@ -859,116 +596,201 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                       : 'Harus minimal 8 karakter serta mengandung huruf dan angka'}
                   </Text>
                 </View>
-              ) : (
-                <Text style={styles.fieldHintText}>
-                  Kosongkan jika tidak diubah. Jika diisi, minimal 8 karakter (huruf dan angka).
-                </Text>
-              )}
+              ) : null}
+            </View>
+
+            {/* 9. Checkbox Akun pengguna berstatus aktif */}
+            <Pressable
+              onPress={() => {
+                if (!isEditingSelf) {
+                  setIsActive((prev) => !prev);
+                }
+              }}
+              disabled={isEditingSelf}
+              style={({ pressed }) => [
+                styles.checkboxRow,
+                isEditingSelf && styles.checkboxRowDisabled,
+                pressed && !isEditingSelf && styles.pressed,
+              ]}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isActive, disabled: isEditingSelf }}
+              accessibilityLabel="Akun pengguna berstatus aktif"
+            >
+              <View
+                style={[
+                  styles.checkboxBox,
+                  isActive && styles.checkboxBoxChecked,
+                  isEditingSelf && styles.checkboxBoxDisabled,
+                ]}
+              >
+                {isActive ? <Check size={14} strokeWidth={2.5} color={colors.onPrimary} /> : null}
+              </View>
+              <Text style={styles.checkboxLabel}>
+                Akun pengguna berstatus aktif
+                {isEditingSelf ? ' (Terkunci untuk akun Anda)' : ''}
+              </Text>
+            </Pressable>
+
+            {/* ACTION BUTTONS */}
+            <View style={styles.formActionsRow}>
+              {onBack ? (
+                <View style={styles.cancelBtnWrap}>
+                  <Button
+                    title="Batal"
+                    onPress={handleBack}
+                    variant="outline"
+                    size="md"
+                    disabled={isLoading}
+                  />
+                </View>
+              ) : null}
+              <View style={styles.submitBtnWrap}>
+                <Button
+                  title="Simpan Perubahan"
+                  onPress={handleSubmit}
+                  variant="primary"
+                  size="md"
+                  isLoading={isLoading}
+                  disabled={!isFormValid}
+                  icon={<Save size={17} color={colors.onPrimary} strokeWidth={2} />}
+                />
+              </View>
             </View>
           </View>
 
-          {/* BAGIAN 4: RIWAYAT PRESENSI & KEAMANAN AUDIT LOG */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconWrap}>
-                <History size={16} color={colors.primary} strokeWidth={2} />
+          {/* SIDE CARDS (1:1 users/edit.blade.php) */}
+          {/* 1. Dark Summary Card */}
+          <View style={styles.darkSummaryCard}>
+            <View style={styles.darkSummaryHeader}>
+              <View style={styles.darkAvatarCircle}>
+                <Text style={styles.darkAvatarText}>{initials}</Text>
               </View>
-              <Text style={styles.sectionTitle}>
-                Riwayat Presensi ({selectedUserDetail?.attendance_stats?.total_attended ?? 0})
-              </Text>
-            </View>
-
-            <View style={styles.auditMetricsGrid}>
-              <View style={styles.auditMetricTile}>
-                <Text style={styles.auditMetricLabel}>Agenda Diikuti</Text>
-                <Text style={styles.auditMetricValue}>
-                  {selectedUserDetail?.attendance_stats?.total_attended ?? 0} /{' '}
-                  {selectedUserDetail?.attendance_stats?.total_agendas ?? 0}
+              <View style={styles.darkIdentityCol}>
+                <Text style={styles.darkUserName} numberOfLines={2}>
+                  {name || selectedEmployee.name}
+                </Text>
+                <Text style={styles.darkUserEmail} numberOfLines={1}>
+                  {email || selectedEmployee.email}
                 </Text>
               </View>
-              <View style={styles.auditMetricTile}>
-                <Text style={styles.auditMetricLabel}>Tepat Waktu</Text>
-                <Text style={styles.auditMetricValue}>
+            </View>
+
+            <View style={styles.darkDivider} />
+
+            <View style={styles.darkMetaList}>
+              <View style={styles.darkMetaRow}>
+                <Text style={styles.darkMetaLabel}>NIP:</Text>
+                <Text style={styles.darkMetaValueMono}>{nip || '-'}</Text>
+              </View>
+              <View style={styles.darkMetaRow}>
+                <Text style={styles.darkMetaLabel}>Unit:</Text>
+                <Text style={styles.darkMetaValue} numberOfLines={1}>
+                  {selectedUnitRecord?.nama_unit || selectedEmployee.unit || 'Pusat / Lembaga'}
+                </Text>
+              </View>
+              <View style={styles.darkMetaRow}>
+                <Text style={styles.darkMetaLabel}>Peran:</Text>
+                <Text style={styles.darkMetaValue}>{role === 'Staff' ? 'Staff Pegawai' : role}</Text>
+              </View>
+              <View style={styles.darkMetaRow}>
+                <Text style={styles.darkMetaLabel}>Status Akun:</Text>
+                <Text
+                  style={[
+                    styles.darkMetaValue,
+                    isActive ? styles.darkMetaSuccess : styles.darkMetaError,
+                  ]}
+                >
+                  {isActive ? 'Aktif' : 'Non-Aktif'}
+                </Text>
+              </View>
+              <View style={styles.darkMetaRow}>
+                <Text style={styles.darkMetaLabel}>Total Hadir Rapat:</Text>
+                <Text style={styles.darkMetaValue}>{totalAttended} kali</Text>
+              </View>
+              <View style={styles.darkMetaRow}>
+                <Text style={styles.darkMetaLabel}>Terdaftar sejak:</Text>
+                <Text style={styles.darkMetaValue}>
+                  {formatIndonesianDate(selectedUserDetail?.created_at)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* 2. Riwayat Presensi Card */}
+          <View style={styles.sideCard}>
+            <View style={styles.sideCardHeader}>
+              <History size={16} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.sideCardTitle}>Riwayat Presensi ({totalAttended})</Text>
+            </View>
+            <View style={styles.metricsRow}>
+              <View style={styles.metricTile}>
+                <Text style={styles.metricLabel}>Agenda Diikuti</Text>
+                <Text style={styles.metricValue}>
+                  {totalAttended} / {selectedUserDetail?.attendance_stats?.total_agendas ?? 0}
+                </Text>
+              </View>
+              <View style={styles.metricTile}>
+                <Text style={styles.metricLabel}>Tepat Waktu</Text>
+                <Text style={styles.metricValue}>
                   {selectedUserDetail?.attendance_stats?.on_time_count ?? 0} (
                   {selectedUserDetail?.attendance_stats?.on_time_rate_label ?? '0%'})
                 </Text>
               </View>
             </View>
-
-            <View style={styles.auditNoteBox}>
-              <Info size={14} color={colors.onSurfaceVariant} strokeWidth={2} />
-              <Text style={styles.auditNoteText}>
-                Ringkasan dihitung dari data resmi server (
-                {selectedUserDetail?.attendance_stats?.period_label || 'seluruh periode'}).
-                Rincian per-rapat tersedia pada modul Laporan & Riwayat.
-              </Text>
-            </View>
+            <Text style={styles.sideNoteText}>
+              Ringkasan dihitung dari data resmi server (
+              {selectedUserDetail?.attendance_stats?.period_label || 'seluruh periode'}).
+            </Text>
           </View>
 
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconWrap}>
-                <Clock size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={styles.sectionTitle}>Keamanan & Audit Log</Text>
+          {/* 3. Keamanan & Audit Log Card */}
+          <View style={styles.sideCard}>
+            <View style={styles.sideCardHeader}>
+              <Clock size={16} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.sideCardTitle}>Keamanan & Audit Log</Text>
             </View>
-
             <View style={styles.auditRow}>
-              <Text style={styles.auditRowLabel}>Perubahan Kata Sandi Terakhir</Text>
-              <Text style={styles.auditRowValue}>
+              <Text style={styles.auditLabel}>Perubahan Kata Sandi Terakhir</Text>
+              <Text style={styles.auditValue}>
                 {selectedUserDetail?.security?.last_password_changed_label || 'Belum pernah dicatat'}
               </Text>
             </View>
             <View style={styles.auditRow}>
-              <Text style={styles.auditRowLabel}>Login API Terakhir</Text>
-              <Text style={styles.auditRowValue}>
+              <Text style={styles.auditLabel}>Login API Terakhir</Text>
+              <Text style={styles.auditValue}>
                 {selectedUserDetail?.security?.last_api_login_label || 'Belum pernah login API'}
               </Text>
             </View>
-            <View style={styles.auditRow}>
-              <Text style={styles.auditRowLabel}>Pembaruan Profil Terakhir</Text>
-              <Text style={styles.auditRowValue}>
+            <View style={[styles.auditRow, styles.auditRowLast]}>
+              <Text style={styles.auditLabel}>Pembaruan Profil Terakhir</Text>
+              <Text style={styles.auditValue}>
                 {formatIndonesianDate(selectedUserDetail?.updated_at)}
               </Text>
             </View>
           </View>
-
-          {/* ACTION BUTTONS */}
-          <View style={styles.actionSection}>
-            <Button
-              title="Simpan Perubahan"
-              onPress={handleSubmit}
-              variant="primary"
-              size="lg"
-              isLoading={isLoading}
-              disabled={!isFormValid}
-              icon={
-                <Save
-                  size={18}
-                  color={colors.onPrimary}
-                  strokeWidth={2}
-                />
-              }
-            />
-
-            {onBack ? (
-              <Button
-                title="Batal"
-                onPress={onBack}
-                variant="outline"
-                size="md"
-                disabled={isLoading}
-              />
-            ) : null}
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* POPUP MODAL: ROLE */}
+      <AgendaOptionModal
+        visible={activeModal === 'role'}
+        onClose={() => setActiveModal('none')}
+        title="Pilih Peran Pengguna (Role)"
+        subtitle="Tentukan tingkat hak akses pengguna pada sistem"
+        options={roleModalOptions}
+        selectedId={role}
+        searchable={false}
+        onSelect={(opt) => {
+          setRole(opt.id as 'Administrator' | 'Admin Unit' | 'Staff');
+          setActiveModal('none');
+        }}
+      />
 
       {/* POPUP MODAL: UNIT KERJA */}
       <AgendaOptionModal
         visible={activeModal === 'unit'}
         onClose={() => setActiveModal('none')}
-        title="Pilih Unit Kerja / Pokja"
+        title="Pilih Unit Kerja Organisasi"
         subtitle="Daftar unit kerja aktif atau Tingkat Lembaga (Tanpa Unit)"
         options={unitModalOptions}
         selectedId={selectedUnitId == null ? '' : String(selectedUnitId)}
@@ -980,39 +802,25 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
         }}
       />
 
-      {/* POPUP MODAL: PANGKAT & GOLONGAN */}
-      <AgendaOptionModal
-        visible={activeModal === 'pangkat'}
-        onClose={() => setActiveModal('none')}
-        title="Pilih Pangkat & Golongan Ruang"
-        subtitle="Jenjang kepangkatan aparatur sipil negara"
-        options={PANGKAT_GOLONGAN_OPTIONS}
-        selectedId={pangkatGolongan}
-        onSelect={(opt) => {
-          setPangkatGolongan(opt.id);
-          setActiveModal('none');
-        }}
-      />
-
-      {/* SUCCESS CONFIRMATION MODAL */}
+      {/* SUCCESS MODAL */}
       <FeedbackModal
         visible={showSuccessModal}
         onClose={handleSuccessClose}
         type="success"
         title="Perubahan Berhasil Disimpan"
-        message="Data profil dan penugasan kedinasan aparatur sipil negara telah diperbarui pada sistem SIPERAPAT."
+        message="Data pengguna dan hak akses kedinasan telah diperbarui pada sistem SIPERAPAT."
         detail={
           updatedSummary
             ? {
                 Nama: updatedSummary.name,
                 NIP: updatedSummary.nip,
-                'Unit Baru': updatedSummary.unit,
+                Unit: updatedSummary.unit,
                 Peran: updatedSummary.role,
                 Status: updatedSummary.status,
               }
             : undefined
         }
-        confirmText="Kembali ke Direktori Pegawai"
+        confirmText="Kembali ke Daftar Pengguna"
         onConfirm={handleSuccessClose}
       />
     </View>
@@ -1022,7 +830,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surface,
   },
   keyboardAvoid: {
     flex: 1,
@@ -1033,7 +841,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.md,
     gap: spacing.md,
-    paddingBottom: spacing.xl + spacing.md,
+    paddingBottom: spacing.xl * 2,
+  },
+  pressed: {
+    opacity: 0.78,
   },
   loadingContainer: {
     flex: 1,
@@ -1043,24 +854,26 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textMuted,
   },
   notFoundContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.xl,
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   notFoundTitle: {
     ...typography.headlineSm,
     fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   notFoundSubtitle: {
-    ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
     textAlign: 'center',
   },
   errorBanner: {
@@ -1074,142 +887,24 @@ const styles = StyleSheet.create({
     borderColor: colors.errorBorder,
   },
   errorBannerText: {
-    ...typography.bodySm,
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansMedium,
     color: colors.onErrorContainer,
     flex: 1,
   },
-  contextCard: {
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: rounded.card,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  contextTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm + 2,
-  },
-  contextAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contextAvatarText: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 16,
-    color: colors.onPrimary,
-  },
-  contextMeta: {
-    flex: 1,
-    gap: 3,
-  },
-  contextName: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 14,
-    color: colors.onSurface,
-  },
-  contextBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  lockBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: rounded.sm,
-  },
-  lockBadgeText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 10,
-    color: colors.primary,
-  },
-  statusPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: rounded.sm,
-    borderWidth: 1,
-  },
-  statusPillActive: {
-    backgroundColor: colors.successContainer,
-    borderColor: colors.successBorder,
-  },
-  statusPillInactive: {
-    backgroundColor: colors.errorContainer,
-    borderColor: colors.errorBorder,
-  },
-  statusPillText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 10,
-  },
-  statusPillTextActive: {
-    color: colors.onSuccessContainer,
-  },
-  statusPillTextInactive: {
-    color: colors.onErrorContainer,
-  },
-  sectionCard: {
+  formCard: {
     ...cardSurface,
+    borderRadius: rounded.lg,
     padding: spacing.md,
-    gap: spacing.sm + 4,
-    overflow: 'hidden',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-    paddingBottom: spacing.xs + 4,
-  },
-  sectionIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: rounded.full,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
+    gap: spacing.md,
   },
   fieldGroup: {
-    gap: 4,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: spacing.xs,
   },
   label: {
-    ...typography.labelMd,
+    ...typography.labelLg,
     fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
-  },
-  lockedIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  lockedIndicatorText: {
-    ...typography.labelSm,
-    fontSize: 10,
-    color: colors.outline,
   },
   required: {
     color: colors.error,
@@ -1217,254 +912,235 @@ const styles = StyleSheet.create({
   inputContainerReset: {
     marginBottom: 0,
   },
-  readonlyInput: {
-    color: colors.onSurfaceVariant,
-    backgroundColor: colors.surfaceContainerLow,
-  },
   selectorTrigger: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
     backgroundColor: colors.surfaceCard,
-  },
-  selectorLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  selectorRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.sm + 4,
+    minHeight: MIN_TOUCH_TARGET,
   },
   selectorValue: {
     ...typography.bodyMd,
-    fontSize: 12.5,
-    color: colors.onSurface,
-    flex: 1,
-  },
-  selectorActionText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.primary,
-  },
-  pressedState: {
-    backgroundColor: colors.surfaceContainerLow,
-  },
-  roleGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  roleCard: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    padding: spacing.sm,
-    gap: 3,
-  },
-  roleCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceSoft,
-  },
-  roleCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  radioDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.borderStrong,
-  },
-  radioDotActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
-  },
-  roleTitle: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 11.5,
-    color: colors.onSurface,
-  },
-  roleTitleActive: {
-    color: colors.primary,
-  },
-  roleDesc: {
-    ...typography.bodySm,
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-    lineHeight: 13,
-  },
-  segmentedControl: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.md,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    gap: 4,
-  },
-  segmentedBtn: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: rounded.sm,
-    gap: 6,
-  },
-  segmentedBtnActive: {
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-  },
-  segmentedBtnText: {
-    ...typography.labelMd,
     fontFamily: fontFamilies.sansMedium,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
-  },
-  segmentedBtnTextActive: {
-    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-  },
-  actionSection: {
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  contextStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    marginTop: spacing.sm + 2,
-    paddingTop: spacing.sm + 2,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    gap: spacing.sm,
-  },
-  contextStatItem: {
-    flex: 1,
-    gap: 2,
-  },
-  contextStatDivider: {
-    width: 1,
-    backgroundColor: colors.borderSubtle,
-  },
-  contextStatHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  contextStatLabel: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
-  },
-  contextStatValue: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-    fontSize: 13.5,
-  },
-  contextStatHint: {
-    ...typography.bodySm,
-    fontSize: 10.5,
-    color: colors.textMuted,
-  },
-  nipCounter: {
-    ...typography.labelMono,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-  },
-  nipValidationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    borderRadius: rounded.sm,
-    marginTop: 4,
-  },
-  nipValidationSuccess: {
-    backgroundColor: colors.successContainer,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
-  },
-  nipValidationPending: {
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  nipValidationText: {
-    ...typography.bodySm,
-    fontSize: 11,
     flex: 1,
   },
-  nipValidationTextSuccess: {
-    color: colors.onSuccessContainer,
-    fontFamily: fontFamilies.sansSemiBold,
-  },
-  nipValidationTextPending: {
-    color: colors.onSurfaceVariant,
-  },
-  readonlyTrigger: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingVertical: 10,
+  lockedFieldBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     borderRadius: rounded.md,
-    paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing.sm + 4,
+    minHeight: MIN_TOUCH_TARGET,
   },
-  readonlyText: {
+  lockedFieldText: {
     ...typography.bodyMd,
-    fontSize: 12.5,
-    color: colors.onSurfaceVariant,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
     flex: 1,
   },
-  disabledControl: {
-    opacity: 0.65,
+  fieldHint: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
   },
   passwordToggleBtn: {
     minWidth: MIN_TOUCH_TARGET,
     minHeight: MIN_TOUCH_TARGET,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -spacing.xs,
   },
-  fieldHintText: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
+  nipCounter: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
+    color: colors.textMuted,
   },
-  fieldErrorText: {
+  validationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.sm,
+    borderWidth: 1,
+  },
+  validationPillSuccess: {
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
+  },
+  validationPillPending: {
+    backgroundColor: colors.surfaceSoft,
+    borderColor: colors.borderSubtle,
+  },
+  validationText: {
     ...typography.bodySm,
-    fontSize: 11,
+    fontFamily: fontFamilies.sansMedium,
+    flex: 1,
+  },
+  validationTextSuccess: {
+    color: colors.onSuccessContainer,
+  },
+  validationTextPending: {
+    color: colors.textSecondary,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: MIN_TOUCH_TARGET,
+  },
+  checkboxRowDisabled: {
+    opacity: 0.65,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: rounded.sm,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxBoxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkboxBoxDisabled: {
+    backgroundColor: colors.textMuted,
+    borderColor: colors.textMuted,
+  },
+  checkboxLabel: {
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.onSurface,
+    flex: 1,
+  },
+  formActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  cancelBtnWrap: {
+    flex: 1,
+  },
+  submitBtnWrap: {
+    flex: 2,
+  },
+
+  /* Dark Summary Card (users/edit.blade.php) */
+  darkSummaryCard: {
+    backgroundColor: colors.primaryDarkest,
+    borderRadius: rounded.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  darkSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm + 2,
+  },
+  darkAvatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  darkAvatarText: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  darkIdentityCol: {
+    flex: 1,
+    gap: 2,
+  },
+  darkUserName: {
+    ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  darkUserEmail: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.borderSubtle,
+  },
+  darkDivider: {
+    height: 1,
+    backgroundColor: colors.primary,
+  },
+  darkMetaList: {
+    gap: spacing.xs + 2,
+  },
+  darkMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  darkMetaLabel: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.borderSubtle,
+  },
+  darkMetaValue: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onPrimary,
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  darkMetaValueMono: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoSemiBold,
+    color: colors.onPrimary,
+    textAlign: 'right',
+  },
+  darkMetaSuccess: {
+    color: colors.successLight,
+  },
+  darkMetaError: {
     color: colors.error,
-    marginTop: 2,
   },
-  auditMetricsGrid: {
+
+  /* Side Cards */
+  sideCard: {
+    ...cardSurface,
+    borderRadius: rounded.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  sideCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  sideCardTitle: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  metricsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  auditMetricTile: {
+  metricTile: {
     flex: 1,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
@@ -1473,53 +1149,39 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     gap: 2,
   },
-  auditMetricLabel: {
+  metricLabel: {
     ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textMuted,
   },
-  auditMetricValue: {
-    ...typography.labelMd,
+  metricValue: {
+    ...typography.labelLg,
     fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontSize: 13,
   },
-  auditNoteBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.sm,
-    padding: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  auditNoteText: {
+  sideNoteText: {
     ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    flex: 1,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
   },
   auditRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: spacing.xs + 2,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
-    gap: spacing.sm,
+    gap: 2,
   },
-  auditRowLabel: {
+  auditRowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+  },
+  auditLabel: {
     ...typography.bodySm,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
-    flex: 1,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textMuted,
   },
-  auditRowValue: {
-    ...typography.labelSm,
+  auditValue: {
+    ...typography.labelMd,
     fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 11.5,
     color: colors.onSurface,
-    textAlign: 'right',
   },
 });

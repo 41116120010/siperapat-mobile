@@ -1,36 +1,32 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Platform,
   KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import {
   AlertCircle,
   AtSign,
-  Award,
-  Briefcase,
   Building2,
+  Check,
   CheckCircle2,
-  ChevronsUpDown,
-  Contact,
+  ChevronDown,
   Eye,
   EyeOff,
   Fingerprint,
   Info,
   Lock,
   Mail,
-  Network,
-  PauseCircle,
   Phone,
   ShieldCheck,
   User,
   UserCheck,
-  UserCog,
   UserPlus,
+  Users,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
@@ -40,7 +36,6 @@ import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { FeedbackModal } from '../components/modals/FeedbackModal';
-import { PANGKAT_GOLONGAN_OPTIONS } from '../constants/employeeOptions';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { cleanNIP, validateNIP } from '../../core/utils/nipValidator';
@@ -56,6 +51,7 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
 }) => {
   const authUser = useAuthStore((state) => state.user);
   const isAdministrator = authUser?.role === 'administrator';
+
   const {
     addEmployee,
     allUnits,
@@ -66,26 +62,22 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
     clearError,
   } = useEmployeeStore();
 
-  // Form State
   const [name, setName] = useState('');
   const [nip, setNip] = useState('');
-  const [jabatan, setJabatan] = useState('');
-  const [pangkatGolongan, setPangkatGolongan] = useState('Penata Tingkat I (III/d)');
-  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(() =>
-    isAdministrator ? null : (authUser?.unitId ?? null),
-  );
-  const [role, setRole] = useState<'Administrator' | 'Admin Unit' | 'Staff'>('Staff');
-  const [status, setStatus] = useState<'Aktif' | 'Nonaktif'>('Aktif');
   const [username, setUsername] = useState('');
   const [isUsernameCustom, setIsUsernameCustom] = useState(false);
   const [email, setEmail] = useState('');
   const [isEmailCustom, setIsEmailCustom] = useState(false);
   const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<'Administrator' | 'Admin Unit' | 'Staff'>('Staff');
+  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(() =>
+    isAdministrator ? null : (authUser?.unitId ?? null),
+  );
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isActive, setIsActive] = useState(true);
 
-  // Modals
-  const [activeModal, setActiveModal] = useState<'none' | 'unit' | 'pangkat'>('none');
+  const [activeModal, setActiveModal] = useState<'none' | 'role' | 'unit'>('none');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdSummary, setCreatedSummary] = useState<{
     name: string;
@@ -93,6 +85,8 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
     unit: string;
     role: string;
   } | null>(null);
+
+  const isActionHandledRef = useRef(false);
 
   useEffect(() => {
     void fetchAllUnits({ activeOnly: true });
@@ -106,6 +100,32 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
       }
     }
   }, [isAdministrator, authUser?.unitId, role]);
+
+  const roleModalOptions = useMemo<AgendaOption[]>(() => {
+    const items: AgendaOption[] = [
+      {
+        id: 'Staff',
+        title: 'Staff Pegawai',
+        subtitle: 'Portal presensi, riwayat kehadiran pribadi, dan agenda terkait',
+        icon: Users,
+      },
+      {
+        id: 'Admin Unit',
+        title: 'Admin Unit',
+        subtitle: 'Mengelola agenda dan pegawai di dalam unit kerjanya saja',
+        icon: UserCheck,
+      },
+    ];
+    if (isAdministrator) {
+      items.push({
+        id: 'Administrator',
+        title: 'Administrator',
+        subtitle: 'Akses penuh master data, audit trail, rekapitulasi, dan lembaga',
+        icon: ShieldCheck,
+      });
+    }
+    return items;
+  }, [isAdministrator]);
 
   const unitModalOptions = useMemo<AgendaOption[]>(() => {
     const items: AgendaOption[] = [
@@ -132,6 +152,8 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
     [allUnits, selectedUnitId],
   );
 
+  const displayRoleLabel = role === 'Staff' ? 'Staff Pegawai' : role;
+
   const displayUnitLabel = useMemo(() => {
     if (!isAdministrator) {
       if (selectedUnitRecord) {
@@ -148,7 +170,6 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
     return `Unit #${selectedUnitId}`;
   }, [isAdministrator, selectedUnitId, selectedUnitRecord, authUser?.unitKerja]);
 
-  // Auto-generate username & email when name changes (unless manually edited)
   const handleNameChange = (val: string) => {
     setName(val);
     const simplified = val
@@ -156,23 +177,17 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '_')
-      .replace(/_+/g, '_');
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
 
     if (!isUsernameCustom && simplified) {
-      const generatedUser = `@${simplified}`;
-      setUsername(generatedUser);
+      setUsername(simplified);
       if (!isEmailCustom) {
         setEmail(`${simplified}@lldikti.kemdiktisaintek.go.id`);
       }
     }
   };
 
-  const handleNipChange = (val: string) => {
-    const cleaned = cleanNIP(val);
-    setNip(cleaned);
-  };
-
-  // NIP & password validation info
   const nipValidation = validateNIP(nip);
   const isNipComplete = nip.length === 18;
   const isPasswordValid =
@@ -189,11 +204,7 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
 
   const handleSubmit = async () => {
     if (!isFormValid || isLoading) return;
-
     clearError();
-    const finalUsername = username.trim().startsWith('@')
-      ? username.trim()
-      : `@${username.trim()}`;
 
     const effectiveUnitId = isAdministrator
       ? selectedUnitId
@@ -202,16 +213,14 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
     const result = await addEmployee({
       name: name.trim(),
       nip,
-      jabatan: jabatan.trim(),
-      pangkatGolongan,
+      username: cleanUsernameVal || `asn_${nip.slice(-4)}`,
+      email: email.trim() || `${nip}@lldikti.kemdiktisaintek.go.id`,
+      phone: phone.trim() || null,
+      role,
       unit: selectedUnitRecord?.nama_unit ?? '',
       unitId: effectiveUnitId,
-      role,
-      status,
-      username: finalUsername || `@asn_${nip.slice(-4)}`,
-      email: email.trim() || `${nip}@lldikti.kemdiktisaintek.go.id`,
-      phone: phone.trim() || '-',
       password,
+      status: isActive ? 'Aktif' : 'Nonaktif',
     });
 
     if (result) {
@@ -224,8 +233,6 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
       setShowSuccessModal(true);
     }
   };
-
-  const isActionHandledRef = React.useRef(false);
 
   const handleBack = () => {
     if (isActionHandledRef.current) return;
@@ -263,7 +270,6 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Error Banner if any */}
           {error ? (
             <View style={styles.errorBanner}>
               <AlertCircle size={18} color={colors.error} strokeWidth={2} />
@@ -271,60 +277,46 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
             </View>
           ) : null}
 
-          {/* BAGIAN 1: IDENTITAS APARATUR */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconWrap}>
-                <UserCheck size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={styles.sectionTitle}>Identitas Aparatur Sipil Negara</Text>
-            </View>
-
-            {/* Nama Lengkap & Gelar */}
+          {/* FORM CARD (1:1 users/create.blade.php field order) */}
+          <View style={styles.formCard}>
+            {/* 1. Nama Lengkap & Gelar * */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Nama Lengkap & Gelar Resmi <Text style={styles.required}>*</Text>
+                Nama Lengkap & Gelar <Text style={styles.required}>*</Text>
               </Text>
               <Input
-                placeholder="contoh: Dr. H. Syahril, M.Pd"
+                placeholder="Cth: Dr. Budi Santoso, M.Kom"
                 value={name}
                 onChangeText={handleNameChange}
+                error={validationErrors?.name?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <User size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<User size={18} color={colors.outline} strokeWidth={2} />}
               />
             </View>
 
-            {/* NIP 18 Digit */}
+            {/* 2. Nomor Induk Pegawai (NIP) * */}
             <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>
-                  NIP 18 Digit Resmi <Text style={styles.required}>*</Text>
-                </Text>
-                <Text style={styles.nipCounter}>
-                  {nip.length}/18 digit
-                </Text>
-              </View>
+              <Text style={styles.label}>
+                Nomor Induk Pegawai (NIP) <Text style={styles.required}>*</Text>
+              </Text>
               <Input
-                placeholder="19XXXXXXXXXXXXXXNN"
+                placeholder="18 Digit Angka NIP"
                 value={nip}
-                onChangeText={handleNipChange}
+                onChangeText={(val) => setNip(cleanNIP(val))}
                 keyboardType="numeric"
                 maxLength={18}
-                isMono
+                error={validationErrors?.nip?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Fingerprint size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<Fingerprint size={18} color={colors.outline} strokeWidth={2} />}
+                rightAction={<Text style={styles.nipCounter}>{nip.length}/18</Text>}
               />
-              {nip.length > 0 && (
+              {nip.length > 0 ? (
                 <View
                   style={[
-                    styles.nipValidationPill,
+                    styles.validationPill,
                     isNipComplete && nipValidation.isValid
-                      ? styles.nipValidationSuccess
-                      : styles.nipValidationPending,
+                      ? styles.validationPillSuccess
+                      : styles.validationPillPending,
                   ]}
                 >
                   {isNipComplete && nipValidation.isValid ? (
@@ -334,78 +326,102 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
                   )}
                   <Text
                     style={[
-                      styles.nipValidationText,
+                      styles.validationText,
                       isNipComplete && nipValidation.isValid
-                        ? styles.nipValidationTextSuccess
-                        : styles.nipValidationTextPending,
+                        ? styles.validationTextSuccess
+                        : styles.validationTextPending,
                     ]}
                   >
                     {isNipComplete
                       ? nipValidation.isValid
-                        ? `Valid: Lahir ${nipValidation.birthYear} · Jenis Kelamin: ${nipValidation.gender}`
+                        ? `Valid: Lahir ${nipValidation.birthYear} · ${nipValidation.gender}`
                         : 'Format 18 digit tidak sesuai ketentuan BKN'
-                      : `Kurang ${18 - nip.length} digit lagi untuk validasi resmi`}
+                      : `Kurang ${18 - nip.length} digit lagi`}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </View>
 
-            {/* Jabatan Kedinasan */}
+            {/* 3. Username * */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Jabatan Kedinasan / Fungsional</Text>
+              <Text style={styles.label}>
+                Username <Text style={styles.required}>*</Text>
+              </Text>
               <Input
-                placeholder="contoh: Analis Kepegawaian Ahli Muda"
-                value={jabatan}
-                onChangeText={setJabatan}
-                error={validationErrors?.jabatan?.[0] ?? null}
+                placeholder="Cth: budi_santoso"
+                value={username}
+                onChangeText={(val) => {
+                  setIsUsernameCustom(true);
+                  setUsername(val.replace(/^@+/, '').toLowerCase());
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                error={validationErrors?.username?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Briefcase size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<AtSign size={18} color={colors.outline} strokeWidth={2} />}
               />
             </View>
 
-            {/* Pangkat & Golongan Selector */}
+            {/* 4. Alamat Email Resmi * */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Pangkat & Golongan Ruang <Text style={styles.required}>*</Text>
+                Alamat Email Resmi <Text style={styles.required}>*</Text>
+              </Text>
+              <Input
+                placeholder="nama@lldikti10.go.id"
+                value={email}
+                onChangeText={(val) => {
+                  setIsEmailCustom(true);
+                  setEmail(val);
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                error={validationErrors?.email?.[0] ?? null}
+                containerStyle={styles.inputContainerReset}
+                leftIcon={<Mail size={18} color={colors.outline} strokeWidth={2} />}
+              />
+            </View>
+
+            {/* 5. Nomor Telepon / WhatsApp */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Nomor Telepon / WhatsApp</Text>
+              <Input
+                placeholder="08xxxxxxxxxx"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                error={validationErrors?.no_hp?.[0] ?? validationErrors?.phone?.[0] ?? null}
+                containerStyle={styles.inputContainerReset}
+                leftIcon={<Phone size={18} color={colors.outline} strokeWidth={2} />}
+              />
+            </View>
+
+            {/* 6. Peran Pengguna (Role) * */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>
+                Peran Pengguna (Role) <Text style={styles.required}>*</Text>
               </Text>
               <Pressable
-                onPress={() => setActiveModal('pangkat')}
+                onPress={() => setActiveModal('role')}
                 style={({ pressed }) => [
                   styles.selectorTrigger,
-                  pressed && styles.pressedState,
+                  pressed && styles.pressed,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel="Pilih Pangkat dan Golongan"
+                accessibilityLabel="Pilih Peran Pengguna"
               >
-                <View style={styles.selectorLeft}>
-                  <Award size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.selectorValue} numberOfLines={1}>
-                    {pangkatGolongan}
-                  </Text>
-                </View>
-                <View style={styles.selectorRight}>
-                  <Text style={styles.selectorActionText}>Pilih</Text>
-                  <ChevronsUpDown size={18} color={colors.outline} strokeWidth={2} />
-                </View>
+                <Text style={styles.selectorValue} numberOfLines={1}>
+                  {displayRoleLabel}
+                </Text>
+                <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
               </Pressable>
             </View>
-          </View>
 
-          {/* BAGIAN 2: PENUGASAN UNIT & PERAN SISTEM */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconWrap}>
-                <Network size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={styles.sectionTitle}>Penugasan Unit & Peran Sistem</Text>
-            </View>
-
-            {/* Unit Kerja / Pokja Selector */}
+            {/* 7. Unit Kerja Organisasi */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Unit Kerja / Tim Kerja{' '}
+                Unit Kerja Organisasi{' '}
                 {!isAdministrator ? <Text style={styles.required}>*</Text> : null}
               </Text>
               {isAdministrator ? (
@@ -413,221 +429,32 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
                   onPress={() => setActiveModal('unit')}
                   style={({ pressed }) => [
                     styles.selectorTrigger,
-                    pressed && styles.pressedState,
+                    pressed && styles.pressed,
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel="Pilih Unit Kerja"
+                  accessibilityLabel="Pilih Unit Kerja Organisasi"
                 >
-                  <View style={styles.selectorLeft}>
-                    <Building2 size={18} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.selectorValue} numberOfLines={1}>
-                      {displayUnitLabel}
-                    </Text>
-                  </View>
-                  <View style={styles.selectorRight}>
-                    <Text style={styles.selectorActionText}>Ubah</Text>
-                    <ChevronsUpDown size={18} color={colors.outline} strokeWidth={2} />
-                  </View>
+                  <Text style={styles.selectorValue} numberOfLines={1}>
+                    {displayUnitLabel}
+                  </Text>
+                  <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
                 </Pressable>
               ) : (
-                <View style={styles.readonlyTrigger}>
-                  <View style={styles.selectorLeft}>
-                    <Building2 size={18} color={colors.outline} strokeWidth={2} />
-                    <Text style={styles.readonlyText} numberOfLines={1}>
-                      {displayUnitLabel}
-                    </Text>
-                  </View>
-                  <Lock size={15} color={colors.outline} strokeWidth={2} />
+                <View style={styles.lockedFieldBox}>
+                  <Building2 size={17} color={colors.textMuted} strokeWidth={2} />
+                  <Text style={styles.lockedFieldText} numberOfLines={1}>
+                    {displayUnitLabel}
+                  </Text>
                 </View>
               )}
-              <Text style={styles.fieldHintText}>
-                {isAdministrator
-                  ? 'Pilih unit kerja atau biarkan Tingkat Lembaga (Tanpa Unit).'
-                  : 'Admin Unit hanya dapat mendaftarkan pegawai pada unit kerjanya sendiri.'}
-              </Text>
-              {validationErrors?.unit_id?.[0] ? (
-                <Text style={styles.fieldErrorText}>{validationErrors.unit_id[0]}</Text>
+              {!isAdministrator ? (
+                <Text style={styles.fieldHint}>
+                  Admin Unit hanya dapat mendaftarkan pegawai ke dalam unit kerja yang dikelola.
+                </Text>
               ) : null}
             </View>
 
-            {/* Peran Sistem (Role) */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>
-                Peran Akses Sistem SIPERAPAT <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.roleGrid}>
-                {(isAdministrator
-                  ? (['Staff', 'Admin Unit', 'Administrator'] as const)
-                  : (['Staff', 'Admin Unit'] as const)
-                ).map((r) => {
-                  const isSelected = role === r;
-                  const RoleIcon =
-                    r === 'Administrator'
-                      ? ShieldCheck
-                      : r === 'Admin Unit'
-                      ? UserCog
-                      : User;
-                  return (
-                    <Pressable
-                      key={r}
-                      onPress={() => setRole(r)}
-                      style={[
-                        styles.roleCard,
-                        isSelected && styles.roleCardActive,
-                      ]}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: isSelected }}
-                    >
-                      <View style={styles.roleCardHeader}>
-                        <RoleIcon
-                          size={18}
-                          color={isSelected ? colors.primary : colors.outline}
-                          strokeWidth={2}
-                        />
-                        <View
-                          style={[
-                            styles.radioDot,
-                            isSelected && styles.radioDotActive,
-                          ]}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.roleTitle,
-                          isSelected && styles.roleTitleActive,
-                        ]}
-                      >
-                        {r}
-                      </Text>
-                      <Text style={styles.roleDesc}>
-                        {r === 'Administrator'
-                          ? 'Akses penuh lembaga'
-                          : r === 'Admin Unit'
-                          ? 'Pengelola agenda unit'
-                          : 'Peserta presensi'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Status Akun */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Status Akun Kedinasan</Text>
-              <View style={styles.segmentedControl}>
-                <Pressable
-                  onPress={() => setStatus('Aktif')}
-                  style={[
-                    styles.segmentedBtn,
-                    status === 'Aktif' && styles.segmentedBtnActive,
-                  ]}
-                  accessibilityRole="button"
-                >
-                  <CheckCircle2
-                    size={15}
-                    color={status === 'Aktif' ? colors.success : colors.outline}
-                    strokeWidth={2}
-                  />
-                  <Text
-                    style={[
-                      styles.segmentedBtnText,
-                      status === 'Aktif' && styles.segmentedBtnTextActive,
-                    ]}
-                  >
-                    Aktif Bertugas
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setStatus('Nonaktif')}
-                  style={[
-                    styles.segmentedBtn,
-                    status === 'Nonaktif' && styles.segmentedBtnActive,
-                  ]}
-                  accessibilityRole="button"
-                >
-                  <PauseCircle
-                    size={15}
-                    color={status === 'Nonaktif' ? colors.error : colors.outline}
-                    strokeWidth={2}
-                  />
-                  <Text
-                    style={[
-                      styles.segmentedBtnText,
-                      status === 'Nonaktif' && styles.segmentedBtnTextActive,
-                    ]}
-                  >
-                    Nonaktif / Cuti
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
-          {/* BAGIAN 3: AKUN & KONTAK KEDINASAN */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIconWrap}>
-                <Contact size={16} color={colors.primary} strokeWidth={2} />
-              </View>
-              <Text style={styles.sectionTitle}>Akun & Kontak Kedinasan</Text>
-            </View>
-
-            {/* Username */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Username Aplikasi</Text>
-              <Input
-                placeholder="@username_resmi"
-                value={username}
-                onChangeText={(val) => {
-                  setUsername(val);
-                  setIsUsernameCustom(true);
-                }}
-                autoCapitalize="none"
-                containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <AtSign size={18} color={colors.outline} strokeWidth={2} />
-                }
-              />
-            </View>
-
-            {/* Email Kedinasan */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email Kedinasan Resmi</Text>
-              <Input
-                placeholder="nama@lldikti.kemdiktisaintek.go.id"
-                value={email}
-                onChangeText={(val) => {
-                  setEmail(val);
-                  setIsEmailCustom(true);
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Mail size={18} color={colors.outline} strokeWidth={2} />
-                }
-              />
-            </View>
-
-            {/* Telepon / WhatsApp */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Nomor Kontak / WhatsApp</Text>
-              <Input
-                placeholder="08xxxxxxxxxx"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                error={validationErrors?.no_hp?.[0] ?? null}
-                containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Phone size={18} color={colors.outline} strokeWidth={2} />
-                }
-              />
-            </View>
-
-            {/* Kata Sandi Awal (Wajib) */}
+            {/* 8. Kata Sandi Awal * */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
                 Kata Sandi Awal <Text style={styles.required}>*</Text>
@@ -641,9 +468,7 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
                 autoCorrect={false}
                 error={validationErrors?.password?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                leftIcon={
-                  <Lock size={18} color={colors.outline} strokeWidth={2} />
-                }
+                leftIcon={<Lock size={18} color={colors.outline} strokeWidth={2} />}
                 rightAction={
                   <Pressable
                     onPress={() => setShowPassword((prev) => !prev)}
@@ -661,45 +486,85 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
                   </Pressable>
                 }
               />
-              <View
-                style={[
-                  styles.nipValidationPill,
-                  password.length > 0 && isPasswordValid
-                    ? styles.nipValidationSuccess
-                    : styles.nipValidationPending,
-                ]}
-              >
-                {password.length > 0 && isPasswordValid ? (
-                  <CheckCircle2 size={14} color={colors.success} strokeWidth={2} />
-                ) : (
-                  <Info size={14} color={colors.onSurfaceVariant} strokeWidth={2} />
-                )}
-                <Text
+              {password.length > 0 ? (
+                <View
                   style={[
-                    styles.nipValidationText,
-                    password.length > 0 && isPasswordValid
-                      ? styles.nipValidationTextSuccess
-                      : styles.nipValidationTextPending,
+                    styles.validationPill,
+                    isPasswordValid ? styles.validationPillSuccess : styles.validationPillPending,
                   ]}
                 >
-                  {password.length === 0
-                    ? 'Minimal 8 karakter dengan kombinasi huruf dan angka.'
-                    : isPasswordValid
-                    ? 'Format kata sandi memenuhi syarat keamanan'
-                    : 'Harus minimal 8 karakter serta mengandung huruf dan angka'}
+                  {isPasswordValid ? (
+                    <CheckCircle2 size={14} color={colors.success} strokeWidth={2} />
+                  ) : (
+                    <Info size={14} color={colors.onSurfaceVariant} strokeWidth={2} />
+                  )}
+                  <Text
+                    style={[
+                      styles.validationText,
+                      isPasswordValid
+                        ? styles.validationTextSuccess
+                        : styles.validationTextPending,
+                    ]}
+                  >
+                    {isPasswordValid
+                      ? 'Format kata sandi memenuhi syarat keamanan'
+                      : 'Harus minimal 8 karakter serta mengandung huruf dan angka'}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.fieldHint}>
+                  Minimal 8 karakter dan wajib mengandung kombinasi huruf serta angka.
                 </Text>
+              )}
+            </View>
+
+            {/* 9. Checkbox Akun pengguna langsung aktif */}
+            <Pressable
+              onPress={() => setIsActive((prev) => !prev)}
+              style={({ pressed }) => [styles.checkboxRow, pressed && styles.pressed]}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isActive }}
+              accessibilityLabel="Akun pengguna langsung aktif"
+            >
+              <View style={[styles.checkboxBox, isActive && styles.checkboxBoxChecked]}>
+                {isActive ? <Check size={14} strokeWidth={2.5} color={colors.onPrimary} /> : null}
+              </View>
+              <Text style={styles.checkboxLabel}>Akun pengguna langsung aktif</Text>
+            </Pressable>
+
+            {/* ACTION BUTTONS */}
+            <View style={styles.formActionsRow}>
+              {onBack ? (
+                <View style={styles.cancelBtnWrap}>
+                  <Button
+                    title="Batal"
+                    onPress={handleBack}
+                    variant="outline"
+                    size="md"
+                    disabled={isLoading}
+                  />
+                </View>
+              ) : null}
+              <View style={styles.submitBtnWrap}>
+                <Button
+                  title="Daftarkan Pengguna"
+                  onPress={handleSubmit}
+                  variant="primary"
+                  size="md"
+                  isLoading={isLoading}
+                  disabled={!isFormValid}
+                  icon={<UserPlus size={17} color={colors.onPrimary} strokeWidth={2} />}
+                />
               </View>
             </View>
           </View>
 
-          {/* PANDUAN HAK AKSES & MULTI-IDENTIFIER LOGIN (Web users/create parity) */}
+          {/* SIDE CARDS (1:1 users/create.blade.php: Tingkatan Hak Akses & Multi-Identifier Login) */}
           <View style={styles.guidanceStack}>
             <View style={styles.guidanceDarkCard}>
               <View style={styles.guidanceDarkHeader}>
-                <ShieldCheck size={18} color={colors.onPrimaryContainer} strokeWidth={2} />
-                <Text style={styles.guidanceDarkTitle}>
-                  Tingkatan Hak Akses (Role)
-                </Text>
+                <ShieldCheck size={18} color={colors.onPrimary} strokeWidth={2} />
+                <Text style={styles.guidanceDarkTitle}>Tingkatan Hak Akses (Role)</Text>
               </View>
               <View style={styles.guidanceRoleList}>
                 <View style={styles.guidanceRoleItem}>
@@ -733,43 +598,29 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
               </Text>
             </View>
           </View>
-
-          {/* ACTION BUTTONS */}
-          <View style={styles.actionSection}>
-            <Button
-              title="Daftarkan Pengguna"
-              onPress={handleSubmit}
-              variant="primary"
-              size="lg"
-              isLoading={isLoading}
-              disabled={!isFormValid}
-              icon={
-                <UserPlus
-                  size={18}
-                  color={colors.onPrimary}
-                  strokeWidth={2}
-                />
-              }
-            />
-
-            {onBack ? (
-              <Button
-                title="Batal"
-                onPress={onBack}
-                variant="outline"
-                size="md"
-                disabled={isLoading}
-              />
-            ) : null}
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* POPUP MODAL: ROLE */}
+      <AgendaOptionModal
+        visible={activeModal === 'role'}
+        onClose={() => setActiveModal('none')}
+        title="Pilih Peran Pengguna (Role)"
+        subtitle="Tentukan tingkat hak akses pengguna pada sistem"
+        options={roleModalOptions}
+        selectedId={role}
+        searchable={false}
+        onSelect={(opt) => {
+          setRole(opt.id as 'Administrator' | 'Admin Unit' | 'Staff');
+          setActiveModal('none');
+        }}
+      />
 
       {/* POPUP MODAL: UNIT KERJA */}
       <AgendaOptionModal
         visible={activeModal === 'unit'}
         onClose={() => setActiveModal('none')}
-        title="Pilih Unit Kerja / Pokja"
+        title="Pilih Unit Kerja Organisasi"
         subtitle="Daftar unit kerja aktif atau Tingkat Lembaga (Tanpa Unit)"
         options={unitModalOptions}
         selectedId={selectedUnitId == null ? '' : String(selectedUnitId)}
@@ -781,26 +632,12 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
         }}
       />
 
-      {/* POPUP MODAL: PANGKAT & GOLONGAN */}
-      <AgendaOptionModal
-        visible={activeModal === 'pangkat'}
-        onClose={() => setActiveModal('none')}
-        title="Pilih Pangkat & Golongan Ruang"
-        subtitle="Jenjang kepangkatan aparatur sipil negara"
-        options={PANGKAT_GOLONGAN_OPTIONS}
-        selectedId={pangkatGolongan}
-        onSelect={(opt) => {
-          setPangkatGolongan(opt.id);
-          setActiveModal('none');
-        }}
-      />
-
-      {/* SUCCESS CONFIRMATION MODAL */}
+      {/* SUCCESS MODAL */}
       <FeedbackModal
         visible={showSuccessModal}
         onClose={handleSuccessClose}
         type="success"
-        title="Pegawai Berhasil Didaftarkan"
+        title="Pengguna Berhasil Didaftarkan"
         message="Akun kedinasan aparatur sipil negara telah resmi tercatat di sistem SIPERAPAT LLDIKTI X."
         detail={
           createdSummary
@@ -812,7 +649,7 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
               }
             : undefined
         }
-        confirmText="Kembali ke Direktori Pegawai"
+        confirmText="Kembali ke Daftar Pengguna"
         onConfirm={handleSuccessClose}
       />
     </View>
@@ -822,7 +659,7 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surface,
   },
   keyboardAvoid: {
     flex: 1,
@@ -833,7 +670,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.md,
     gap: spacing.md,
-    paddingBottom: spacing.xl + spacing.md,
+    paddingBottom: spacing.xl * 2,
+  },
+  pressed: {
+    opacity: 0.78,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -846,54 +686,24 @@ const styles = StyleSheet.create({
     borderColor: colors.errorBorder,
   },
   errorBannerText: {
-    ...typography.bodySm,
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansMedium,
     color: colors.onErrorContainer,
     flex: 1,
   },
-  sectionCard: {
+  formCard: {
     ...cardSurface,
+    borderRadius: rounded.lg,
     padding: spacing.md,
-    gap: spacing.sm + 4,
-    overflow: 'hidden',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-    paddingBottom: spacing.xs + 4,
-  },
-  sectionIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: rounded.full,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
+    gap: spacing.md,
   },
   fieldGroup: {
-    gap: 4,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: spacing.xs,
   },
   label: {
-    ...typography.labelMd,
+    ...typography.labelLg,
     fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
-  },
-  nipCounter: {
-    ...typography.labelMono,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
   },
   required: {
     color: colors.error,
@@ -901,200 +711,127 @@ const styles = StyleSheet.create({
   inputContainerReset: {
     marginBottom: 0,
   },
-  nipValidationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    borderRadius: rounded.sm,
-    marginTop: 4,
-  },
-  nipValidationSuccess: {
-    backgroundColor: colors.successContainer,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
-  },
-  nipValidationPending: {
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  nipValidationText: {
-    ...typography.bodySm,
-    fontSize: 11,
-  },
-  nipValidationTextSuccess: {
-    color: colors.onSuccessContainer,
-    fontFamily: fontFamilies.sansSemiBold,
-  },
-  nipValidationTextPending: {
-    color: colors.onSurfaceVariant,
-  },
   selectorTrigger: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
     backgroundColor: colors.surfaceCard,
-  },
-  selectorLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  selectorRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.sm + 4,
+    minHeight: MIN_TOUCH_TARGET,
   },
   selectorValue: {
     ...typography.bodyMd,
-    fontSize: 12.5,
-    color: colors.onSurface,
-    flex: 1,
-  },
-  selectorActionText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.primary,
-  },
-  pressedState: {
-    backgroundColor: colors.surfaceContainerLow,
-  },
-  roleGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  roleCard: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    padding: spacing.sm,
-    gap: 3,
-  },
-  roleCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceSoft,
-  },
-  roleCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  radioDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.borderStrong,
-  },
-  radioDotActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
-  },
-  roleTitle: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 11.5,
-    color: colors.onSurface,
-  },
-  roleTitleActive: {
-    color: colors.primary,
-  },
-  roleDesc: {
-    ...typography.bodySm,
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-    lineHeight: 13,
-  },
-  segmentedControl: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.md,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    gap: 4,
-  },
-  segmentedBtn: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: rounded.sm,
-    gap: 6,
-  },
-  segmentedBtnActive: {
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-  },
-  segmentedBtnText: {
-    ...typography.labelMd,
     fontFamily: fontFamilies.sansMedium,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
-  },
-  segmentedBtnTextActive: {
-    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
+    flex: 1,
   },
-  actionSection: {
+  lockedFieldBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  readonlyTrigger: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingVertical: 10,
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     borderRadius: rounded.md,
-    paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing.sm + 4,
+    minHeight: MIN_TOUCH_TARGET,
   },
-  readonlyText: {
+  lockedFieldText: {
     ...typography.bodyMd,
-    fontSize: 12.5,
-    color: colors.onSurfaceVariant,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
     flex: 1,
+  },
+  fieldHint: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
   },
   passwordToggleBtn: {
     minWidth: MIN_TOUCH_TARGET,
     minHeight: MIN_TOUCH_TARGET,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -spacing.xs,
   },
-  fieldHintText: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
+  nipCounter: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
+    color: colors.textMuted,
   },
-  fieldErrorText: {
+  validationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.sm,
+    borderWidth: 1,
+  },
+  validationPillSuccess: {
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
+  },
+  validationPillPending: {
+    backgroundColor: colors.surfaceSoft,
+    borderColor: colors.borderSubtle,
+  },
+  validationText: {
     ...typography.bodySm,
-    fontSize: 11,
-    color: colors.error,
-    marginTop: 2,
+    fontFamily: fontFamilies.sansMedium,
+    flex: 1,
+  },
+  validationTextSuccess: {
+    color: colors.onSuccessContainer,
+  },
+  validationTextPending: {
+    color: colors.textSecondary,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: MIN_TOUCH_TARGET,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: rounded.sm,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxBoxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkboxLabel: {
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.onSurface,
+  },
+  formActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  cancelBtnWrap: {
+    flex: 1,
+  },
+  submitBtnWrap: {
+    flex: 2,
   },
   guidanceStack: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   guidanceDarkCard: {
     backgroundColor: colors.primaryDarkest,
@@ -1105,46 +842,49 @@ const styles = StyleSheet.create({
   guidanceDarkHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xs + 2,
   },
   guidanceDarkTitle: {
-    ...typography.labelMd,
+    ...typography.headlineSm,
     fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
   },
   guidanceRoleList: {
-    gap: 8,
+    gap: spacing.sm,
   },
   guidanceRoleItem: {
     gap: 2,
   },
   guidanceRoleName: {
-    ...typography.labelSm,
+    ...typography.labelMd,
     fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
   },
   guidanceRoleDesc: {
     ...typography.bodySm,
-    color: colors.onPrimaryContainer,
-    lineHeight: 17,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.borderSubtle,
+    lineHeight: 18,
   },
   guidanceLightCard: {
     ...cardSurface,
+    borderRadius: rounded.lg,
     padding: spacing.md,
-    gap: 6,
+    gap: spacing.xs + 2,
   },
   guidanceLightHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.xs + 2,
   },
   guidanceLightTitle: {
-    ...typography.labelMd,
+    ...typography.labelLg,
     fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
+    color: colors.onSurface,
   },
   guidanceLightDesc: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
     color: colors.textSecondary,
     lineHeight: 18,
   },
