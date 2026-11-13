@@ -54,3 +54,38 @@ export interface ApiAttendanceReceiptDto {
 export interface ApiForgotPasswordDto {
   masked_email: string;
 }
+export interface ApiAttendanceHistorySummary {
+  total_attended: number;
+  total_eligible_agendas: number;
+  attendance_rate: number;
+  attendance_rate_label: string;
+  period_label: string;
+}
+export interface ApiAttendanceHistoryPage extends ApiPaginated<ApiAttendanceDto> {
+  summary: ApiAttendanceHistorySummary;
+}
+export interface ApiAgendaAttendanceSummary {
+  total_invited: number;
+  total_attended: number;
+  unattended_count: number;
+  participation_rate: number;
+  participation_rate_label: string;
+}
+export interface ApiAgendaAttendancePage extends ApiPaginated<ApiAttendanceDto> {
+  summary: ApiAgendaAttendanceSummary;
+}
+export interface ApiActivityLogSummary {
+  total_logs: number;
+  auth_success: number;
+  incident_count: number;
+  today_count: number;
+  categories: {
+    login: number;
+    agenda: number;
+    presensi: number;
+    user: number;
+  };
+}
+export interface ApiActivityLogPage extends ApiPaginated<ApiActivityLogDto> {
+  summary: ApiActivityLogSummary;
+}

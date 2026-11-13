@@ -5,16 +5,28 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  ImageBackground,
   Pressable,
   KeyboardAvoidingView,
   Platform,
   Linking,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import {
+  AlertCircle,
+  Check,
+  CreditCard,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Lock,
+  LogIn,
+  User,
+} from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { MIN_TOUCH_TARGET, cardSurface, rounded, spacing } from '../../core/theme/tokens';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { useAuthStore } from '../store/useAuthStore';
@@ -32,6 +44,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const { login, isLoading, error, clearError } = useAuthStore();
 
@@ -46,7 +59,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   const handleLogin = async () => {
-    const success = await login(identifier, password);
+    const success = await login(identifier, password, rememberMe);
     if (success) {
       onLoginSuccess();
     }
@@ -61,131 +74,169 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.keyboardView}
     >
+      <StatusBar style="light" />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          {
-            paddingTop: Math.max(spacing.xl, insets.top + spacing.md),
-            paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.md),
-          },
+          { paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.md) },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Identity & Institutional Header Bar */}
-        <View style={styles.header}>
-          <View style={styles.logoTile}>
-            <Image
-              source={require('../../../assets/images/tut-wuri-handayani.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
-          <Text style={styles.appTitle}>SIPERAPAT</Text>
-          <Text style={styles.appSubtitle}>LLDIKTI WILAYAH X</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Sistem Informasi Presensi Rapat Kedinasan Terpadu
-          </Text>
-        </View>
-
-        {/* Main Authentication Bento Card */}
-        <View style={styles.card}>
-          {/* Unified NIP / Username Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>NIP (18 Digit) atau Username ASN</Text>
-            <Input
-              label=""
-              placeholder="Masukkan NIP atau username"
-              value={identifier}
-              onChangeText={handleIdentifierChange}
-              keyboardType="default"
-              maxLength={32}
-              isMono={isNumericInput}
-              leftIcon={
-                <MaterialIcons
-                  name={isNumericInput ? 'badge' : 'person'}
-                  size={20}
-                  color={colors.outline}
+        {/* Dark Slate Hero Header matching Web .auth-illustration */}
+        <ImageBackground
+          source={require('../../../assets/images/rumah-gadang-bg.jpg')}
+          style={[
+            styles.heroBanner,
+            { paddingTop: Math.max(spacing.xl, insets.top + spacing.md) },
+          ]}
+          resizeMode="cover"
+        >
+          <View style={styles.heroOverlay} pointerEvents="none" />
+          <View style={styles.heroInner}>
+            <View style={styles.heroBrandRow}>
+              <View style={styles.logoTile}>
+                <Image
+                  source={require('../../../assets/images/tut-wuri-handayani.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
                 />
-              }
+              </View>
+              <View style={styles.heroBrandText}>
+                <Text style={styles.appTitle}>SIPERAPAT</Text>
+                <Text style={styles.appSubtitle}>LLDIKTI WILAYAH X KEMENDIKTISAINTEK</Text>
+              </View>
+            </View>
+            <Text style={styles.welcomeSubtitle}>
+              Pencatatan Kehadiran & Notulensi Rapat Terintegrasi
+            </Text>
+          </View>
+        </ImageBackground>
+
+        {/* Form Body */}
+        <View style={styles.formSection}>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Masuk ke Akun Anda</Text>
+              <Text style={styles.cardSubtitle}>
+                Gunakan Nomor Induk Pegawai (NIP 18 Digit) atau Username yang telah terdaftar di sistem.
+              </Text>
+            </View>
+
+            {/* Unified NIP / Username Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>NIP atau Username</Text>
+              <Input
+                placeholder="Masukkan Username atau NIP"
+                value={identifier}
+                onChangeText={handleIdentifierChange}
+                keyboardType="default"
+                autoCapitalize="none"
+                maxLength={32}
+                isMono={isNumericInput}
+                containerStyle={styles.compactInputContainer}
+                leftIcon={
+                  isNumericInput ? (
+                    <CreditCard size={18} color={colors.textMuted} strokeWidth={2} />
+                  ) : (
+                    <User size={18} color={colors.textMuted} strokeWidth={2} />
+                  )
+                }
+              />
+            </View>
+
+            {/* Password Field with Aligned Forgot Link */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.inputLabel}>Kata Sandi</Text>
+                <Pressable
+                  onPress={onNavigateForgotPassword ?? handleHelpdesk}
+                  style={styles.forgotLinkButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Lupa Kata Sandi"
+                >
+                  <Text style={styles.forgotLink}>Lupa Kata Sandi?</Text>
+                </Pressable>
+              </View>
+
+              <Input
+                placeholder="Masukkan Kata Sandi"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                containerStyle={styles.compactInputContainer}
+                leftIcon={<Lock size={18} color={colors.textMuted} strokeWidth={2} />}
+                rightAction={
+                  <Pressable
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeToggleButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} color={colors.textSecondary} strokeWidth={2} />
+                    ) : (
+                      <Eye size={18} color={colors.textSecondary} strokeWidth={2} />
+                    )}
+                  </Pressable>
+                }
+              />
+            </View>
+
+            {/* Remember Me Checkbox Toggle */}
+            <Pressable
+              onPress={() => setRememberMe((prev) => !prev)}
+              style={styles.rememberRow}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: rememberMe }}
+              accessibilityLabel="Ingat sesi masuk saya"
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                {rememberMe ? <Check size={12} color={colors.onPrimary} strokeWidth={3} /> : null}
+              </View>
+              <Text style={styles.rememberText}>Ingat sesi masuk saya</Text>
+            </Pressable>
+
+            {/* Error Banner */}
+            {error ? (
+              <View style={styles.errorBanner}>
+                <AlertCircle size={16} color={colors.error} strokeWidth={2} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Primary Submit Button: Masuk ke Sistem */}
+            <Button
+              title="Masuk ke Sistem"
+              onPress={handleLogin}
+              variant="primary"
+              size="lg"
+              fullWidth
+              isLoading={isLoading}
+              disabled={isLoading || !identifier || !password}
+              style={styles.submitBtn}
+              icon={<LogIn size={18} color={colors.onPrimary} strokeWidth={2} />}
             />
           </View>
 
-          {/* Password Field with Aligned Forgot Link */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>Kata Sandi Kedinasan</Text>
+          {/* Institutional Footer */}
+          <View style={styles.footer}>
+            <View style={styles.helpdeskRow}>
+              <Text style={styles.helpdeskText}>Kendala akun kedinasan? </Text>
               <Pressable
-                onPress={onNavigateForgotPassword ?? handleHelpdesk}
-                hitSlop={6}
+                onPress={handleHelpdesk}
+                style={styles.helpdeskLinkWrap}
+                accessibilityRole="button"
               >
-                <Text style={styles.forgotLink}>Lupa Kata Sandi?</Text>
+                <Text style={styles.helpdeskLink}>Hubungi Helpdesk Kepegawaian</Text>
+                <ExternalLink size={12} color={colors.primary} strokeWidth={2} />
               </Pressable>
             </View>
 
-            <Input
-              label=""
-              placeholder="Masukkan kata sandi"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              leftIcon={
-                <MaterialIcons name="lock" size={20} color={colors.outline} />
-              }
-              rightAction={
-                <Pressable
-                  onPress={() => setShowPassword(!showPassword)}
-                  hitSlop={8}
-                >
-                  <MaterialIcons
-                    name={showPassword ? 'visibility-off' : 'visibility'}
-                    size={20}
-                    color={colors.outline}
-                  />
-                </Pressable>
-              }
-            />
+            <Text style={styles.copyrightText}>
+              © 2026 SIPERAPAT - Lembaga Layanan Pendidikan Tinggi (LLDIKTI) Wilayah X.
+            </Text>
           </View>
-
-          {/* Error Banner */}
-          {error ? (
-            <View style={styles.errorBanner}>
-              <MaterialIcons name="error-outline" size={16} color={colors.error} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          {/* Primary Submit Button: Masuk ke Sistem */}
-          <Button
-            title="Masuk ke Sistem"
-            onPress={handleLogin}
-            variant="primary"
-            size="lg"
-            fullWidth
-            isLoading={isLoading}
-            disabled={isLoading || !identifier || !password}
-            style={styles.submitBtn}
-            icon={<MaterialIcons name="login" size={20} color={colors.onPrimary} />}
-          />
-        </View>
-
-        {/* Institutional Footer */}
-        <View style={styles.footer}>
-          {/* Helpdesk */}
-          <View style={styles.helpdeskRow}>
-            <Text style={styles.helpdeskText}>Kendala akun kedinasan? </Text>
-            <Pressable onPress={handleHelpdesk} style={styles.helpdeskLinkWrap}>
-              <Text style={styles.helpdeskLink}>
-                Hubungi Helpdesk Kepegawaian
-              </Text>
-              <MaterialIcons name="open-in-new" size={12} color={colors.secondary} />
-            </Pressable>
-          </View>
-
-          {/* Copyright */}
-          <Text style={styles.copyrightText}>
-            © 2026 Lembaga Layanan Pendidikan Tinggi Wilayah X • Kemdiktisaintek
-          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -199,127 +250,188 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
   },
-  header: {
+  heroBanner: {
+    backgroundColor: colors.primaryDarkest,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    position: 'relative',
+    overflow: 'hidden',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primaryContainer,
+  },
+  heroOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: colors.primary,
+    opacity: 0.84,
+  },
+  heroInner: {
+    zIndex: 1,
+    gap: spacing.md,
+  },
+  heroBrandRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    gap: spacing.sm + 4,
   },
   logoTile: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    padding: 10,
+    width: 48,
+    height: 48,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceCard,
+    padding: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
-    ...elevations.level2,
-    shadowColor: '#00236F',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    borderColor: colors.borderSubtle,
   },
   logo: {
     width: '100%',
     height: '100%',
   },
+  heroBrandText: {
+    flex: 1,
+  },
   appTitle: {
-    ...typography.headlineLg,
-    fontSize: 24,
-    color: colors.primary,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    textAlign: 'center',
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 22,
+    lineHeight: 28,
+    color: colors.onPrimary,
+    letterSpacing: 1,
   },
   appSubtitle: {
     ...typography.labelSm,
-    color: colors.secondary,
-    letterSpacing: 1.2,
-    fontWeight: '700',
-    fontSize: 11,
-    textAlign: 'center',
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSplashMuted,
+    letterSpacing: 0.6,
+    fontSize: 10.5,
     marginTop: 2,
-    textTransform: 'uppercase',
   },
   welcomeSubtitle: {
-    ...typography.bodySm,
-    fontSize: 12.5,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginTop: 6,
-    maxWidth: 290,
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 14,
+    color: colors.onPrimary,
+    lineHeight: 20,
+  },
+  formSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
   },
   card: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: 20,
+    ...cardSurface,
+    borderRadius: rounded.xl,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
-    ...elevations.level2,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
     gap: spacing.md,
+  },
+  cardHeader: {
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  cardTitle: {
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 20,
+    color: colors.onSurface,
+  },
+  cardSubtitle: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   inputGroup: {
     gap: spacing.xs,
+  },
+  compactInputContainer: {
+    marginBottom: 0,
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 2,
+    minHeight: MIN_TOUCH_TARGET,
   },
   inputLabel: {
-    ...typography.labelMd,
-    fontSize: 12,
-    fontWeight: '600',
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 11,
     color: colors.onSurface,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  forgotLinkButton: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingLeft: spacing.sm,
   },
   forgotLink: {
-    ...typography.labelSm,
-    fontSize: 11,
-    color: colors.secondary,
-    fontWeight: '600',
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  eyeToggleButton: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -spacing.md,
   },
   rememberRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs + 2,
-    marginVertical: 2,
+    gap: spacing.sm + 2,
+    minHeight: MIN_TOUCH_TARGET,
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: rounded.sm,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   rememberText: {
     ...typography.labelMd,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    fontWeight: '500',
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 13,
+    color: colors.primaryContainer,
   },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
     backgroundColor: colors.errorContainer,
-    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+    padding: spacing.sm + 2,
     borderRadius: rounded.md,
   },
   errorText: {
     ...typography.bodySm,
-    fontSize: 11.5,
-    color: colors.error,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 12,
+    color: colors.onErrorContainer,
     flex: 1,
   },
   submitBtn: {
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   footer: {
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
     alignItems: 'center',
-    gap: spacing.xs + 2,
+    gap: spacing.xs,
   },
   helpdeskRow: {
     flexDirection: 'row',
@@ -329,27 +441,29 @@ const styles = StyleSheet.create({
   },
   helpdeskText: {
     ...typography.bodySm,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   helpdeskLinkWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
   },
   helpdeskLink: {
     ...typography.labelSm,
-    fontSize: 11.5,
-    color: colors.secondary,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.primary,
     textDecorationLine: 'underline',
   },
   copyrightText: {
     ...typography.labelSm,
-    fontSize: 10,
-    color: colors.outline,
+    fontSize: 11,
+    color: colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: spacing.md,
-    lineHeight: 14,
+    lineHeight: 16,
   },
 });

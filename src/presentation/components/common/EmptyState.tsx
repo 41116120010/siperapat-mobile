@@ -1,35 +1,85 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  Calendar,
+  CalendarX2,
+  CloudOff,
+  Folder,
+  Inbox,
+  LucideIcon,
+  Search,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
+import { fontFamilies, typography } from '../../../core/theme/typography';
 import { rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from './Button';
 
-interface EmptyStateProps {
-  icon?: keyof typeof MaterialIcons.glyphMap;
+export type EmptyStateIconName =
+  | 'inbox'
+  | 'calendar'
+  | 'search'
+  | 'folder'
+  | 'event-busy'
+  | 'cloud-off'
+  | 'manage-search';
+
+const ICON_MAP: Record<EmptyStateIconName, LucideIcon> = {
+  inbox: Inbox,
+  calendar: Calendar,
+  search: Search,
+  folder: Folder,
+  'event-busy': CalendarX2,
+  'cloud-off': CloudOff,
+  'manage-search': Search,
+};
+
+export interface EmptyStateProps {
+  icon?: EmptyStateIconName | LucideIcon | React.ReactNode;
   title: string;
-  description: string;
+  description?: string;
   actionLabel?: string;
   onAction?: () => void;
   style?: ViewStyle;
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
-  icon = 'event-busy',
+  icon = 'inbox',
   title,
   description,
   actionLabel,
   onAction,
   style,
 }) => {
+  const renderIcon = () => {
+    if (typeof icon === 'string') {
+      const IconComponent =
+        ICON_MAP[icon as EmptyStateIconName] ?? ICON_MAP.inbox;
+      return (
+        <IconComponent
+          size={44}
+          color={colors.borderStrong}
+          strokeWidth={1.5}
+        />
+      );
+    }
+    if (typeof icon === 'function') {
+      const IconComponent = icon as LucideIcon;
+      return (
+        <IconComponent
+          size={44}
+          color={colors.borderStrong}
+          strokeWidth={1.5}
+        />
+      );
+    }
+    return icon;
+  };
+
   return (
     <View style={[styles.container, style]}>
-      <View style={styles.iconCircle}>
-        <MaterialIcons name={icon} size={36} color={colors.primary} />
-      </View>
+      <View style={styles.iconWrap}>{renderIcon()}</View>
       <Text style={styles.title}>{title}</Text>
-      <Text style={styles.description}>{description}</Text>
+      {description ? <Text style={styles.description}>{description}</Text> : null}
       {actionLabel && onAction ? (
         <Button
           title={actionLabel}
@@ -47,26 +97,21 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.xl,
+    paddingVertical: spacing.xl + spacing.md,
     paddingHorizontal: spacing.lg,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceCard,
+    borderRadius: rounded.xl,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderStrong,
     marginVertical: spacing.md,
   },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.surfaceContainerLow,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
+  iconWrap: {
+    marginBottom: spacing.sm,
   },
   title: {
-    ...typography.headlineSm,
-    color: colors.onSurface,
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primaryContainer,
     textAlign: 'center',
     marginBottom: spacing.xs,
   },

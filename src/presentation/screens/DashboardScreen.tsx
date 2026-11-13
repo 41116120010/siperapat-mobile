@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,21 @@ import {
   ScrollView,
   Pressable,
   RefreshControl,
-  Platform,
   Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  Calendar,
+  CalendarCheck,
+  CheckSquare,
+  Clock,
+  SlidersHorizontal,
+  Users,
+} from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
-import { BentoGrid } from '../components/cards/BentoStatCard';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
@@ -35,6 +40,14 @@ interface DashboardScreenProps {
   onNavigateDetail: (meetingId: string) => void;
   onNavigateAgenda: () => void;
 }
+
+const getWibGreeting = (): string => {
+  const wibHour = new Date(Date.now() + 7 * 60 * 60 * 1000).getUTCHours();
+  if (wibHour >= 4 && wibHour <= 10) return 'Selamat Pagi,';
+  if (wibHour >= 11 && wibHour <= 14) return 'Selamat Siang,';
+  if (wibHour >= 15 && wibHour <= 17) return 'Selamat Sore,';
+  return 'Selamat Malam,';
+};
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigatePresensi,
@@ -63,48 +76,126 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     }, [fetchDashboard])
   );
 
+  const greetingText = getWibGreeting();
   const ongoingCount = dashboardStats?.ongoing_agendas;
   const upcomingCount = dashboardStats?.upcoming_agendas;
   const agendaCount = dashboardStats?.total_agendas;
   const attendanceCount = dashboardStats?.my_attendances ?? dashboardStats?.total_attendances;
 
-  const filteredMeetings = meetings
-    .filter((m) => {
-      if (filterTab === 'ongoing') return m.status === 'ongoing';
-      if (filterTab === 'upcoming') return m.status === 'upcoming';
-      if (filterTab === 'completed') return m.status === 'completed';
-      return true;
-    })
-    .filter((m) => {
-      if (activeFilterOrder === 'priority') {
-        return (
-          m.type === 'hybrid' ||
-          m.title.toLowerCase().includes('pleno') ||
-          m.title.toLowerCase().includes('koordinasi')
-        );
-      }
-      return true;
-    });
+  const statCards = useMemo(() => {
+    const fourthCard =
+      user?.role === 'administrator'
+        ? {
+            key: 'total-users',
+            label: 'Total Pengguna',
+            value: dashboardStats?.total_users === undefined ? '—' : String(dashboardStats.total_users),
+            Icon: Users,
+            isHighlight: false,
+          }
+        : user?.role === 'admin'
+        ? {
+            key: 'unit-users',
+            label: 'Pegawai di Unit',
+            value: dashboardStats?.total_users === undefined ? '—' : String(dashboardStats.total_users),
+            Icon: Users,
+            isHighlight: false,
+          }
+        : {
+            key: 'my-attendances',
+            label: 'Riwayat Kehadiran',
+            value: attendanceCount === undefined ? '—' : String(attendanceCount),
+            Icon: CheckSquare,
+            isHighlight: false,
+          };
 
-  const categoryTabs: { id: FilterStatus; label: string; count: number | string }[] = [
-    { id: 'all', label: 'Semua', count: agendaCount ?? '—' },
-    { id: 'ongoing', label: 'Berlangsung', count: ongoingCount ?? '—' },
-    { id: 'upcoming', label: 'Mendatang', count: upcomingCount ?? '—' },
-    { id: 'completed', label: 'Selesai', count: dashboardStats?.completed_agendas ?? '—' },
-  ];
+    return [
+      {
+        key: 'total-agendas',
+        label: 'Agenda Rapat',
+        value: agendaCount === undefined ? '—' : String(agendaCount),
+        Icon: Calendar,
+        isHighlight: false,
+      },
+      {
+        key: 'ongoing-agendas',
+        label: 'Sedang Berlangsung',
+        value: ongoingCount === undefined ? '—' : String(ongoingCount),
+        Icon: Clock,
+        isHighlight: (ongoingCount ?? 0) > 0,
+      },
+      {
+        key: 'upcoming-agendas',
+        label: 'Terjadwal',
+        value: upcomingCount === undefined ? '—' : String(upcomingCount),
+        Icon: CalendarCheck,
+        isHighlight: false,
+      },
+      fourthCard,
+    ];
+  }, [
+    user?.role,
+    agendaCount,
+    ongoingCount,
+    upcomingCount,
+    dashboardStats?.total_users,
+    attendanceCount,
+  ]);
 
-  const handlePdfView = (meeting: Meeting) => {
+  const filteredMeetings = useMemo(
+    () =>
+      meetings
+        .filter((m) => {
+          if (filterTab === 'ongoing') return m.status === 'ongoing';
+          if (filterTab === 'upcoming') return m.status === 'upcoming';
+          if (filterTab === 'completed') return m.status === 'completed';
+          return true;
+        })
+        .filter((m) => {
+          if (activeFilterOrder === 'priority') {
+            return (
+              m.type === 'hybrid' ||
+              m.title.toLowerCase().includes('pleno') ||
+              m.title.toLowerCase().includes('koordinasi')
+            );
+          }
+          return true;
+        }),
+    [meetings, filterTab, activeFilterOrder]
+  );
+
+  const categoryTabs: { id: FilterStatus; label: string; count: number | string }[] = useMemo(
+    () => [
+      { id: 'all', label: 'Semua', count: agendaCount ?? '—' },
+      { id: 'ongoing', label: 'Berlangsung', count: ongoingCount ?? '—' },
+      { id: 'upcoming', label: 'Mendatang', count: upcomingCount ?? '—' },
+      { id: 'completed', label: 'Selesai', count: dashboardStats?.completed_agendas ?? '—' },
+    ],
+    [agendaCount, ongoingCount, upcomingCount, dashboardStats?.completed_agendas]
+  );
+
+  const handlePdfView = useCallback((meeting: Meeting) => {
     if (meeting.invitationPdfUrl) {
       setSelectedDocument(meeting);
     } else {
-      useFeedbackStore.getState().showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
+      useFeedbackStore
+        .getState()
+        .showToast({ type: 'info', message: 'Berkas undangan belum tersedia pada agenda ini.' });
     }
-  };
+  }, []);
 
-  const handleJoinLink = (url?: string) => {
-    if (url) void Linking.openURL(url).catch(() => useFeedbackStore.getState().showToast({ type: 'error', message: 'Tautan rapat tidak dapat dibuka.' }));
-    else useFeedbackStore.getState().showToast({ type: 'info', message: 'Tautan rapat belum tersedia pada agenda ini.' });
-  };
+  const handleJoinLink = useCallback((url?: string) => {
+    if (url) {
+      void Linking.openURL(url).catch(() =>
+        useFeedbackStore
+          .getState()
+          .showToast({ type: 'error', message: 'Tautan rapat tidak dapat dibuka.' })
+      );
+    } else {
+      useFeedbackStore
+        .getState()
+        .showToast({ type: 'info', message: 'Tautan rapat belum tersedia pada agenda ini.' });
+    }
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -123,43 +214,43 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       >
         {/* Profile Greeting Section */}
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingSub}>Selamat Pagi,</Text>
-          <Text style={styles.greetingName}>
-            {user?.name ?? 'ASN'}
-          </Text>
-          <Text style={styles.greetingRole}>
-            {user?.jabatan ?? 'SIPERAPAT'}
-          </Text>
+          <Text style={styles.greetingSub}>{greetingText}</Text>
+          <Text style={styles.greetingName}>{user?.name ?? 'ASN'}</Text>
+          <Text style={styles.greetingRole}>{user?.jabatan ?? 'SIPERAPAT'}</Text>
         </View>
 
-        {/* Bento Telemetry Stats */}
-        <BentoGrid
-          stats={[
-            {
-              label: 'Presensi Rapat',
-              value: attendanceCount === undefined ? '—' : String(attendanceCount),
-              subValue: 'Tercatat',
-            },
-            {
-              label: 'Jadwal Mendatang',
-              value: upcomingCount === undefined ? '—' : String(upcomingCount),
-              subValue: 'Agenda',
-              isPrimary: true,
-            },
-            {
-              label: 'Tingkat Kehadiran',
-              value: dashboardStats?.attendance_rate_label || '—',
-              subValue:
-                dashboardStats?.attendance_rate_subtext ||
-                (dashboardStats?.attendance_rate_label ? 'Rata-rata' : 'Belum ada data'),
-              subValueColor: colors.success,
-            },
-          ]}
-        />
+        {/* 2x2 Gov-Tech Stat Cards */}
+        <View style={styles.bentoGrid}>
+          {statCards.map((stat) => {
+            const IconComponent = stat.Icon;
+            return (
+              <View key={stat.key} style={styles.statCard}>
+                <View style={styles.statTopRow}>
+                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <View
+                    style={[
+                      styles.statIconBox,
+                      stat.isHighlight && styles.statIconBoxHighlight,
+                    ]}
+                  >
+                    <IconComponent
+                      size={17}
+                      strokeWidth={2}
+                      color={stat.isHighlight ? colors.success : colors.onPrimary}
+                    />
+                  </View>
+                </View>
+                <Text style={styles.statLabel} numberOfLines={2}>
+                  {stat.label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
 
         {/* Meeting Section Title with Enterprise Filter Button */}
         <View style={styles.sectionHeaderRow}>
-          <View>
+          <View style={styles.sectionTitleWrap}>
             <Text style={styles.sectionTitle}>Daftar Rapat Dinas</Text>
             <Text style={styles.sectionSub}>Wilayah Kerja LLDIKTI Wilayah X</Text>
           </View>
@@ -173,9 +264,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             accessibilityRole="button"
             accessibilityLabel="Filter agenda rapat"
           >
-            <MaterialIcons
-              name="tune"
+            <SlidersHorizontal
               size={15}
+              strokeWidth={2}
               color={
                 activeFilterOrder === 'priority'
                   ? colors.primary
@@ -321,7 +412,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl * 2,
   },
   greetingSection: {
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm + 4,
     paddingTop: spacing.xs,
   },
   greetingSub: {
@@ -331,16 +422,67 @@ const styles = StyleSheet.create({
   },
   greetingName: {
     ...typography.headlineMd,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
     fontSize: 20,
     marginTop: 2,
   },
   greetingRole: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
     fontSize: 11,
     marginTop: 2,
+  },
+  bentoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: spacing.xs,
+  },
+  statCard: {
+    ...cardSurface,
+    width: '48.2%',
+    minHeight: 88,
+    borderRadius: rounded.card,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  statTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  statValue: {
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 22,
+    lineHeight: 26,
+    color: colors.primary,
+  },
+  statIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: rounded.md + 2,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statIconBoxHighlight: {
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  statLabel: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -348,46 +490,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.md,
     marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  sectionTitleWrap: {
+    flex: 1,
   },
   sectionTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
     fontSize: 16,
   },
   sectionSub: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
     fontSize: 11,
   },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
     borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.55)',
-    backgroundColor: colors.surfaceContainerLowest,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceCard,
     overflow: 'hidden',
   },
   filterButtonHighlighted: {
     borderColor: colors.primary,
-    backgroundColor: 'rgba(0, 35, 111, 0.05)',
+    backgroundColor: colors.surfaceSoft,
   },
   filterButtonPressed: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   filterButtonText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 12,
     color: colors.onSurfaceVariant,
-    fontWeight: '600',
   },
   filterButtonTextHighlighted: {
     color: colors.primary,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
   },
   filterActiveDot: {
     width: 6,
@@ -405,9 +552,10 @@ const styles = StyleSheet.create({
   filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
     borderRadius: rounded.full,
     borderWidth: 1,
     overflow: 'hidden',
@@ -415,53 +563,44 @@ const styles = StyleSheet.create({
   filterPillActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#00236F',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.12,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
   filterPillInactive: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    backgroundColor: colors.surfaceCard,
+    borderColor: colors.borderSubtle,
   },
   filterPillPressed: {
     opacity: 0.85,
   },
   filterPillText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 12,
-    fontWeight: '500',
     color: colors.onSurfaceVariant,
   },
   filterPillTextActive: {
     color: colors.onPrimary,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
   },
   badgeCount: {
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 5,
-    borderRadius: 9,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   badgeCountActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: colors.primaryContainer,
   },
   badgeCountInactive: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   badgeCountText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.monoBold,
     fontSize: 10,
-    fontWeight: '700',
+    lineHeight: 12,
     color: colors.onSurfaceVariant,
   },
   badgeCountTextActive: {

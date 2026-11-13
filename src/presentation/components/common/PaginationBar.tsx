@@ -7,10 +7,10 @@ import {
   StyleProp,
   ViewStyle,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 
 export interface PaginationBarProps {
   currentPage: number;
@@ -64,12 +64,12 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
           ]}
           accessibilityRole="button"
           accessibilityLabel="Halaman sebelumnya"
-          hitSlop={6}
+          hitSlop={4}
         >
-          <MaterialIcons
-            name="chevron-left"
-            size={20}
-            color={effectiveCurrentPage <= 1 || isLoading ? colors.outlineVariant : colors.onSurface}
+          <ChevronLeft
+            size={18}
+            color={effectiveCurrentPage <= 1 || isLoading ? colors.borderStrong : colors.onSurface}
+            strokeWidth={2}
           />
         </Pressable>
 
@@ -96,7 +96,7 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={`Halaman ${p}`}
-                hitSlop={4}
+                hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}
               >
                 <Text
                   style={[
@@ -122,12 +122,12 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
           ]}
           accessibilityRole="button"
           accessibilityLabel="Halaman berikutnya"
-          hitSlop={6}
+          hitSlop={4}
         >
-          <MaterialIcons
-            name="chevron-right"
-            size={20}
-            color={effectiveCurrentPage >= effectiveLastPage || isLoading ? colors.outlineVariant : colors.onSurface}
+          <ChevronRight
+            size={18}
+            color={effectiveCurrentPage >= effectiveLastPage || isLoading ? colors.borderStrong : colors.onSurface}
+            strokeWidth={2}
           />
         </Pressable>
       </View>
@@ -159,28 +159,28 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   navBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: rounded.sm,
+    minWidth: 40,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
     backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
   navBtnDisabled: {
-    backgroundColor: colors.surfaceContainerLow,
-    borderColor: 'rgba(197, 197, 211, 0.3)',
+    backgroundColor: colors.surfaceSoft,
+    borderColor: colors.borderSubtle,
     opacity: 0.5,
   },
   pill: {
-    minWidth: 32,
-    height: 32,
+    minWidth: 34,
+    height: 40,
     paddingHorizontal: 6,
-    borderRadius: rounded.sm,
+    borderRadius: rounded.md,
     backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -190,23 +190,23 @@ const styles = StyleSheet.create({
   },
   pillText: {
     ...typography.labelSm,
-    fontSize: 11.5,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 12,
     color: colors.onSurface,
   },
   pillTextActive: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
-    fontWeight: '700',
   },
   ellipsis: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
     paddingHorizontal: 2,
   },
   infoText: {
     ...typography.labelSm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   btnPressed: {

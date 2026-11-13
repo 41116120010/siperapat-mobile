@@ -7,10 +7,16 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  Calendar,
+  CalendarRange,
+  History,
+  LucideIcon,
+  X,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 
 export type HistoryPeriod = 'all' | '2026-10' | '2026-09' | '2026-08';
@@ -25,11 +31,11 @@ interface DateFilterModalProps {
   onReset: () => void;
 }
 
-const PERIOD_OPTIONS: { id: HistoryPeriod; label: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
-  { id: 'all', label: 'Semua Periode', icon: 'date-range' },
-  { id: '2026-10', label: 'Okt 2026 (Bulan Ini)', icon: 'event' },
-  { id: '2026-09', label: 'September 2026', icon: 'history' },
-  { id: '2026-08', label: 'Agustus 2026', icon: 'history' },
+const PERIOD_OPTIONS: { id: HistoryPeriod; label: string; Icon: LucideIcon }[] = [
+  { id: 'all', label: 'Semua Periode', Icon: CalendarRange },
+  { id: '2026-10', label: 'Okt 2026 (Bulan Ini)', Icon: Calendar },
+  { id: '2026-09', label: 'September 2026', Icon: History },
+  { id: '2026-08', label: 'Agustus 2026', Icon: History },
 ];
 
 const TYPE_OPTIONS: { id: HistoryMeetingType; label: string; desc: string }[] = [
@@ -120,10 +126,10 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
                 styles.closeButton,
                 pressed && styles.closeButtonPressed,
               ]}
-              hitSlop={8}
+              hitSlop={4}
               accessibilityLabel="Tutup"
             >
-              <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
+              <X size={20} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -133,6 +139,7 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
             <View style={styles.chipGrid}>
               {PERIOD_OPTIONS.map((opt) => {
                 const isSelected = selectedPeriod === opt.id;
+                const PeriodIcon = opt.Icon;
                 return (
                   <Pressable
                     key={opt.id}
@@ -143,10 +150,10 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
                       pressed && styles.chipPressed,
                     ]}
                   >
-                    <MaterialIcons
-                      name={opt.icon}
+                    <PeriodIcon
                       size={15}
-                      color={isSelected ? colors.onPrimary : colors.onSurfaceVariant}
+                      color={isSelected ? colors.onPrimary : colors.textSecondary}
+                      strokeWidth={2}
                     />
                     <Text
                       style={[
@@ -230,14 +237,14 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(11, 28, 48, 0.45)',
+    backgroundColor: colors.scrimNeutralMid,
     justifyContent: 'flex-end',
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
   },
   sheetContainer: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderTopLeftRadius: rounded.xl,
     borderTopRightRadius: rounded.xl,
     paddingHorizontal: spacing.md,
@@ -245,14 +252,14 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? spacing.xl + 8 : spacing.lg,
     borderWidth: 1,
     borderBottomWidth: 0,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderStrong,
     overflow: 'hidden',
   },
   handleBar: {
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(197, 197, 211, 0.8)',
+    backgroundColor: colors.borderStrong,
     alignSelf: 'center',
     marginBottom: spacing.sm + 4,
   },
@@ -263,28 +270,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.3)',
+    borderBottomColor: colors.borderSubtle,
   },
   headerTextGroup: {
     flex: 1,
   },
   headerTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 17,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   headerSubtitle: {
     ...typography.bodySm,
     fontSize: 12,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceContainerLow,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: MIN_TOUCH_TARGET / 2,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.sm,
@@ -297,10 +304,10 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 10,
-    fontWeight: '700',
     letterSpacing: 0.6,
-    color: colors.outline,
+    color: colors.textMuted,
     marginBottom: spacing.xs + 2,
   },
   chipGrid: {
@@ -311,6 +318,7 @@ const styles = StyleSheet.create({
   periodChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     gap: 6,
     paddingVertical: 9,
     paddingHorizontal: 12,
@@ -323,8 +331,8 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   periodChipInactive: {
-    backgroundColor: colors.surfaceContainerLow,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    backgroundColor: colors.surfaceSoft,
+    borderColor: colors.borderStrong,
   },
   chipPressed: {
     opacity: 0.85,
@@ -334,12 +342,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   chipTextActive: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
-    fontWeight: '700',
   },
   chipTextInactive: {
-    color: colors.onSurfaceVariant,
-    fontWeight: '500',
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
   },
   typeContainer: {
     gap: spacing.xs + 3,
@@ -347,6 +355,7 @@ const styles = StyleSheet.create({
   typeCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     padding: spacing.sm + 2,
     borderRadius: rounded.md,
     borderWidth: 1,
@@ -354,12 +363,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   typeCardActive: {
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.surfaceSoft,
     borderColor: colors.primary,
   },
   typeCardInactive: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    backgroundColor: colors.surfaceCard,
+    borderColor: colors.borderStrong,
   },
   typeRadioCircle: {
     width: 18,
@@ -381,18 +390,18 @@ const styles = StyleSheet.create({
   },
   typeTitle: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 12.5,
-    fontWeight: '600',
     color: colors.onSurface,
   },
   typeTitleActive: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
-    fontWeight: '700',
   },
   typeDesc: {
     ...typography.bodySm,
     fontSize: 10.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 1,
     lineHeight: 14,
   },
@@ -402,7 +411,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.3)',
+    borderTopColor: colors.borderSubtle,
   },
   resetButtonWrapper: {
     width: '36%',

@@ -7,14 +7,25 @@ import {
   ScrollViewInstance,
   Pressable,
   TextInput,
-  Platform,
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  ArrowUpDown,
+  Ban,
+  Building2,
+  CheckCircle2,
+  CreditCard,
+  Pencil,
+  Search,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
@@ -60,6 +71,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     deleteEmployee,
     deleteUnit,
   } = useEmployeeStore();
+
   const [activeTab, setActiveTab] = useState<'asn' | 'units'>('asn');
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('Semua Role');
@@ -70,8 +82,17 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     void fetchUnits(1);
   }, [fetchUnits]);
 
-  const selectedUnitId = isAdministrator ? apiUnits.find((item) => item.nama_unit === selectedUnit)?.id : undefined;
-  const apiRole = selectedRole === 'Semua Role' ? undefined : selectedRole === 'Administrator' ? 'administrator' : selectedRole === 'Admin Unit' ? 'admin' : 'staff';
+  const selectedUnitId = isAdministrator
+    ? apiUnits.find((item) => item.nama_unit === selectedUnit)?.id
+    : undefined;
+  const apiRole =
+    selectedRole === 'Semua Role'
+      ? undefined
+      : selectedRole === 'Administrator'
+      ? 'administrator'
+      : selectedRole === 'Admin Unit'
+      ? 'admin'
+      : 'staff';
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -82,10 +103,6 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
 
   const employeeList = employees;
   const totalCount = total;
-  const adminCount = employeeList.filter(
-    (e) => e.role === 'Administrator' || e.role === 'Admin Unit'
-  ).length;
-  const staffCount = employeeList.filter((e) => e.role === 'Staff').length;
   const activeCount = employeeList.filter((e) => e.status === 'Aktif').length;
   const inactiveCount = employeeList.filter((e) => e.status === 'Nonaktif').length;
 
@@ -118,7 +135,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
             type: 'success',
             message: `Data pegawai ${employee.name} berhasil dihapus.`,
           });
-          const targetPage = employees.length <= 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+          const targetPage =
+            employees.length <= 1 && currentPage > 1 ? currentPage - 1 : currentPage;
           void fetchEmployees(targetPage, { search, role: apiRole, unitId: selectedUnitId });
         } else {
           useFeedbackStore.getState().showToast({
@@ -214,52 +232,53 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
         ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={activeTab === 'asn' ? employeesLoading : unitsLoading} onRefresh={() => activeTab === 'asn' ? fetchEmployees(1, { search, role: apiRole, unitId: selectedUnitId }) : fetchUnits(1)} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={activeTab === 'asn' ? employeesLoading : unitsLoading}
+            onRefresh={() =>
+              activeTab === 'asn'
+                ? fetchEmployees(1, { search, role: apiRole, unitId: selectedUnitId })
+                : fetchUnits(1)
+            }
+          />
+        }
       >
-        {/* 4 BENTO STATS CARDS */}
-        <View style={styles.bentoGrid}>
-          <View style={styles.bentoCol}>
-            <View style={styles.bentoTop}>
-              <Text style={styles.bentoLabel}>Total Pegawai</Text>
-              <MaterialIcons name="group" size={16} color={colors.outline} />
+        {/* 3 REAL METRIC CARDS (Aligned with Web users/index.blade.php) */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <View style={styles.statTop}>
+              <View style={styles.statIconBox}>
+                <Users size={15} strokeWidth={2} color={colors.onPrimary} />
+              </View>
+              <Text style={styles.statValue}>{totalCount}</Text>
             </View>
-            <Text style={styles.bentoValue}>{totalCount}</Text>
-            <Text style={styles.bentoSub}>{staffCount} Staf · {adminCount} Admin (halaman ini)</Text>
+            <Text style={styles.statLabel} numberOfLines={2}>
+              {isAdministrator ? 'Total Pengguna' : 'Pegawai di Unit'}
+            </Text>
           </View>
 
-          <View style={styles.bentoCol}>
-            <View style={styles.bentoTop}>
-              <Text style={styles.bentoLabel}>Unit Kerja Aktif</Text>
-              <MaterialIcons
-                name="account-tree"
-                size={16}
-                color={colors.outline}
-              />
+          <View style={styles.statCard}>
+            <View style={styles.statTop}>
+              <View style={[styles.statIconBox, styles.statIconSuccess]}>
+                <CheckCircle2 size={15} strokeWidth={2} color={colors.success} />
+              </View>
+              <Text style={styles.statValue}>{activeCount}</Text>
             </View>
-            <Text style={styles.bentoValue}>{apiUnits.length ? apiUnits.filter((unit) => unit.is_active).length : '—'}</Text>
-            <Text style={styles.bentoSub}>Unit aktif dimuat</Text>
+            <Text style={styles.statLabel} numberOfLines={2}>
+              Akun Aktif
+            </Text>
           </View>
 
-          <View style={styles.bentoCol}>
-            <View style={styles.bentoTop}>
-              <Text style={styles.bentoLabel}>Status Akun</Text>
-              <MaterialIcons name="badge" size={16} color={colors.outline} />
+          <View style={styles.statCard}>
+            <View style={styles.statTop}>
+              <View style={[styles.statIconBox, styles.statIconDanger]}>
+                <Ban size={15} strokeWidth={2} color={colors.error} />
+              </View>
+              <Text style={styles.statValue}>{inactiveCount}</Text>
             </View>
-            <Text style={styles.bentoValue}>{activeCount}</Text>
-            <Text style={styles.bentoSub}>{inactiveCount} Nonaktif (halaman ini)</Text>
-          </View>
-
-          <View style={styles.bentoCol}>
-            <View style={styles.bentoTop}>
-              <Text style={styles.bentoLabel}>Rerata Presensi</Text>
-              <MaterialIcons
-                name="analytics"
-                size={16}
-                color={colors.outline}
-              />
-            </View>
-            <Text style={styles.bentoValue}>—</Text>
-            <Text style={styles.bentoSub}>Belum tersedia di API</Text>
+            <Text style={styles.statLabel} numberOfLines={2}>
+              Akun Non-Aktif
+            </Text>
           </View>
         </View>
 
@@ -271,6 +290,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               styles.segmentedBtn,
               activeTab === 'asn' && styles.segmentedBtnActive,
             ]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activeTab === 'asn' }}
           >
             <Text
               style={[
@@ -288,6 +309,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               styles.segmentedBtn,
               activeTab === 'units' && styles.segmentedBtnActive,
             ]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activeTab === 'units' }}
           >
             <Text
               style={[
@@ -301,46 +324,53 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
         </View>
 
         {/* PRIMARY OPERATIONAL ACTION BAR */}
-        {activeTab === 'asn' || isAdministrator ? <Pressable
-          onPress={activeTab === 'asn' ? handleAddEmployee : handleAddUnit}
-          style={({ pressed }) => [
-            styles.primaryAddBtn,
-            pressed && styles.btnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={
-            activeTab === 'asn'
-              ? 'Tambah Pegawai Baru'
-              : 'Tambah Unit Kerja Baru'
-          }
-        >
-          <MaterialIcons
-            name={activeTab === 'asn' ? 'person-add' : 'domain-add'}
-            size={18}
-            color={colors.onPrimary}
-          />
-          <Text style={styles.primaryAddBtnText}>
-            {activeTab === 'asn'
-              ? 'Tambah Pegawai Baru'
-              : 'Tambah Unit Kerja Baru'}
-          </Text>
-        </Pressable> : null}
+        {activeTab === 'asn' || isAdministrator ? (
+          <Pressable
+            onPress={activeTab === 'asn' ? handleAddEmployee : handleAddUnit}
+            style={({ pressed }) => [
+              styles.primaryAddBtn,
+              pressed && styles.btnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={
+              activeTab === 'asn'
+                ? 'Tambah Pegawai Baru'
+                : 'Tambah Unit Kerja Baru'
+            }
+          >
+            {activeTab === 'asn' ? (
+              <UserPlus size={18} strokeWidth={2} color={colors.onPrimary} />
+            ) : (
+              <Building2 size={18} strokeWidth={2} color={colors.onPrimary} />
+            )}
+            <Text style={styles.primaryAddBtnText}>
+              {activeTab === 'asn'
+                ? 'Tambah Pegawai Baru'
+                : 'Tambah Unit Kerja Baru'}
+            </Text>
+          </Pressable>
+        ) : null}
 
         {activeTab === 'asn' ? (
           <>
             {/* SEARCH FIELD */}
             <View style={styles.searchBox}>
-              <MaterialIcons name="search" size={20} color={colors.outline} />
+              <Search size={18} strokeWidth={2} color={colors.textMuted} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Cari NIP, nama, atau username..."
-                placeholderTextColor={colors.outline}
+                placeholderTextColor={colors.textMuted}
                 value={search}
                 onChangeText={setSearch}
               />
               {search ? (
-                <Pressable onPress={() => setSearch('')}>
-                  <MaterialIcons name="cancel" size={18} color={colors.outline} />
+                <Pressable
+                  onPress={() => setSearch('')}
+                  style={styles.searchClearBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Bersihkan pencarian pegawai"
+                >
+                  <X size={17} strokeWidth={2} color={colors.textMuted} />
                 </Pressable>
               ) : null}
             </View>
@@ -363,6 +393,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                         styles.roleChip,
                         active && styles.roleChipActive,
                       ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                     >
                       <Text
                         style={[
@@ -395,6 +427,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                         styles.unitChip,
                         active && styles.unitChipActive,
                       ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                     >
                       <Text
                         style={[
@@ -420,16 +454,22 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               </Text>
               <View style={styles.sortBtn}>
                 <Text style={styles.sortBtnText}>Urutkan Abjad</Text>
-                <MaterialIcons
-                  name="swap-vert"
-                  size={16}
-                  color={colors.secondary}
-                />
+                <ArrowUpDown size={15} strokeWidth={2} color={colors.secondary} />
               </View>
             </View>
 
-            {employeesError ? <ErrorState message={employeesError} onRetry={() => fetchEmployees(1, { search, role: apiRole, unitId: selectedUnitId })} /> : null}
-            {!employeesError && employeesLoading && employees.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
+            {employeesError ? (
+              <ErrorState
+                message={employeesError}
+                onRetry={() =>
+                  fetchEmployees(1, { search, role: apiRole, unitId: selectedUnitId })
+                }
+              />
+            ) : null}
+            {!employeesError && employeesLoading && employees.length === 0 ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : null}
+
             {/* ASN CARDS */}
             <View style={styles.cardsContainer}>
               {filteredASN.map((item) => (
@@ -447,22 +487,14 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                       </View>
 
                       <View style={styles.nipRow}>
-                        <MaterialIcons
-                          name="badge"
-                          size={14}
-                          color={colors.outline}
-                        />
+                        <CreditCard size={14} strokeWidth={2} color={colors.textMuted} />
                         <Text style={styles.nipText}>{item.nip}</Text>
                         <Text style={styles.dividerDot}>•</Text>
                         <Text style={styles.usernameText}>{item.username}</Text>
                       </View>
 
                       <View style={styles.unitRow}>
-                        <MaterialIcons
-                          name="domain"
-                          size={14}
-                          color={colors.outline}
-                        />
+                        <Building2 size={14} strokeWidth={2} color={colors.textMuted} />
                         <Text style={styles.unitText}>{item.unit}</Text>
                       </View>
                     </View>
@@ -487,11 +519,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                         accessibilityRole="button"
                         accessibilityLabel={`Hapus akun pegawai ${item.name}`}
                       >
-                        <MaterialIcons
-                          name="delete-outline"
-                          size={14}
-                          color={colors.error}
-                        />
+                        <Trash2 size={14} strokeWidth={2} color={colors.error} />
                         <Text style={styles.cardActionDeleteBtnText}>Hapus</Text>
                       </Pressable>
                       <Pressable
@@ -509,26 +537,21 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                           styles.cardActionBtn,
                           pressed && styles.btnPressed,
                         ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit pegawai ${item.name}`}
                       >
-                        <MaterialIcons
-                          name="edit"
-                          size={14}
-                          color={colors.primary}
-                        />
-                        <Text
-                          style={[
-                            styles.cardActionBtnText,
-                            { color: colors.primary },
-                          ]}
-                        >
-                          Edit
-                        </Text>
+                        <Pencil size={14} strokeWidth={2} color={colors.primary} />
+                        <Text style={styles.cardActionBtnTextPrimary}>Edit</Text>
                       </Pressable>
                     </View>
                   </View>
                 </View>
               ))}
-              {!employeesLoading && !employeesError && filteredASN.length === 0 ? <Text style={styles.emptyDirectory}>Tidak ada pegawai yang cocok.</Text> : null}
+              {!employeesLoading && !employeesError && filteredASN.length === 0 ? (
+                <Text style={styles.emptyDirectory}>
+                  Tidak ada pegawai yang cocok.
+                </Text>
+              ) : null}
             </View>
 
             {/* PAGINATION CONTROLS (PEGAWAI ASN) */}
@@ -546,17 +569,17 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
         ) : (
           /* MASTER UNIT KERJA LIST */
           <View style={styles.cardsContainer}>
-            {unitsError ? <ErrorState message={unitsError} onRetry={() => fetchUnits(1)} /> : null}
-            {unitsLoading && apiUnits.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
+            {unitsError ? (
+              <ErrorState message={unitsError} onRetry={() => fetchUnits(1)} />
+            ) : null}
+            {unitsLoading && apiUnits.length === 0 ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : null}
             {apiUnits.map((unit) => (
               <View key={unit.id} style={styles.unitMasterCard}>
                 <View style={styles.unitMasterCardTop}>
                   <View style={styles.unitMasterIcon}>
-                    <MaterialIcons
-                      name="domain"
-                      size={20}
-                      color={colors.primary}
-                    />
+                    <Building2 size={20} strokeWidth={2} color={colors.primary} />
                   </View>
                   <View style={styles.unitMasterMainInfo}>
                     <View style={styles.unitCodeRow}>
@@ -564,13 +587,17 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                       <View
                         style={[
                           styles.unitStatusBadge,
-                          unit.is_active ? styles.unitStatusActive : styles.unitStatusInactive,
+                          unit.is_active
+                            ? styles.unitStatusActive
+                            : styles.unitStatusInactive,
                         ]}
                       >
                         <Text
                           style={[
                             styles.unitStatusText,
-                            unit.is_active ? styles.unitStatusTextActive : styles.unitStatusTextInactive,
+                            unit.is_active
+                              ? styles.unitStatusTextActive
+                              : styles.unitStatusTextInactive,
                           ]}
                         >
                           {unit.is_active ? 'Aktif' : 'Nonaktif'}
@@ -585,63 +612,56 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                     ) : null}
                   </View>
                   <View style={styles.unitMasterCountBadge}>
-                    <MaterialIcons name="people" size={12} color={colors.primary} />
-                    <Text style={styles.unitMasterCountText}>{unit.users_count ?? 0} ASN</Text>
+                    <Users size={12} strokeWidth={2} color={colors.primary} />
+                    <Text style={styles.unitMasterCountText}>
+                      {unit.users_count ?? 0} ASN
+                    </Text>
                   </View>
                 </View>
 
                 <View style={styles.unitCardBottom}>
-                  <Text style={styles.cardBottomMeta}>
-                    ID: {unit.id}
-                  </Text>
+                  <Text style={styles.cardBottomMeta}>ID: {unit.id}</Text>
 
                   <View style={styles.cardActions}>
-                    {isAdministrator ? <>
-                    <Pressable
-                      onPress={() => handleDeleteUnit(unit)}
-                      style={({ pressed }) => [
-                        styles.cardActionDeleteBtn,
-                        pressed && styles.btnPressed,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Hapus unit kerja ${unit.nama_unit}`}
-                    >
-                      <MaterialIcons
-                        name="delete-outline"
-                        size={14}
-                        color={colors.error}
-                      />
-                      <Text style={styles.cardActionDeleteBtnText}>Hapus</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleEditUnit(unit)}
-                      style={({ pressed }) => [
-                        styles.cardActionBtn,
-                        pressed && styles.btnPressed,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Edit unit kerja ${unit.nama_unit}`}
-                    >
-                      <MaterialIcons
-                        name="edit"
-                        size={14}
-                        color={colors.primary}
-                      />
-                      <Text
-                        style={[
-                          styles.cardActionBtnText,
-                          { color: colors.primary },
-                        ]}
-                      >
-                        Edit
-                      </Text>
-                    </Pressable>
-                    </> : null}
+                    {isAdministrator ? (
+                      <>
+                        <Pressable
+                          onPress={() => handleDeleteUnit(unit)}
+                          style={({ pressed }) => [
+                            styles.cardActionDeleteBtn,
+                            pressed && styles.btnPressed,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Hapus unit kerja ${unit.nama_unit}`}
+                        >
+                          <Trash2 size={14} strokeWidth={2} color={colors.error} />
+                          <Text style={styles.cardActionDeleteBtnText}>
+                            Hapus
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleEditUnit(unit)}
+                          style={({ pressed }) => [
+                            styles.cardActionBtn,
+                            pressed && styles.btnPressed,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Edit unit kerja ${unit.nama_unit}`}
+                        >
+                          <Pencil size={14} strokeWidth={2} color={colors.primary} />
+                          <Text style={styles.cardActionBtnTextPrimary}>
+                            Edit
+                          </Text>
+                        </Pressable>
+                      </>
+                    ) : null}
                   </View>
                 </View>
               </View>
             ))}
-            {!unitsLoading && !unitsError && apiUnits.length === 0 ? <Text style={styles.emptyDirectory}>Belum ada unit kerja.</Text> : null}
+            {!unitsLoading && !unitsError && apiUnits.length === 0 ? (
+              <Text style={styles.emptyDirectory}>Belum ada unit kerja.</Text>
+            ) : null}
 
             {/* PAGINATION CONTROLS (UNIT KERJA) */}
             {unitsTotal > 0 ? (
@@ -671,129 +691,129 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl * 2,
     gap: spacing.sm + 2,
   },
-  bentoGrid: {
+  statsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
   },
-  bentoCol: {
-    width: '48.5%',
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.lg,
-    padding: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+  statCard: {
+    ...cardSurface,
+    flex: 1,
+    borderRadius: rounded.card,
+    padding: 12,
     justifyContent: 'space-between',
-    minHeight: 80,
+    minHeight: 88,
+    gap: 8,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
-  bentoTop: {
+  statTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 6,
   },
-  bentoLabel: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
-    fontWeight: '500',
+  statIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  bentoValue: {
+  statIconSuccess: {
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  statIconDanger: {
+    backgroundColor: colors.errorContainer,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+  },
+  statValue: {
     ...typography.headlineMd,
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.onSurface,
-    marginTop: 2,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 19,
+    lineHeight: 22,
+    color: colors.primary,
   },
-  bentoSub: {
+  statLabel: {
     ...typography.labelSm,
-    fontSize: 10,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 10.5,
+    lineHeight: 14,
+    color: colors.textSecondary,
   },
   segmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: rounded.lg,
     padding: 3,
     marginTop: 2,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
   },
   segmentedBtn: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: rounded.sm,
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    borderRadius: rounded.md,
     alignItems: 'center',
   },
   segmentedBtnActive: {
     backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
   },
   segmentedBtnText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 12,
     color: colors.onSurfaceVariant,
-    fontWeight: '500',
   },
   segmentedBtnTextActive: {
     color: colors.primary,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
   },
   primaryAddBtn: {
-    height: 44,
+    minHeight: MIN_TOUCH_TARGET + 2,
     backgroundColor: colors.primary,
-    borderRadius: rounded.md,
+    borderRadius: rounded.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
   primaryAddBtnText: {
     ...typography.labelMd,
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 13,
     color: colors.onPrimary,
   },
   searchBox: {
-    height: 44,
-    borderRadius: rounded.md,
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.lg,
     backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: colors.borderSubtle,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingLeft: 12,
+    paddingRight: 4,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     ...typography.bodySm,
-    fontSize: 12,
+    minHeight: MIN_TOUCH_TARGET,
+    fontSize: 12.5,
     color: colors.onSurface,
+  },
+  searchClearBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterScrollRow: {
     flexDirection: 'row',
@@ -802,21 +822,22 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-    fontWeight: '600',
   },
   filterChipsContainer: {
     flexDirection: 'row',
     gap: 6,
   },
   roleChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
     borderRadius: rounded.full,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
   },
   roleChipActive: {
     backgroundColor: colors.primary,
@@ -824,12 +845,13 @@ const styles = StyleSheet.create({
   },
   roleChipText: {
     ...typography.labelSm,
-    fontSize: 11,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 11.5,
     color: colors.onSurfaceVariant,
   },
   roleChipTextActive: {
     color: colors.onPrimary,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
   },
   unitChipsContainer: {
     flexDirection: 'row',
@@ -837,25 +859,27 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   unitChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
     borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderSubtle,
     backgroundColor: colors.surfaceCard,
   },
   unitChipActive: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderColor: colors.primary,
   },
   unitChipText: {
     ...typography.labelSm,
-    fontSize: 10.5,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 11,
     color: colors.onSurfaceVariant,
   },
   unitChipTextActive: {
     color: colors.primary,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
   },
   listHeaderRow: {
     flexDirection: 'row',
@@ -865,47 +889,39 @@ const styles = StyleSheet.create({
   },
   listHeaderTitle: {
     ...typography.headlineSm,
-    fontSize: 13.5,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 14,
     color: colors.onSurface,
   },
   listHeaderSub: {
-    fontWeight: '400',
+    fontFamily: fontFamilies.sansRegular,
     color: colors.onSurfaceVariant,
   },
   sortBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
   },
   sortBtnText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 11,
     color: colors.secondary,
-    fontWeight: '600',
   },
   cardsContainer: {
-    gap: 8,
+    gap: 10,
   },
-  emptyDirectory: { textAlign: 'center', color: colors.onSurfaceVariant, padding: spacing.md },
+  emptyDirectory: {
+    ...typography.bodySm,
+    textAlign: 'center',
+    color: colors.onSurfaceVariant,
+    padding: spacing.md,
+  },
   asnCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.lg,
-    padding: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.45)',
+    ...cardSurface,
+    borderRadius: rounded.card,
+    padding: spacing.sm + 4,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
   asnCardTop: {
     flexDirection: 'row',
@@ -913,19 +929,19 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   asnAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceContainerLow,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
   },
   asnAvatarText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 13,
-    fontWeight: '700',
     color: colors.primary,
   },
   asnMainInfo: {
@@ -939,29 +955,30 @@ const styles = StyleSheet.create({
   },
   asnName: {
     ...typography.headlineSm,
-    fontSize: 13,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 13.5,
     color: colors.onSurface,
   },
   roleBadge: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
   },
   roleBadgeText: {
     ...typography.labelSm,
-    fontSize: 9.5,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 10,
     color: colors.primary,
-    fontWeight: '600',
   },
   nipRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
+    marginTop: 3,
+    flexWrap: 'wrap',
   },
   nipText: {
     ...typography.labelMono,
@@ -969,15 +986,16 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   dividerDot: {
-    color: colors.outlineVariant,
+    ...typography.labelSm,
+    color: colors.borderStrong,
     fontSize: 10,
     marginHorizontal: 2,
   },
   usernameText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-    fontWeight: '500',
   },
   unitRow: {
     flexDirection: 'row',
@@ -989,77 +1007,69 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
+    flex: 1,
   },
   asnCardBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.3)',
-    marginTop: 8,
-    paddingTop: 8,
+    borderTopColor: colors.borderSubtle,
+    marginTop: 10,
+    paddingTop: 10,
+    gap: spacing.sm,
   },
   cardBottomMeta: {
     ...typography.bodySm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
+    fontSize: 11,
+    color: colors.textMuted,
+    flex: 1,
   },
   cardActions: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   cardActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: rounded.sm,
+    justifyContent: 'center',
+    gap: 5,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: colors.borderStrong,
     backgroundColor: colors.surfaceCard,
   },
-  cardActionBtnText: {
+  cardActionBtnTextPrimary: {
     ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11.5,
+    color: colors.primary,
   },
   cardActionDeleteBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: rounded.sm,
+    justifyContent: 'center',
+    gap: 5,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(186, 26, 26, 0.3)',
-    backgroundColor: 'rgba(186, 26, 26, 0.05)',
+    borderColor: colors.errorBorder,
+    backgroundColor: colors.errorContainer,
   },
   cardActionDeleteBtnText: {
     ...typography.labelSm,
-    fontSize: 10.5,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11.5,
     color: colors.error,
-    fontWeight: '600',
   },
   unitMasterCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.lg,
-    padding: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.45)',
+    ...cardSurface,
+    borderRadius: rounded.card,
+    padding: spacing.sm + 4,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
   unitMasterCardTop: {
     flexDirection: 'row',
@@ -1067,14 +1077,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   unitMasterIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainerLow,
+    width: 40,
+    height: 40,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
   },
   unitMasterMainInfo: {
     flex: 1,
@@ -1086,41 +1096,41 @@ const styles = StyleSheet.create({
   },
   unitMasterCode: {
     ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
     fontSize: 12,
-    fontWeight: '700',
     color: colors.primary,
   },
   unitStatusBadge: {
     paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
     borderWidth: 1,
   },
   unitStatusActive: {
-    backgroundColor: 'rgba(5, 150, 105, 0.08)',
-    borderColor: 'rgba(5, 150, 105, 0.25)',
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
   },
   unitStatusInactive: {
-    backgroundColor: 'rgba(186, 26, 26, 0.08)',
-    borderColor: 'rgba(186, 26, 26, 0.25)',
+    backgroundColor: colors.errorContainer,
+    borderColor: colors.errorBorder,
   },
   unitStatusText: {
     ...typography.labelSm,
-    fontSize: 9.5,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 10,
   },
   unitStatusTextActive: {
-    color: colors.success,
+    color: colors.onSuccessContainer,
   },
   unitStatusTextInactive: {
-    color: colors.error,
+    color: colors.onErrorContainer,
   },
   unitMasterName: {
     ...typography.headlineSm,
-    fontSize: 12.5,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 13,
     color: colors.onSurface,
-    marginTop: 2,
+    marginTop: 3,
   },
   unitDescription: {
     ...typography.bodySm,
@@ -1133,27 +1143,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
   },
   unitMasterCountText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 10.5,
     color: colors.primary,
-    fontWeight: '600',
   },
   unitCardBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.3)',
-    marginTop: 8,
-    paddingTop: 8,
+    borderTopColor: colors.borderSubtle,
+    marginTop: 10,
+    paddingTop: 10,
   },
   btnPressed: {
     opacity: 0.8,

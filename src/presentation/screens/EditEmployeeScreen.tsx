@@ -7,13 +7,33 @@ import {
   Pressable,
   Platform,
   KeyboardAvoidingView,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  AlertCircle,
+  AtSign,
+  Award,
+  Briefcase,
+  Building2,
+  CheckCircle2,
+  ChevronsUpDown,
+  Contact,
+  Fingerprint,
+  Lock,
+  Mail,
+  Network,
+  PauseCircle,
+  Phone,
+  Save,
+  ShieldCheck,
+  User,
+  UserCheck,
+  UserCog,
+  UserX,
+} from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
@@ -179,7 +199,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
           onBack={handleBack}
         />
         <View style={styles.notFoundContainer}>
-          <MaterialIcons name="person-off" size={48} color={colors.outline} />
+          <UserX size={48} color={colors.outline} strokeWidth={2} />
           <Text style={styles.notFoundTitle}>Pegawai Tidak Ditemukan</Text>
           <Text style={styles.notFoundSubtitle}>
             Data aparatur dengan ID {employeeId} tidak ditemukan dalam arsip lokal sistem.
@@ -220,7 +240,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
           {/* Error Banner */}
           {error ? (
             <View style={styles.errorBanner}>
-              <MaterialIcons name="error-outline" size={18} color={colors.error} />
+              <AlertCircle size={18} color={colors.error} strokeWidth={2} />
               <Text style={styles.errorBannerText}>{error}</Text>
             </View>
           ) : null}
@@ -239,7 +259,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 </Text>
                 <View style={styles.contextBadgeRow}>
                   <View style={styles.lockBadge}>
-                    <MaterialIcons name="lock" size={11} color={colors.primary} />
+                    <Lock size={11} color={colors.primary} strokeWidth={2} />
                     <Text style={styles.lockBadgeText}>NIP Terkunci Resmi</Text>
                   </View>
                   <View
@@ -270,7 +290,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIconWrap}>
-                <MaterialIcons name="badge" size={16} color={colors.primary} />
+                <UserCheck size={16} color={colors.primary} strokeWidth={2} />
               </View>
               <Text style={styles.sectionTitle}>Identitas Aparatur Sipil Negara</Text>
             </View>
@@ -286,7 +306,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 onChangeText={setName}
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
-                  <MaterialIcons name="person" size={18} color={colors.outline} />
+                  <User size={18} color={colors.outline} strokeWidth={2} />
                 }
               />
             </View>
@@ -296,7 +316,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
               <View style={styles.labelRow}>
                 <Text style={styles.label}>NIP 18 Digit Resmi</Text>
                 <View style={styles.lockedIndicator}>
-                  <MaterialIcons name="lock" size={12} color={colors.outline} />
+                  <Lock size={12} color={colors.outline} strokeWidth={2} />
                   <Text style={styles.lockedIndicatorText}>Permanen</Text>
                 </View>
               </View>
@@ -307,7 +327,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 containerStyle={styles.inputContainerReset}
                 style={styles.readonlyInput}
                 leftIcon={
-                  <MaterialIcons name="fingerprint" size={18} color={colors.outline} />
+                  <Fingerprint size={18} color={colors.outline} strokeWidth={2} />
                 }
                 helperText="NIP aparatur sipil negara bersifat unik dan terkunci demi integritas riwayat presensi."
               />
@@ -324,7 +344,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 onChangeText={setJabatan}
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
-                  <MaterialIcons name="work-outline" size={18} color={colors.outline} />
+                  <Briefcase size={18} color={colors.outline} strokeWidth={2} />
                 }
               />
             </View>
@@ -344,22 +364,14 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 accessibilityLabel="Pilih Pangkat dan Golongan"
               >
                 <View style={styles.selectorLeft}>
-                  <MaterialIcons
-                    name="military-tech"
-                    size={18}
-                    color={colors.primary}
-                  />
+                  <Award size={18} color={colors.primary} strokeWidth={2} />
                   <Text style={styles.selectorValue} numberOfLines={1}>
                     {pangkatGolongan}
                   </Text>
                 </View>
                 <View style={styles.selectorRight}>
                   <Text style={styles.selectorActionText}>Ubah</Text>
-                  <MaterialIcons
-                    name="unfold-more"
-                    size={18}
-                    color={colors.outline}
-                  />
+                  <ChevronsUpDown size={18} color={colors.outline} strokeWidth={2} />
                 </View>
               </Pressable>
             </View>
@@ -369,7 +381,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIconWrap}>
-                <MaterialIcons name="account-tree" size={16} color={colors.primary} />
+                <Network size={16} color={colors.primary} strokeWidth={2} />
               </View>
               <Text style={styles.sectionTitle}>Penugasan Unit & Peran Sistem</Text>
             </View>
@@ -389,18 +401,14 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 accessibilityLabel="Pilih Unit Kerja"
               >
                 <View style={styles.selectorLeft}>
-                  <MaterialIcons name="domain" size={18} color={colors.primary} />
+                  <Building2 size={18} color={colors.primary} strokeWidth={2} />
                   <Text style={styles.selectorValue} numberOfLines={1}>
                     {unit}
                   </Text>
                 </View>
                 <View style={styles.selectorRight}>
                   <Text style={styles.selectorActionText}>Ubah</Text>
-                  <MaterialIcons
-                    name="unfold-more"
-                    size={18}
-                    color={colors.outline}
-                  />
+                  <ChevronsUpDown size={18} color={colors.outline} strokeWidth={2} />
                 </View>
               </Pressable>
             </View>
@@ -413,6 +421,12 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
               <View style={styles.roleGrid}>
                 {(['Staff', 'Admin Unit', 'Administrator'] as const).map((r) => {
                   const isSelected = role === r;
+                  const RoleIcon =
+                    r === 'Administrator'
+                      ? ShieldCheck
+                      : r === 'Admin Unit'
+                      ? UserCog
+                      : User;
                   return (
                     <Pressable
                       key={r}
@@ -425,16 +439,10 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                       accessibilityState={{ selected: isSelected }}
                     >
                       <View style={styles.roleCardHeader}>
-                        <MaterialIcons
-                          name={
-                            r === 'Administrator'
-                              ? 'admin-panel-settings'
-                              : r === 'Admin Unit'
-                              ? 'manage-accounts'
-                              : 'person-outline'
-                          }
+                        <RoleIcon
                           size={18}
                           color={isSelected ? colors.primary : colors.outline}
+                          strokeWidth={2}
                         />
                         <View
                           style={[
@@ -474,11 +482,12 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                     styles.segmentedBtn,
                     status === 'Aktif' && styles.segmentedBtnActive,
                   ]}
+                  accessibilityRole="button"
                 >
-                  <MaterialIcons
-                    name="check-circle"
+                  <CheckCircle2
                     size={15}
-                    color={status === 'Aktif' ? colors.secondary : colors.outline}
+                    color={status === 'Aktif' ? colors.success : colors.outline}
+                    strokeWidth={2}
                   />
                   <Text
                     style={[
@@ -496,11 +505,12 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                     styles.segmentedBtn,
                     status === 'Nonaktif' && styles.segmentedBtnActive,
                   ]}
+                  accessibilityRole="button"
                 >
-                  <MaterialIcons
-                    name="pause-circle-outline"
+                  <PauseCircle
                     size={15}
                     color={status === 'Nonaktif' ? colors.error : colors.outline}
+                    strokeWidth={2}
                   />
                   <Text
                     style={[
@@ -519,7 +529,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIconWrap}>
-                <MaterialIcons name="contact-mail" size={16} color={colors.primary} />
+                <Contact size={16} color={colors.primary} strokeWidth={2} />
               </View>
               <Text style={styles.sectionTitle}>Akun & Kontak Kedinasan</Text>
             </View>
@@ -534,7 +544,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 autoCapitalize="none"
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
-                  <MaterialIcons name="alternate-email" size={18} color={colors.outline} />
+                  <AtSign size={18} color={colors.outline} strokeWidth={2} />
                 }
               />
             </View>
@@ -550,7 +560,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 autoCapitalize="none"
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
-                  <MaterialIcons name="mail-outline" size={18} color={colors.outline} />
+                  <Mail size={18} color={colors.outline} strokeWidth={2} />
                 }
               />
             </View>
@@ -565,7 +575,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 keyboardType="phone-pad"
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
-                  <MaterialIcons name="phone" size={18} color={colors.outline} />
+                  <Phone size={18} color={colors.outline} strokeWidth={2} />
                 }
               />
             </View>
@@ -581,10 +591,10 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
               isLoading={isLoading}
               disabled={!isFormValid}
               icon={
-                <MaterialIcons
-                  name="save"
+                <Save
                   size={18}
                   color={colors.onPrimary}
+                  strokeWidth={2}
                 />
               }
             />
@@ -690,8 +700,8 @@ const styles = StyleSheet.create({
   },
   notFoundTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
     marginTop: spacing.sm,
   },
   notFoundSubtitle: {
@@ -703,23 +713,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs + 2,
-    backgroundColor: '#FFE4E6',
+    backgroundColor: colors.errorContainer,
     padding: spacing.sm + 2,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.4)',
+    borderColor: colors.errorBorder,
   },
   errorBannerText: {
     ...typography.bodySm,
-    color: colors.error,
+    color: colors.onErrorContainer,
     flex: 1,
   },
   contextCard: {
-    backgroundColor: 'rgba(0, 35, 111, 0.03)',
-    borderRadius: rounded.xl,
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: rounded.card,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(0, 35, 111, 0.12)',
+    borderColor: colors.borderSubtle,
   },
   contextTopRow: {
     flexDirection: 'row',
@@ -736,9 +746,9 @@ const styles = StyleSheet.create({
   },
   contextAvatarText: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 16,
     color: colors.onPrimary,
-    fontWeight: '700',
   },
   contextMeta: {
     flex: 1,
@@ -746,8 +756,8 @@ const styles = StyleSheet.create({
   },
   contextName: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 14,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   contextBadgeRow: {
@@ -759,79 +769,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: rounded.sm,
   },
   lockBadgeText: {
     ...typography.labelSm,
-    fontSize: 9.5,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 10,
     color: colors.primary,
   },
   statusPill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: rounded.sm,
+    borderWidth: 1,
   },
   statusPillActive: {
-    backgroundColor: 'rgba(0, 102, 68, 0.08)',
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
   },
   statusPillInactive: {
-    backgroundColor: 'rgba(186, 26, 26, 0.08)',
+    backgroundColor: colors.errorContainer,
+    borderColor: colors.errorBorder,
   },
   statusPillText: {
     ...typography.labelSm,
-    fontSize: 9.5,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 10,
   },
   statusPillTextActive: {
-    color: '#005A36',
+    color: colors.onSuccessContainer,
   },
   statusPillTextInactive: {
-    color: colors.error,
+    color: colors.onErrorContainer,
   },
   sectionCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.xl,
+    ...cardSurface,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
     gap: spacing.sm + 4,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.3)',
+    borderBottomColor: colors.borderSubtle,
     paddingBottom: spacing.xs + 4,
   },
   sectionIconWrap: {
     width: 28,
     height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sectionTitle: {
     ...typography.headlineSm,
-    fontSize: 13.5,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
   },
   fieldGroup: {
@@ -844,8 +844,7 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.labelMd,
-    fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
   },
   lockedIndicator: {
@@ -869,15 +868,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLow,
   },
   selectorTrigger: {
-    height: 48,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderStrong,
     borderRadius: rounded.md,
     paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
   },
   selectorLeft: {
     flexDirection: 'row',
@@ -898,9 +898,8 @@ const styles = StyleSheet.create({
   },
   selectorActionText: {
     ...typography.labelSm,
-    fontSize: 11,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.primary,
-    fontWeight: '600',
   },
   pressedState: {
     backgroundColor: colors.surfaceContainerLow,
@@ -911,16 +910,17 @@ const styles = StyleSheet.create({
   },
   roleCard: {
     flex: 1,
-    backgroundColor: colors.surfaceContainerLowest,
+    minHeight: MIN_TOUCH_TARGET,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderStrong,
     borderRadius: rounded.md,
     padding: spacing.sm,
     gap: 3,
   },
   roleCardActive: {
     borderColor: colors.primary,
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.surfaceSoft,
   },
   roleCardHeader: {
     flexDirection: 'row',
@@ -933,7 +933,7 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: 'rgba(197, 197, 211, 0.8)',
+    borderColor: colors.borderStrong,
   },
   radioDotActive: {
     borderColor: colors.primary,
@@ -941,8 +941,8 @@ const styles = StyleSheet.create({
   },
   roleTitle: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 11.5,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   roleTitleActive: {
@@ -950,9 +950,9 @@ const styles = StyleSheet.create({
   },
   roleDesc: {
     ...typography.bodySm,
-    fontSize: 9.5,
+    fontSize: 10,
     color: colors.onSurfaceVariant,
-    lineHeight: 12,
+    lineHeight: 13,
   },
   segmentedControl: {
     flexDirection: 'row',
@@ -960,11 +960,12 @@ const styles = StyleSheet.create({
     borderRadius: rounded.md,
     padding: 3,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
     gap: 4,
   },
   segmentedBtn: {
     flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -973,18 +974,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   segmentedBtnActive: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: colors.borderStrong,
   },
   segmentedBtnText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 11.5,
-    fontWeight: '500',
     color: colors.onSurfaceVariant,
   },
   segmentedBtnTextActive: {
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
   },
   actionSection: {

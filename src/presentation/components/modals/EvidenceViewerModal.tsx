@@ -9,14 +9,24 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
-  Platform,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  Camera,
+  CameraOff,
+  ImageOff,
+  PenTool,
+  RefreshCw,
+  Share2,
+  ShieldCheck,
+  Signature,
+  User,
+  X,
+} from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
@@ -228,11 +238,11 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIconCircle}>
-                <MaterialIcons
-                  name={activeTab === 'selfie' ? 'camera-alt' : 'draw'}
-                  size={20}
-                  color={colors.primary}
-                />
+                {activeTab === 'selfie' ? (
+                  <Camera size={20} color={colors.primary} strokeWidth={2} />
+                ) : (
+                  <PenTool size={20} color={colors.primary} strokeWidth={2} />
+                )}
               </View>
               <View style={styles.headerTitleWrap}>
                 <Text style={styles.headerTitle}>Bukti Kehadiran Sah</Text>
@@ -246,7 +256,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
               style={({ pressed }) => [styles.closeBtn, pressed && styles.btnPressed]}
               accessibilityLabel="Tutup dialog bukti kehadiran"
             >
-              <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
+              <X size={20} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -261,10 +271,10 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
               accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'selfie' }}
             >
-              <MaterialIcons
-                name="person"
+              <User
                 size={17}
-                color={activeTab === 'selfie' ? colors.primary : colors.onSurfaceVariant}
+                color={activeTab === 'selfie' ? colors.primary : colors.textSecondary}
+                strokeWidth={2}
               />
               <Text
                 style={[
@@ -285,10 +295,10 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
               accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'signature' }}
             >
-              <MaterialIcons
-                name="gesture"
+              <Signature
                 size={17}
-                color={activeTab === 'signature' ? colors.primary : colors.onSurfaceVariant}
+                color={activeTab === 'signature' ? colors.primary : colors.textSecondary}
+                strokeWidth={2}
               />
               <Text
                 style={[
@@ -334,11 +344,11 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
 
                 {mediaErrorMessage && !isLoadingMedia ? (
                   <View style={styles.errorBox}>
-                    <MaterialIcons
-                      name={activeTab === 'selfie' ? 'no-photography' : 'broken-image'}
-                      size={44}
-                      color={colors.outline}
-                    />
+                    {activeTab === 'selfie' ? (
+                      <CameraOff size={44} color={colors.textMuted} strokeWidth={2} />
+                    ) : (
+                      <ImageOff size={44} color={colors.textMuted} strokeWidth={2} />
+                    )}
                     <Text style={styles.errorTitle}>
                       {activeTab === 'selfie' ? 'Swafoto Belum Tersedia' : 'Tanda Tangan Belum Tersedia'}
                     </Text>
@@ -349,7 +359,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
                       accessibilityRole="button"
                       accessibilityLabel="Coba muat ulang berkas bukti"
                     >
-                      <MaterialIcons name="refresh" size={16} color={colors.primary} />
+                      <RefreshCw size={16} color={colors.primary} strokeWidth={2} />
                       <Text style={styles.retryBtnText}>Coba Muat Ulang</Text>
                     </Pressable>
                   </View>
@@ -361,7 +371,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
             <View style={styles.authenticityCard}>
               <View style={styles.authenticityHeader}>
                 <View style={styles.verifiedRow}>
-                  <MaterialIcons name="verified" size={16} color={colors.success} />
+                  <ShieldCheck size={16} color={colors.success} strokeWidth={2} />
                   <Text style={styles.verifiedText}>BUKTI SAH PRESENSI KEDINASAN</Text>
                 </View>
                 <Text style={styles.instansiSub}>
@@ -419,7 +429,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
                   isLoading={isSharing}
                   variant="outline"
                   size="md"
-                  icon={<MaterialIcons name="share" size={18} color={colors.primary} />}
+                  icon={<Share2 size={18} color={colors.primary} strokeWidth={2} />}
                   style={{ flex: 1 }}
                 />
               ) : null}
@@ -441,19 +451,17 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    backgroundColor: colors.scrimNeutralTop,
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalCard: {
+    ...cardSurface,
     width: Math.min(SCREEN_WIDTH - spacing.md * 2, 440),
     maxHeight: SCREEN_HEIGHT * 0.88,
-    backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    ...elevations.level3,
+    borderColor: colors.borderStrong,
     overflow: 'hidden',
   },
   header: {
@@ -463,8 +471,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -476,7 +484,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: rounded.full,
-    backgroundColor: 'rgba(0, 102, 204, 0.1)',
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm,
@@ -486,21 +494,21 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
   },
   headerSubtitle: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 1,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     borderRadius: rounded.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   btnPressed: {
     opacity: 0.7,
@@ -508,10 +516,12 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
     borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
     padding: 3,
   },
   tabItem: {
@@ -519,22 +529,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     gap: 6,
-    paddingVertical: spacing.xs + 2,
     borderRadius: rounded.sm,
   },
   tabItemActive: {
-    backgroundColor: colors.surfaceContainerLowest,
-    ...elevations.level1,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   tabItemText: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textSecondary,
   },
   tabItemTextActive: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
-    fontWeight: '700',
   },
   modalBody: {
     maxHeight: SCREEN_HEIGHT * 0.56,
@@ -546,11 +557,11 @@ const styles = StyleSheet.create({
   canvasContainer: {
     width: '100%',
     height: 250,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: colors.borderStrong,
   },
   canvasZoomWrapper: {
     width: '100%',
@@ -568,64 +579,66 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: colors.surfaceCard,
+    opacity: 0.92,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
   },
   loadingText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.primary,
-    fontWeight: '600',
   },
   errorBox: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     padding: spacing.md,
     gap: 4,
   },
   errorTitle: {
     ...typography.bodyMd,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
-    fontWeight: '600',
     marginTop: spacing.xs,
   },
   errorSub: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
     maxWidth: '90%',
   },
   retryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+    gap: 6,
     marginTop: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surfaceCard,
+    borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: colors.borderStrong,
   },
   retryBtnText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.primary,
-    fontWeight: '600',
   },
   authenticityCard: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: colors.borderSubtle,
     padding: spacing.md,
     gap: spacing.xs,
   },
   authenticityHeader: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
     paddingBottom: spacing.xs + 2,
     marginBottom: spacing.xs,
     gap: 2,
@@ -637,14 +650,14 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.success,
-    fontWeight: '700',
     letterSpacing: 0.5,
   },
   instansiSub: {
     ...typography.bodySm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
   metaTable: {
     gap: spacing.xs,
@@ -654,18 +667,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingVertical: 3,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(197, 197, 211, 0.4)',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
   },
   metaLabel: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
     flex: 1,
   },
   metaValue: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
-    fontWeight: '600',
     textAlign: 'right',
     flex: 1.5,
   },
@@ -679,8 +692,8 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.outlineVariant,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
   },
   footerButtons: {
     flexDirection: 'row',

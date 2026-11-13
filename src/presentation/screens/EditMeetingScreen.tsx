@@ -1,44 +1,74 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  TextInput,
-  Platform,
   ActivityIndicator,
-  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing } from '../../core/theme/tokens';
-import { Header } from '../components/common/Header';
-import { Button } from '../components/common/Button';
-import { ErrorState } from '../components/common/ErrorState';
-import { FeedbackModal } from '../components/modals/FeedbackModal';
-import { useMeetingStore } from '../store/useMeetingStore';
-import { useFeedbackStore } from '../store/useFeedbackStore';
-import { Meeting, MeetingType, MeetingStatus } from '../../domain/entities/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as DocumentPicker from 'expo-document-picker';
 import {
-  AgendaOptionModal,
-  AgendaOption,
-} from '../components/modals/AgendaOptionModal';
+  ArrowLeft,
+  BarChart3,
+  Building,
+  Calendar,
+  CheckCircle2,
+  CheckSquare,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  CircleDot,
+  Clock,
+  DoorOpen,
+  Eye,
+  FilePenLine,
+  FileText,
+  GraduationCap,
+  Image as ImageIcon,
+  Landmark,
+  LucideIcon,
+  Network,
+  NotebookPen,
+  Paperclip,
+  Pencil,
+  Radio,
+  RefreshCw,
+  Scale,
+  Square,
+  Tag,
+  Upload,
+  User,
+  Users,
+  Video,
+  X,
+  XCircle,
+} from 'lucide-react-native';
+import { colors } from '../../core/theme/colors';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
+import { resolveFileMimeType, UploadFileRef } from '../../data/datasources/agendaApi';
+import { toIsoDateTime } from '../../data/mappers/apiMappers';
+import { Meeting, MeetingType } from '../../domain/entities/types';
+import { Header } from '../components/common/Header';
+import { ErrorState } from '../components/common/ErrorState';
+import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import {
   CalendarDatePickerModal,
-  getJakartaDateKey,
   formatIndonesianDate,
+  getJakartaDateKey,
 } from '../components/modals/CalendarDatePickerModal';
+import { FeedbackModal } from '../components/modals/FeedbackModal';
+import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import {
   CLASSIFICATION_OPTIONS,
-  VENUE_OPTIONS,
   STATUS_OPTIONS,
+  VENUE_OPTIONS,
 } from '../constants/meetingOptions';
-import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
-import * as DocumentPicker from 'expo-document-picker';
-import { toIsoDateTime } from '../../data/mappers/apiMappers';
-import { UploadFileRef, resolveFileMimeType } from '../../data/datasources/agendaApi';
+import { useFeedbackStore } from '../store/useFeedbackStore';
+import { useMeetingStore } from '../store/useMeetingStore';
 
 interface EditMeetingScreenProps {
   meetingId: string;
@@ -48,31 +78,64 @@ interface EditMeetingScreenProps {
 
 type ActiveModalType = 'none' | 'classification' | 'leader' | 'notulis' | 'venue' | 'date';
 
+const CLASSIFICATION_ICON_MAP: Record<string, LucideIcon> = {
+  'sync-alt': RefreshCw,
+  'account-balance': Landmark,
+  assessment: BarChart3,
+  school: GraduationCap,
+  gavel: Scale,
+  edit: Pencil,
+};
+
+function getClassificationIcon(icon: unknown): LucideIcon {
+  if (typeof icon === 'function') return icon as LucideIcon;
+  if (typeof icon === 'string' && CLASSIFICATION_ICON_MAP[icon]) {
+    return CLASSIFICATION_ICON_MAP[icon];
+  }
+  return Tag;
+}
+
+function getStatusMeta(id: string): { icon: LucideIcon; tint: string } {
+  switch (id) {
+    case 'draft':
+      return { icon: FilePenLine, tint: colors.textMuted };
+    case 'scheduled':
+      return { icon: Clock, tint: colors.infoText };
+    case 'ongoing':
+      return { icon: Radio, tint: colors.warningLight };
+    case 'completed':
+      return { icon: CheckCircle2, tint: colors.success };
+    case 'cancelled':
+      return { icon: XCircle, tint: colors.error };
+    default:
+      return { icon: Clock, tint: colors.primary };
+  }
+}
+
 export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   meetingId,
   onBack,
   onSuccess,
 }) => {
+  const insets = useSafeAreaInsets();
   const {
     getMeetingById,
     updateMeeting,
     isLoading,
     formOptions,
     fetchAgendaFormOptions,
-    isFormOptionsLoading,
   } = useMeetingStore();
 
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
-
-  // Read-only meta
   const [meetingCode, setMeetingCode] = useState('');
 
-  // Form State
   const [title, setTitle] = useState('');
   const [classification, setClassification] = useState('koordinasi');
   const [customClassification, setCustomClassification] = useState('');
-  const [status, setStatus] = useState<'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'draft'>('scheduled');
+  const [status, setStatus] = useState<
+    'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'draft'
+  >('scheduled');
   const [formatType, setFormatType] = useState<MeetingType>('hybrid');
 
   const [leaderName, setLeaderName] = useState('');
@@ -96,9 +159,10 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   const [scopeUniversal, setScopeUniversal] = useState(true);
   const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
 
-  // Attachments
   const [existingAttachmentUrl, setExistingAttachmentUrl] = useState<string | null>(null);
-  const [existingAttachmentMeta, setExistingAttachmentMeta] = useState<Meeting['suratEdaran'] | null>(null);
+  const [existingAttachmentMeta, setExistingAttachmentMeta] = useState<
+    Meeting['suratEdaran'] | null
+  >(null);
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
   const [viewerModalConfig, setViewerModalConfig] = useState<{
     visible: boolean;
@@ -107,11 +171,8 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     name?: string;
     size?: number;
     mime?: string;
-  }>({
-    visible: false,
-  });
+  }>({ visible: false });
 
-  // Modals & Feedback
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [updatedSummary, setUpdatedSummary] = useState<{
@@ -121,7 +182,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     status: string;
   } | null>(null);
 
-  // Load meeting data & options on mount
   const loadMeetingData = async () => {
     setIsInitializing(true);
     setInitError(null);
@@ -132,27 +192,24 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         setMeetingCode(agenda.code);
         setTitle(agenda.title);
 
-        // Classification
-        const isPresetClass = CLASSIFICATION_OPTIONS.some(
-          (c) => c.title.toLowerCase() === agenda.agendaDescription?.toLowerCase() || c.id === agenda.classification
+        const matchClass = CLASSIFICATION_OPTIONS.find(
+          (c) =>
+            c.title.toLowerCase() === agenda.agendaDescription?.toLowerCase() ||
+            c.id === agenda.classification,
         );
-        if (isPresetClass) {
-          const match = CLASSIFICATION_OPTIONS.find(
-            (c) => c.title.toLowerCase() === agenda.agendaDescription?.toLowerCase() || c.id === agenda.classification
-          );
-          setClassification(match?.id || 'koordinasi');
+        if (matchClass) {
+          setClassification(matchClass.id);
           setCustomClassification('');
         } else {
           setClassification('custom');
           setCustomClassification(agenda.agendaDescription || '');
         }
 
-        // Format & Status
         setFormatType(agenda.type);
-        const mappedStatus = agenda.rawStatus || (agenda.status === 'upcoming' ? 'scheduled' : agenda.status);
-        setStatus(mappedStatus as any);
+        const mappedStatus =
+          agenda.rawStatus || (agenda.status === 'upcoming' ? 'scheduled' : agenda.status);
+        setStatus(mappedStatus as typeof status);
 
-        // Date & Times
         if (agenda.date) {
           setDateIso(agenda.date);
           try {
@@ -164,16 +221,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         setStartTime(agenda.startTime || '09:00');
         setEndTime(agenda.endTime || '12:00');
 
-        // Venue
-        const isPresetVenue = VENUE_OPTIONS.some(
-          (v) => v.title.toLowerCase() === agenda.venue?.toLowerCase()
+        const matchVenue = VENUE_OPTIONS.find(
+          (v) => v.title.toLowerCase() === agenda.venue?.toLowerCase(),
         );
-        if (isPresetVenue) {
-          const match = VENUE_OPTIONS.find(
-            (v) => v.title.toLowerCase() === agenda.venue?.toLowerCase()
-          );
-          setVenue(match?.title || agenda.venue);
-          setVenueId(match?.id || '');
+        if (matchVenue) {
+          setVenue(matchVenue.title);
+          setVenueId(matchVenue.id);
           setCustomVenue('');
         } else if (agenda.venue) {
           setVenue(agenda.venue);
@@ -186,21 +239,13 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         }
 
         setZoomUrl(agenda.zoomUrl || '');
-
-        // Leader
         setLeaderName(agenda.leader || '');
         setLeaderId(agenda.leaderId ? String(agenda.leaderId) : '');
         setLeaderRole('Pimpinan Rapat');
-
-        // Notulis
         setNotulisName(agenda.notulis || '');
         setNotulisId(agenda.notulisId ? String(agenda.notulisId) : '');
-
-        // Scope & Units
         setScopeUniversal(agenda.isAllUnits ?? true);
         setSelectedUnits(agenda.unitIds || []);
-
-        // Attachment
         setExistingAttachmentUrl(agenda.invitationPdfUrl || null);
         setExistingAttachmentMeta(agenda.suratEdaran || null);
       }
@@ -215,7 +260,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     void loadMeetingData();
   }, [meetingId]);
 
-  // Selected Classification Memo
   const selectedClassification = useMemo(() => {
     if (classification === 'custom' && customClassification.trim()) {
       return {
@@ -223,18 +267,19 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         title: customClassification.trim(),
         subtitle: 'Klasifikasi Rapat Kustom',
         badge: 'Kustom',
-        icon: 'edit' as const,
+        icon: Pencil,
       };
     }
     return (
-      CLASSIFICATION_OPTIONS.find((c) => c.id === classification) ||
-      CLASSIFICATION_OPTIONS[0]
+      CLASSIFICATION_OPTIONS.find((c) => c.id === classification) || CLASSIFICATION_OPTIONS[0]
     );
   }, [classification, customClassification]);
 
+  const ClassificationIcon = getClassificationIcon(selectedClassification.icon);
+
   const toggleUnit = (unitId: number) => {
     setSelectedUnits((prev) =>
-      prev.includes(unitId) ? prev.filter((id) => id !== unitId) : [...prev, unitId]
+      prev.includes(unitId) ? prev.filter((id) => id !== unitId) : [...prev, unitId],
     );
   };
 
@@ -329,8 +374,9 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         judul_rapat: title.trim(),
         jenis_rapat: selectedClassification.title,
         tipe_rapat: formatType,
-        status: status,
-        lokasi_ruang: formatType === 'online' ? null : (venue === 'Pilih ruang rapat' ? null : venue),
+        status,
+        lokasi_ruang:
+          formatType === 'online' ? null : venue === 'Pilih ruang rapat' ? null : venue,
         link_meeting: formatType === 'offline' ? null : zoomUrl || null,
         waktu_mulai: toIsoDateTime(dateIso, startTime),
         waktu_selesai: endTime.trim() ? toIsoDateTime(dateIso, endTime) : null,
@@ -339,7 +385,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         is_all_units: scopeUniversal,
         unit_ids: scopeUniversal ? [] : selectedUnits,
       },
-      attachedFile ?? undefined
+      attachedFile ?? undefined,
     );
 
     if (updated) {
@@ -354,7 +400,9 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
       const currentError = useMeetingStore.getState().error;
       useFeedbackStore.getState().showToast({
         type: 'error',
-        message: currentError || 'Gagal memperbarui agenda rapat. Silakan periksa kembali isian formulir.',
+        message:
+          currentError ||
+          'Gagal memperbarui agenda rapat. Silakan periksa kembali isian formulir.',
       });
     }
   };
@@ -393,12 +441,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         return {
           title: 'Pilih Pimpinan Rapat',
           subtitle: 'Penanggung jawab sidang kedinasan LLDIKTI Wilayah X',
-          options: (formOptions?.users ?? []).map((user) => ({
-            id: String(user.id),
-            title: user.name,
-            subtitle: `${user.role.label} • NIP. ${user.nip ?? '—'}`,
-            badge: user.role.label,
-            icon: 'person',
+          options: (formOptions?.users ?? []).map((u) => ({
+            id: String(u.id),
+            title: u.name,
+            subtitle: `${u.role.label} • NIP. ${u.nip ?? '—'}`,
+            badge: u.role.label,
+            icon: User,
           })),
           selectedId: leaderId,
           searchable: true,
@@ -411,12 +459,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         return {
           title: 'Pilih Petugas Notulis',
           subtitle: 'Petugas penyusun risalah dan notulensi sidang',
-          options: (formOptions?.users ?? []).map((user) => ({
-            id: String(user.id),
-            title: user.name,
-            subtitle: `${user.role.label} • NIP. ${user.nip ?? '—'}`,
-            badge: user.role.label,
-            icon: 'edit-note',
+          options: (formOptions?.users ?? []).map((u) => ({
+            id: String(u.id),
+            title: u.name,
+            subtitle: `${u.role.label} • NIP. ${u.nip ?? '—'}`,
+            badge: u.role.label,
+            icon: NotebookPen,
           })),
           selectedId: notulisId,
           searchable: true,
@@ -440,12 +488,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
           customInitialValue: customVenue,
         };
       default:
-        return {
-          title: '',
-          subtitle: '',
-          options: [],
-          selectedId: '',
-        };
+        return { title: '', subtitle: '', options: [], selectedId: '' };
     }
   };
 
@@ -490,7 +533,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
   const modalConfig = getModalConfig();
 
-  // Loading State
   if (isInitializing) {
     return (
       <View style={styles.container}>
@@ -511,7 +553,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     );
   }
 
-  // Error State
   if (initError) {
     return (
       <View style={styles.container}>
@@ -544,7 +585,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleWrap}>
-              <MaterialIcons name="event-note" size={18} color={colors.primary} />
+              <FileText size={18} color={colors.primary} strokeWidth={2} />
               <Text style={styles.sectionTitle}>Status & Informasi Agenda</Text>
             </View>
             <View style={styles.codePill}>
@@ -552,7 +593,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             </View>
           </View>
 
-          {/* Perihal / Judul Rapat */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               Perihal / Judul Agenda Rapat <Text style={styles.required}>*</Text>
@@ -562,11 +602,10 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
               value={title}
               onChangeText={setTitle}
               placeholder="Contoh: Rapat Koordinasi Penjaminan Mutu Triwulan III"
-              placeholderTextColor={colors.outline}
+              placeholderTextColor={colors.textMuted}
             />
           </View>
 
-          {/* Status Penyelenggaraan Rapat */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               Status Penyelenggaraan Rapat <Text style={styles.required}>*</Text>
@@ -578,6 +617,8 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             >
               {STATUS_OPTIONS.map((opt) => {
                 const isSelected = status === opt.id;
+                const meta = getStatusMeta(opt.id);
+                const StatusIcon = meta.icon;
                 return (
                   <Pressable
                     key={opt.id}
@@ -590,10 +631,10 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                     accessibilityRole="radio"
                     accessibilityState={{ selected: isSelected }}
                   >
-                    <MaterialIcons
-                      name={opt.icon}
+                    <StatusIcon
                       size={15}
-                      color={isSelected ? colors.onPrimary : opt.color}
+                      color={isSelected ? colors.onPrimary : meta.tint}
+                      strokeWidth={2}
                     />
                     <Text
                       style={[
@@ -609,24 +650,16 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             </ScrollView>
           </View>
 
-          {/* Klasifikasi / Jenis Rapat */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               Klasifikasi / Jenis Rapat <Text style={styles.required}>*</Text>
             </Text>
             <Pressable
               onPress={() => setActiveModal('classification')}
-              style={({ pressed }) => [
-                styles.selectorTrigger,
-                pressed && styles.pressedState,
-              ]}
+              style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
             >
               <View style={styles.selectorLeft}>
-                <MaterialIcons
-                  name={selectedClassification.icon || 'category'}
-                  size={18}
-                  color={colors.primary}
-                />
+                <ClassificationIcon size={18} color={colors.primary} strokeWidth={2} />
                 <Text style={styles.selectorValue} numberOfLines={1}>
                   {selectedClassification.title}
                 </Text>
@@ -634,21 +667,14 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
               <View style={styles.selectorRight}>
                 {selectedClassification.badge ? (
                   <View style={styles.selectorBadge}>
-                    <Text style={styles.selectorBadgeText}>
-                      {selectedClassification.badge}
-                    </Text>
+                    <Text style={styles.selectorBadgeText}>{selectedClassification.badge}</Text>
                   </View>
                 ) : null}
-                <MaterialIcons
-                  name="expand-more"
-                  size={20}
-                  color={colors.onSurfaceVariant}
-                />
+                <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
               </View>
             </Pressable>
           </View>
 
-          {/* Segmented Format Buttons */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               Format Penyelenggaraan Rapat <Text style={styles.required}>*</Text>
@@ -656,15 +682,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             <View style={styles.formatSegmentedGrid}>
               <Pressable
                 onPress={() => setFormatType('offline')}
-                style={[
-                  styles.formatBtn,
-                  formatType === 'offline' && styles.formatBtnActive,
-                ]}
+                style={[styles.formatBtn, formatType === 'offline' && styles.formatBtnActive]}
               >
-                <MaterialIcons
-                  name="apartment"
-                  size={18}
-                  color={formatType === 'offline' ? colors.onPrimary : colors.outline}
+                <Building
+                  size={17}
+                  color={formatType === 'offline' ? colors.onPrimary : colors.textMuted}
+                  strokeWidth={2}
                 />
                 <Text
                   style={[
@@ -678,15 +701,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
               <Pressable
                 onPress={() => setFormatType('online')}
-                style={[
-                  styles.formatBtn,
-                  formatType === 'online' && styles.formatBtnActive,
-                ]}
+                style={[styles.formatBtn, formatType === 'online' && styles.formatBtnActive]}
               >
-                <MaterialIcons
-                  name="videocam"
-                  size={18}
-                  color={formatType === 'online' ? colors.onPrimary : colors.outline}
+                <Video
+                  size={17}
+                  color={formatType === 'online' ? colors.onPrimary : colors.textMuted}
+                  strokeWidth={2}
                 />
                 <Text
                   style={[
@@ -700,15 +720,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
               <Pressable
                 onPress={() => setFormatType('hybrid')}
-                style={[
-                  styles.formatBtn,
-                  formatType === 'hybrid' && styles.formatBtnActive,
-                ]}
+                style={[styles.formatBtn, formatType === 'hybrid' && styles.formatBtnActive]}
               >
-                <MaterialIcons
-                  name="devices"
-                  size={18}
-                  color={formatType === 'hybrid' ? colors.onPrimary : colors.outline}
+                <Network
+                  size={17}
+                  color={formatType === 'hybrid' ? colors.onPrimary : colors.textMuted}
+                  strokeWidth={2}
                 />
                 <Text
                   style={[
@@ -722,15 +739,11 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             </View>
           </View>
 
-          {/* Pimpinan Rapat Picker */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Pimpinan Rapat Kedinasan</Text>
             <Pressable
               onPress={() => setActiveModal('leader')}
-              style={({ pressed }) => [
-                styles.entityCard,
-                pressed && styles.pressedState,
-              ]}
+              style={({ pressed }) => [styles.entityCard, pressed && styles.pressedState]}
             >
               <View style={styles.leaderAvatar}>
                 <Text style={styles.leaderAvatarText}>
@@ -751,33 +764,27 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
               </View>
               <View style={styles.actionPill}>
                 <Text style={styles.actionPillText}>Ganti</Text>
-                <MaterialIcons name="chevron-right" size={16} color={colors.primary} />
+                <ChevronRight size={15} color={colors.primary} strokeWidth={2} />
               </View>
             </Pressable>
           </View>
 
-          {/* Notulis Picker */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Petugas Notulis / Risalah Rapat</Text>
             <Pressable
               onPress={() => setActiveModal('notulis')}
-              style={({ pressed }) => [
-                styles.entityCard,
-                pressed && styles.pressedState,
-              ]}
+              style={({ pressed }) => [styles.entityCard, pressed && styles.pressedState]}
             >
               <View style={styles.notulisIconWrap}>
-                <MaterialIcons name="edit-note" size={20} color={colors.primary} />
+                <NotebookPen size={18} color={colors.primary} strokeWidth={2} />
               </View>
               <View style={styles.entityInfo}>
                 <Text style={styles.entityName}>{notulisName || 'Pilih Petugas Notulis'}</Text>
-                <Text style={styles.entitySub}>
-                  Petugas Notulensi Sidang Kedinasan
-                </Text>
+                <Text style={styles.entitySub}>Petugas Notulensi Sidang Kedinasan</Text>
               </View>
               <View style={styles.actionPill}>
                 <Text style={styles.actionPillText}>Ganti</Text>
-                <MaterialIcons name="chevron-right" size={16} color={colors.primary} />
+                <ChevronRight size={15} color={colors.primary} strokeWidth={2} />
               </View>
             </Pressable>
           </View>
@@ -787,41 +794,38 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleWrap}>
-              <MaterialIcons name="schedule" size={18} color={colors.primary} />
+              <Clock size={18} color={colors.primary} strokeWidth={2} />
               <Text style={styles.sectionTitle}>Waktu & Tempat Pelaksanaan</Text>
             </View>
           </View>
 
-          {/* Tanggal Modal Trigger */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               Tanggal Rapat <Text style={styles.required}>*</Text>
             </Text>
             <Pressable
               onPress={() => setActiveModal('date')}
-              style={({ pressed }) => [
-                styles.selectorTrigger,
-                pressed && styles.pressedState,
-              ]}
+              style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
             >
               <View style={styles.selectorLeft}>
-                <MaterialIcons name="calendar-today" size={18} color={colors.primary} />
+                <Calendar size={18} color={colors.primary} strokeWidth={2} />
                 <Text style={styles.selectorValue}>{date}</Text>
               </View>
-              <MaterialIcons name="edit-calendar" size={18} color={colors.primary} />
+              <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
             </Pressable>
           </View>
 
-          {/* Jam Mulai & Jam Selesai */}
           <View style={styles.timeRow}>
             <View style={styles.timeCol}>
-              <Text style={styles.label}>Mulai (WIB) <Text style={styles.required}>*</Text></Text>
+              <Text style={styles.label}>
+                Mulai (WIB) <Text style={styles.required}>*</Text>
+              </Text>
               <TextInput
                 style={styles.timeInput}
                 value={startTime}
                 onChangeText={setStartTime}
                 placeholder="09:00"
-                placeholderTextColor={colors.outline}
+                placeholderTextColor={colors.textMuted}
               />
             </View>
             <View style={styles.timeCol}>
@@ -831,12 +835,11 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                 value={endTime}
                 onChangeText={setEndTime}
                 placeholder="12:00"
-                placeholderTextColor={colors.outline}
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           </View>
 
-          {/* Venue Selector */}
           {formatType !== 'online' ? (
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
@@ -844,13 +847,10 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
               </Text>
               <Pressable
                 onPress={() => setActiveModal('venue')}
-                style={({ pressed }) => [
-                  styles.selectorTrigger,
-                  pressed && styles.pressedState,
-                ]}
+                style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
               >
                 <View style={styles.selectorLeft}>
-                  <MaterialIcons name="meeting-room" size={18} color={colors.secondary} />
+                  <DoorOpen size={18} color={colors.primary} strokeWidth={2} />
                   <Text style={styles.selectorValue} numberOfLines={1}>
                     {venue}
                   </Text>
@@ -861,21 +861,16 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                       <Text style={styles.selectorBadgeText}>Kustom</Text>
                     </View>
                   ) : null}
-                  <MaterialIcons
-                    name="expand-more"
-                    size={20}
-                    color={colors.onSurfaceVariant}
-                  />
+                  <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
                 </View>
               </Pressable>
             </View>
           ) : null}
 
-          {/* Zoom URL (Online / Hybrid) */}
           {formatType !== 'offline' ? (
             <View style={styles.virtualMeetingBox}>
               <View style={styles.virtualHeader}>
-                <MaterialIcons name="videocam" size={16} color={colors.primary} />
+                <Video size={16} color={colors.primary} strokeWidth={2} />
                 <Text style={styles.virtualTitle}>Tautan Pertemuan Virtual</Text>
               </View>
               <TextInput
@@ -883,7 +878,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                 value={zoomUrl}
                 onChangeText={setZoomUrl}
                 placeholder="https://lldikti10.kemdikbud.go.id/zoom/..."
-                placeholderTextColor={colors.outline}
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
               />
             </View>
@@ -894,7 +889,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleWrap}>
-              <MaterialIcons name="groups" size={18} color={colors.primary} />
+              <Users size={18} color={colors.primary} strokeWidth={2} />
               <Text style={styles.sectionTitle}>Sasaran Peserta & Unit Kerja</Text>
             </View>
           </View>
@@ -903,11 +898,11 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             onPress={() => setScopeUniversal(true)}
             style={[styles.radioCard, scopeUniversal && styles.radioCardActive]}
           >
-            <MaterialIcons
-              name={scopeUniversal ? 'radio-button-checked' : 'radio-button-unchecked'}
-              size={20}
-              color={scopeUniversal ? colors.primary : colors.outline}
-            />
+            {scopeUniversal ? (
+              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+            ) : (
+              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+            )}
             <View style={styles.radioTextWrap}>
               <Text style={styles.radioTitle}>Seluruh Pegawai LLDIKTI X</Text>
               <Text style={styles.radioSub}>
@@ -920,11 +915,11 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             onPress={() => setScopeUniversal(false)}
             style={[styles.radioCard, !scopeUniversal && styles.radioCardActive]}
           >
-            <MaterialIcons
-              name={!scopeUniversal ? 'radio-button-checked' : 'radio-button-unchecked'}
-              size={20}
-              color={!scopeUniversal ? colors.primary : colors.outline}
-            />
+            {!scopeUniversal ? (
+              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+            ) : (
+              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+            )}
             <View style={styles.radioTextWrap}>
               <Text style={styles.radioTitle}>Unit Kerja Tertentu</Text>
               <Text style={styles.radioSub}>
@@ -943,16 +938,13 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                     <Pressable
                       key={unit.id}
                       onPress={() => toggleUnit(unit.id)}
-                      style={[
-                        styles.unitChip,
-                        isChecked && styles.unitChipSelected,
-                      ]}
+                      style={[styles.unitChip, isChecked && styles.unitChipSelected]}
                     >
-                      <MaterialIcons
-                        name={isChecked ? 'check-box' : 'check-box-outline-blank'}
-                        size={16}
-                        color={isChecked ? colors.primary : colors.outline}
-                      />
+                      {isChecked ? (
+                        <CheckSquare size={16} color={colors.onPrimary} strokeWidth={2} />
+                      ) : (
+                        <Square size={16} color={colors.textMuted} strokeWidth={2} />
+                      )}
                       <Text
                         style={[
                           styles.unitChipText,
@@ -973,30 +965,33 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleWrap}>
-              <MaterialIcons name="attach-file" size={18} color={colors.primary} />
+              <Paperclip size={18} color={colors.primary} strokeWidth={2} />
               <Text style={styles.sectionTitle}>Dokumen Surat Undangan / Nota Dinas</Text>
             </View>
           </View>
 
-          {/* Existing Attachment Display */}
           {existingAttachmentUrl && !attachedFile ? (
             <View style={styles.existingAttachmentCard}>
               <View style={styles.attachedLeft}>
                 <View
                   style={[
                     styles.attachedIconBox,
-                    existingAttachmentMeta?.is_image ? { backgroundColor: 'rgba(0, 102, 204, 0.08)' } : null,
+                    existingAttachmentMeta?.is_image
+                      ? styles.attachedBadgeImage
+                      : styles.attachedBadgePdf,
                   ]}
                 >
-                  <MaterialIcons
-                    name={existingAttachmentMeta?.is_image ? 'image' : 'picture-as-pdf'}
-                    size={20}
-                    color={existingAttachmentMeta?.is_image ? colors.primary : colors.error}
-                  />
+                  {existingAttachmentMeta?.is_image ? (
+                    <ImageIcon size={18} color={colors.primary} strokeWidth={2} />
+                  ) : (
+                    <FileText size={18} color={colors.error} strokeWidth={2} />
+                  )}
                 </View>
                 <View style={styles.attachedInfo}>
                   <Text style={styles.attachedName} numberOfLines={1}>
-                    Surat-Edaran_{meetingCode || 'Agenda'}.{existingAttachmentMeta?.extension || (existingAttachmentMeta?.is_image ? 'jpg' : 'pdf')}
+                    Surat-Edaran_{meetingCode || 'Agenda'}.
+                    {existingAttachmentMeta?.extension ||
+                      (existingAttachmentMeta?.is_image ? 'jpg' : 'pdf')}
                   </Text>
                   <Text style={styles.attachedMeta}>Berkas Surat Resmi Terlampir di Server</Text>
                 </View>
@@ -1006,33 +1001,30 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                 style={styles.attachedActionBtn}
                 accessibilityLabel="Pratinjau berkas saat ini"
               >
-                <MaterialIcons name="visibility" size={18} color={colors.primary} />
+                <Eye size={18} color={colors.primary} strokeWidth={2} />
               </Pressable>
             </View>
           ) : null}
 
-          {/* Upload Dropzone / Replace Button */}
           <Pressable
             onPress={handleUploadFile}
-            style={({ pressed }) => [
-              styles.dropzone,
-              pressed && styles.pressedState,
-            ]}
+            style={({ pressed }) => [styles.dropzone, pressed && styles.pressedState]}
           >
             <View style={styles.dropzoneIconWrap}>
-              <MaterialIcons name="upload-file" size={22} color={colors.primary} />
+              <Upload size={20} color={colors.primary} strokeWidth={2} />
             </View>
             <View style={styles.dropzoneTextWrap}>
               <Text style={styles.dropzoneTitle}>
-                {existingAttachmentUrl ? 'Unggah Berkas Baru Pengganti' : 'Unggah Surat Undangan / Nota Dinas'}
+                {existingAttachmentUrl
+                  ? 'Unggah Berkas Baru Pengganti'
+                  : 'Unggah Surat Undangan / Nota Dinas'}
               </Text>
               <Text style={styles.dropzoneSub}>
-                Format PDF bertanda tangan digital (Maksimal 5 MB)
+                Format PDF atau gambar bertanda tangan digital (Maksimal 5 MB)
               </Text>
             </View>
           </Pressable>
 
-          {/* Newly Selected File */}
           {attachedFile ? (
             <View style={styles.attachedCard}>
               <View style={styles.attachedLeft}>
@@ -1040,22 +1032,23 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                   style={[
                     styles.attachedIconBox,
                     attachedFile.type.startsWith('image/')
-                      ? { backgroundColor: 'rgba(0, 102, 204, 0.08)' }
-                      : null,
+                      ? styles.attachedBadgeImage
+                      : styles.attachedBadgePdf,
                   ]}
                 >
-                  <MaterialIcons
-                    name={attachedFile.type.startsWith('image/') ? 'image' : 'picture-as-pdf'}
-                    size={20}
-                    color={attachedFile.type.startsWith('image/') ? colors.primary : colors.error}
-                  />
+                  {attachedFile.type.startsWith('image/') ? (
+                    <ImageIcon size={18} color={colors.primary} strokeWidth={2} />
+                  ) : (
+                    <FileText size={18} color={colors.error} strokeWidth={2} />
+                  )}
                 </View>
                 <View style={styles.attachedInfo}>
                   <Text style={styles.attachedName} numberOfLines={1}>
                     {attachedFile.name} (Berkas Baru)
                   </Text>
                   <Text style={styles.attachedMeta}>
-                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB • {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
+                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB •{' '}
+                    {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
                   </Text>
                 </View>
               </View>
@@ -1065,14 +1058,14 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                   style={styles.attachedActionBtn}
                   accessibilityLabel="Pratinjau lampiran baru"
                 >
-                  <MaterialIcons name="visibility" size={18} color={colors.primary} />
+                  <Eye size={18} color={colors.primary} strokeWidth={2} />
                 </Pressable>
                 <Pressable
                   onPress={() => setAttachedFile(null)}
                   style={styles.attachedActionBtn}
                   accessibilityLabel="Hapus lampiran baru"
                 >
-                  <MaterialIcons name="close" size={18} color={colors.error} />
+                  <X size={18} color={colors.error} strokeWidth={2} />
                 </Pressable>
               </View>
             </View>
@@ -1081,16 +1074,18 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
       </ScrollView>
 
       {/* Sticky Bottom Actions Bar */}
-      <View style={styles.stickyFooter}>
+      <View
+        style={[
+          styles.stickyFooter,
+          { paddingBottom: Math.max(insets.bottom, spacing.md) },
+        ]}
+      >
         <View style={styles.footerGrid}>
           <Pressable
             onPress={onBack}
-            style={({ pressed }) => [
-              styles.cancelButton,
-              pressed && styles.buttonPressed,
-            ]}
+            style={({ pressed }) => [styles.cancelButton, pressed && styles.buttonPressed]}
           >
-            <MaterialIcons name="arrow-back" size={18} color={colors.outline} />
+            <ArrowLeft size={17} color={colors.textSecondary} strokeWidth={2} />
             <Text style={styles.cancelButtonText}>Batal</Text>
           </Pressable>
 
@@ -1106,7 +1101,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             {isLoading ? (
               <ActivityIndicator size="small" color={colors.onPrimary} />
             ) : (
-              <MaterialIcons name="check-circle" size={18} color={colors.onPrimary} />
+              <CheckCircle2 size={17} color={colors.onPrimary} strokeWidth={2} />
             )}
             <Text style={styles.saveButtonText}>
               {isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
@@ -1115,7 +1110,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         </View>
       </View>
 
-      {/* Calendar Date Picker Modal */}
       <CalendarDatePickerModal
         visible={activeModal === 'date'}
         onClose={() => setActiveModal('none')}
@@ -1127,7 +1121,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         minDate={getJakartaDateKey(new Date())}
       />
 
-      {/* Agenda Option Modal */}
       <AgendaOptionModal
         visible={activeModal !== 'none' && activeModal !== 'date'}
         onClose={() => setActiveModal('none')}
@@ -1148,7 +1141,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         onSelectCustom={handleSelectCustomOption}
       />
 
-      {/* Success Feedback Modal */}
       <FeedbackModal
         visible={showSuccessModal}
         type="success"
@@ -1158,9 +1150,9 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
           updatedSummary
             ? {
                 'Kode Rapat': updatedSummary.code,
-                'Perihal': updatedSummary.title,
-                'Format': updatedSummary.format,
-                'Status': updatedSummary.status,
+                Perihal: updatedSummary.title,
+                Format: updatedSummary.format,
+                Status: updatedSummary.status,
               }
             : undefined
         }
@@ -1173,7 +1165,6 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         onClose={() => setShowSuccessModal(false)}
       />
 
-      {/* In-App Surat Edaran Viewer Modal */}
       <SuratEdaranViewerModal
         visible={viewerModalConfig.visible}
         onClose={() => setViewerModalConfig({ visible: false })}
@@ -1191,15 +1182,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    padding: spacing.md,
-    paddingBottom: 110,
-    gap: spacing.md,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
   centerStateContainer: {
     flex: 1,
     alignItems: 'center',
@@ -1209,108 +1192,86 @@ const styles = StyleSheet.create({
   },
   initLoadingTitle: {
     ...typography.headlineSm,
-    fontSize: 15,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    marginTop: spacing.sm,
   },
   initLoadingSub: {
     ...typography.bodySm,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
     textAlign: 'center',
   },
-  sectionCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.xl,
+  scrollContent: {
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-    gap: spacing.sm + 2,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#00236F',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
+    paddingBottom: spacing.xl * 2,
+    gap: spacing.md,
+  },
+  sectionCard: {
+    ...cardSurface,
+    borderRadius: rounded.xl,
+    borderColor: colors.borderStrong,
+    padding: spacing.md,
+    gap: spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: spacing.xs,
+    gap: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.25)',
+    borderBottomColor: colors.borderSubtle,
+    paddingBottom: spacing.xs + 2,
   },
-  sectionTitleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
+  sectionTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2, flex: 1 },
   sectionTitle: {
     ...typography.headlineSm,
-    fontSize: 14.5,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
   },
   codePill: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: rounded.full,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.sm,
     borderWidth: 1,
-    borderColor: 'rgba(0, 35, 111, 0.15)',
+    borderColor: colors.borderStrong,
   },
   codePillText: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    fontWeight: '700',
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
     color: colors.primary,
   },
-  fieldGroup: {
-    gap: 5,
-  },
+  fieldGroup: { gap: spacing.xs + 2 },
   label: {
     ...typography.labelMd,
-    fontSize: 12.5,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
   },
-  required: {
-    color: colors.error,
-  },
+  required: { color: colors.error },
   textInput: {
-    backgroundColor: colors.surfaceContainerLowest,
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    minHeight: MIN_TOUCH_TARGET,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: colors.borderStrong,
     borderRadius: rounded.md,
     paddingHorizontal: spacing.sm + 4,
     paddingVertical: spacing.xs + 4,
-    ...typography.bodyMd,
-    fontSize: 13,
     color: colors.onSurface,
+    backgroundColor: colors.surfaceCard,
   },
-  statusScroll: {
-    flexDirection: 'row',
-    gap: spacing.xs + 2,
-    paddingVertical: 2,
-  },
+
+  statusScroll: { flexDirection: 'row', gap: spacing.xs + 2 },
   statusPill: {
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.xs + 2,
     borderRadius: rounded.full,
-    backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
   },
   statusPillActive: {
     backgroundColor: colors.primary,
@@ -1318,401 +1279,342 @@ const styles = StyleSheet.create({
   },
   statusPillText: {
     ...typography.labelSm,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textSecondary,
   },
-  statusPillTextActive: {
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
+  statusPillTextActive: { color: colors.onPrimary },
+
   selectorTrigger: {
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLowest,
+    gap: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: colors.borderStrong,
     borderRadius: rounded.md,
     paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.xs + 4,
-    minHeight: 44,
+    backgroundColor: colors.surfaceCard,
   },
-  selectorLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-    flex: 1,
-  },
+  selectorLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1, minWidth: 0 },
   selectorValue: {
-    ...typography.bodyMd,
-    fontSize: 13,
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
     color: colors.onSurface,
     flex: 1,
   },
-  selectorRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
+  selectorRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
   selectorBadge: {
-    backgroundColor: colors.surfaceContainerLow,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: rounded.sm,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   selectorBadgeText: {
     ...typography.labelSm,
-    fontSize: 10,
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
-    fontWeight: '700',
   },
-  formatSegmentedGrid: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.md,
-    padding: 3,
-    gap: 4,
-  },
+  pressedState: { opacity: 0.78 },
+
+  formatSegmentedGrid: { flexDirection: 'row', gap: spacing.xs + 2 },
   formatBtn: {
     flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: spacing.xs + 3,
-    borderRadius: rounded.sm,
+    gap: 6,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
   },
   formatBtnActive: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   formatBtnText: {
-    ...typography.labelSm,
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: colors.outline,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textSecondary,
   },
-  formatBtnTextActive: {
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
+  formatBtnTextActive: { color: colors.onPrimary },
+
   entityCard: {
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceContainerLowest,
+    gap: spacing.sm + 2,
+    padding: spacing.sm + 4,
+    borderRadius: rounded.lg,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
-    borderRadius: rounded.md,
-    padding: spacing.sm,
-    gap: spacing.sm,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.background,
   },
   leaderAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceContainerLow,
+    width: 40,
+    height: 40,
+    borderRadius: rounded.full,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   leaderAvatarText: {
-    ...typography.labelSm,
-    fontWeight: '700',
-    color: colors.primary,
-    fontSize: 12,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
   },
   notulisIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceContainerLow,
+    width: 40,
+    height: 40,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  entityInfo: {
-    flex: 1,
-  },
+  entityInfo: { flex: 1, minWidth: 0 },
   entityName: {
-    ...typography.bodyMd,
-    fontWeight: '700',
-    fontSize: 13,
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 13.5,
     color: colors.onSurface,
   },
   entitySub: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
     marginTop: 1,
   },
   actionPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: rounded.full,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   actionPillText: {
     ...typography.labelSm,
-    fontSize: 10.5,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
   },
-  timeRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  timeCol: {
-    flex: 1,
-    gap: 5,
-  },
+
+  timeRow: { flexDirection: 'row', gap: spacing.sm },
+  timeCol: { flex: 1, gap: spacing.xs + 2 },
   timeInput: {
-    backgroundColor: colors.surfaceContainerLowest,
+    minHeight: MIN_TOUCH_TARGET,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: colors.borderStrong,
     borderRadius: rounded.md,
     paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.xs + 3,
-    ...typography.bodyMd,
-    fontSize: 13,
+    backgroundColor: colors.surfaceCard,
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoSemiBold,
+    fontSize: 14,
     color: colors.onSurface,
-    textAlign: 'center',
   },
   virtualMeetingBox: {
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.md,
-    padding: spacing.sm,
+    backgroundColor: colors.background,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    padding: spacing.sm + 4,
     gap: spacing.xs + 2,
   },
-  virtualHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
+  virtualHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   virtualTitle: {
-    ...typography.labelSm,
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: colors.primary,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
   },
+
   radioCard: {
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.surfaceContainerLowest,
+    gap: spacing.sm + 2,
+    padding: spacing.sm + 4,
+    borderRadius: rounded.lg,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-    borderRadius: rounded.md,
-    padding: spacing.sm + 2,
-    gap: spacing.sm,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
   },
   radioCardActive: {
     borderColor: colors.primary,
-    backgroundColor: 'rgba(0, 35, 111, 0.03)',
+    backgroundColor: colors.surfaceSoft,
   },
-  radioTextWrap: {
-    flex: 1,
-  },
+  radioTextWrap: { flex: 1, gap: 2 },
   radioTitle: {
-    ...typography.bodyMd,
-    fontWeight: '700',
-    fontSize: 13,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
   },
   radioSub: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  unitSelectSection: {
-    marginTop: spacing.xs,
-    gap: spacing.xs + 2,
-  },
-  unitSelectHeader: {
     ...typography.labelSm,
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: colors.onSurfaceVariant,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
   },
-  unitChipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
+  unitSelectSection: { gap: spacing.xs + 2 },
+  unitSelectHeader: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
   },
+  unitChipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs + 2 },
   unitChip: {
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainerLowest,
+    gap: 6,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
   },
   unitChipSelected: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   unitChipText: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
   },
   unitChipTextSelected: {
-    color: colors.primary,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
   },
+
   existingAttachmentCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    gap: spacing.sm,
+    padding: spacing.sm + 2,
     borderRadius: rounded.md,
-    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.background,
   },
   dropzone: {
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1.5,
+    gap: spacing.sm + 4,
+    padding: spacing.md,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: 'rgba(0, 35, 111, 0.35)',
-    borderRadius: rounded.md,
-    padding: spacing.sm + 2,
-    gap: spacing.sm,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.background,
   },
   dropzoneIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    width: 42,
+    height: 42,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dropzoneTextWrap: {
-    flex: 1,
-  },
+  dropzoneTextWrap: { flex: 1, gap: 2 },
   dropzoneTitle: {
-    ...typography.bodyMd,
-    fontWeight: '700',
-    fontSize: 12.5,
-    color: colors.primary,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
   },
   dropzoneSub: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
   },
   attachedCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.primary,
+    gap: spacing.sm,
+    padding: spacing.sm + 2,
     borderRadius: rounded.md,
-    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
   },
-  attachedLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 4,
-    flex: 1,
-  },
+  attachedLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1, minWidth: 0 },
   attachedIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(186, 26, 26, 0.08)',
+    width: 38,
+    height: 38,
+    borderRadius: rounded.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  attachedInfo: {
-    flex: 1,
-  },
+  attachedBadgeImage: { backgroundColor: colors.infoBg },
+  attachedBadgePdf: { backgroundColor: colors.errorContainer },
+  attachedInfo: { flex: 1, minWidth: 0 },
   attachedName: {
-    ...typography.bodyMd,
-    fontWeight: '600',
-    fontSize: 12.5,
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
   },
   attachedMeta: {
-    ...typography.bodySm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
-    marginTop: 1,
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
   },
-  attachedActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
+  attachedActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   attachedActionBtn: {
-    padding: 6,
-    borderRadius: 14,
-  },
-  stickyFooter: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.4)',
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs + 4,
-    paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
-  },
-  footerGrid: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  cancelButton: {
-    flex: 1,
-    flexDirection: 'row',
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    height: 44,
     borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    backgroundColor: colors.surfaceContainerLowest,
   },
-  cancelButtonText: {
-    ...typography.labelMd,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.outline,
+
+  stickyFooter: {
+    backgroundColor: colors.surfaceCard,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm + 2,
   },
-  saveButton: {
-    flex: 2,
+  footerGrid: { flexDirection: 'row', gap: spacing.sm },
+  cancelButton: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 44,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceSoft,
+  },
+  cancelButtonText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textSecondary,
+  },
+  saveButton: {
+    flex: 1.5,
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     borderRadius: rounded.md,
     backgroundColor: colors.primary,
   },
+  buttonDisabled: { opacity: 0.6 },
   saveButtonText: {
     ...typography.labelMd,
-    fontSize: 13,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonPressed: {
-    opacity: 0.8,
-  },
-  pressedState: {
-    opacity: 0.8,
-  },
+  buttonPressed: { opacity: 0.82 },
 });

@@ -7,11 +7,17 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  X,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
 import { typography } from '../../../core/theme/typography';
 import { rounded, spacing } from '../../../core/theme/tokens';
-import { FeedbackType } from '../../store/useFeedbackStore';
 
 export interface ToastNotificationProps {
   visible: boolean;
@@ -28,6 +34,7 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
   duration = 3500,
   onDismiss,
 }) => {
+  const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -68,48 +75,26 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
 
   if (!visible) return null;
 
-  const getTypeStyle = () => {
+  const renderIcon = () => {
     switch (type) {
       case 'success':
-        return {
-          icon: 'check-circle' as keyof typeof MaterialIcons.glyphMap,
-          color: colors.success,
-          borderColor: 'rgba(5, 150, 105, 0.3)',
-          accentBg: 'rgba(5, 150, 105, 0.08)',
-        };
+        return <CheckCircle2 size={18} color={colors.successLight} strokeWidth={2} />;
       case 'error':
-        return {
-          icon: 'error-outline' as keyof typeof MaterialIcons.glyphMap,
-          color: colors.error,
-          borderColor: 'rgba(186, 26, 26, 0.3)',
-          accentBg: 'rgba(186, 26, 26, 0.08)',
-        };
+        return <AlertCircle size={18} color={colors.errorLight} strokeWidth={2} />;
       case 'warning':
-        return {
-          icon: 'warning-amber' as keyof typeof MaterialIcons.glyphMap,
-          color: colors.warning,
-          borderColor: 'rgba(217, 119, 6, 0.3)',
-          accentBg: 'rgba(217, 119, 6, 0.08)',
-        };
+        return <AlertTriangle size={18} color={colors.warningLight} strokeWidth={2} />;
       case 'info':
       default:
-        return {
-          icon: 'info-outline' as keyof typeof MaterialIcons.glyphMap,
-          color: colors.primary,
-          borderColor: 'rgba(0, 35, 111, 0.25)',
-          accentBg: 'rgba(0, 35, 111, 0.08)',
-        };
+        return <Info size={18} color={colors.infoBorder} strokeWidth={2} />;
     }
   };
-
-  const styleConfig = getTypeStyle();
 
   return (
     <Animated.View
       style={[
         styles.container,
         {
-          borderColor: styleConfig.borderColor,
+          top: insets.top + 12,
           opacity: anim,
           transform: [
             {
@@ -123,13 +108,7 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
       ]}
       pointerEvents="box-none"
     >
-      <View style={[styles.iconWrap, { backgroundColor: styleConfig.accentBg }]}>
-        <MaterialIcons
-          name={styleConfig.icon}
-          size={18}
-          color={styleConfig.color}
-        />
-      </View>
+      <View style={styles.iconWrap}>{renderIcon()}</View>
 
       <Text style={styles.messageText} numberOfLines={2}>
         {message}
@@ -138,11 +117,11 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
       <Pressable
         onPress={handleDismiss}
         style={styles.closeBtn}
-        hitSlop={8}
+        hitSlop={10}
         accessibilityRole="button"
         accessibilityLabel="Tutup pemberitahuan"
       >
-        <MaterialIcons name="close" size={16} color={colors.outline} />
+        <X size={16} color={colors.onPrimaryContainer} strokeWidth={2} />
       </Pressable>
     </Animated.View>
   );
@@ -151,50 +130,47 @@ export const ToastNotification: React.FC<ToastNotificationProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 52 : 24,
     left: spacing.md,
     right: spacing.md,
     zIndex: 99999,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.toastBg,
     borderRadius: rounded.lg,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.sm + 4,
+    paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm + 2,
     borderWidth: 1,
+    borderColor: colors.toastBorder,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.2,
+          shadowRadius: 12,
+        }
+      : {}),
   },
   iconWrap: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
   messageText: {
     ...typography.labelMd,
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: colors.onSurface,
+    fontSize: 13,
+    color: colors.onPrimary,
     flex: 1,
-    lineHeight: 17,
+    lineHeight: 18,
   },
   closeBtn: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: rounded.md,
     alignItems: 'center',
     justifyContent: 'center',
   },

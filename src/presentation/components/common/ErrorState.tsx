@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { AlertCircle } from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
+import { fontFamilies, typography } from '../../../core/theme/typography';
 import { rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from './Button';
 
-interface ErrorStateProps {
+export interface ErrorStateProps {
   title?: string;
   message: string;
   onRetry?: () => void;
@@ -22,7 +22,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   return (
     <View style={[styles.container, style]}>
       <View style={styles.iconCircle}>
-        <MaterialIcons name="error-outline" size={32} color={colors.error} />
+        <AlertCircle size={32} color={colors.error} strokeWidth={2} />
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.message}>{message}</Text>
@@ -45,22 +45,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.lg,
     backgroundColor: colors.errorContainer,
-    borderRadius: rounded.lg,
+    borderRadius: rounded.xl,
     borderWidth: 1,
-    borderColor: '#FECDD3',
+    borderColor: colors.errorBorder,
     marginVertical: spacing.md,
   },
   iconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#FFE4E6',
+    backgroundColor: colors.destructivePressed,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
   },
   title: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onErrorContainer,
     marginBottom: spacing.xs,
     textAlign: 'center',

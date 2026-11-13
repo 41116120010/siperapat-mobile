@@ -5,14 +5,21 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Platform,
   Image,
   Dimensions,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  ArrowLeftRight,
+  Calendar,
+  CloudCheck,
+  CloudUpload,
+  FileText,
+  Info,
+  X,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 import { UploadFileRef } from '../../../data/datasources/agendaApi';
 
@@ -64,7 +71,7 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIconCircle}>
-                <MaterialIcons name="cloud-upload" size={22} color={colors.primary} />
+                <CloudUpload size={22} color={colors.primary} strokeWidth={2} />
               </View>
               <View style={styles.headerTitleWrap}>
                 <Text style={styles.headerTitle}>Konfirmasi Surat Edaran</Text>
@@ -79,7 +86,7 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
                 style={({ pressed }) => [styles.closeBtn, pressed && styles.btnPressed]}
                 accessibilityLabel="Tutup dialog konfirmasi"
               >
-                <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
+                <X size={20} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             ) : null}
           </View>
@@ -94,7 +101,7 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
               </Text>
               {meetingDate ? (
                 <View style={styles.meetingInfoDateRow}>
-                  <MaterialIcons name="event" size={14} color={colors.onSurfaceVariant} />
+                  <Calendar size={14} color={colors.textSecondary} strokeWidth={2} />
                   <Text style={styles.meetingInfoDateText}>{meetingDate}</Text>
                 </View>
               ) : null}
@@ -107,7 +114,7 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
                   <Image source={{ uri: file.uri }} style={styles.imageThumbnail} resizeMode="cover" />
                 ) : (
                   <View style={styles.pdfBadge}>
-                    <MaterialIcons name="picture-as-pdf" size={24} color="#DC2626" />
+                    <FileText size={24} color={colors.error} strokeWidth={2} />
                   </View>
                 )}
                 <View style={styles.fileDetails}>
@@ -129,7 +136,7 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
                   style={({ pressed }) => [styles.changeBtn, pressed && styles.btnPressed]}
                   accessibilityLabel="Pilih berkas lain"
                 >
-                  <MaterialIcons name="swap-horiz" size={18} color={colors.primary} />
+                  <ArrowLeftRight size={16} color={colors.primary} strokeWidth={2} />
                   <Text style={styles.changeBtnText}>Ganti</Text>
                 </Pressable>
               ) : null}
@@ -137,7 +144,7 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
 
             {/* Notice Box */}
             <View style={styles.noticeBox}>
-              <MaterialIcons name="info-outline" size={18} color={colors.primary} />
+              <Info size={18} color={colors.infoText} strokeWidth={2} />
               <Text style={styles.noticeText}>
                 Dokumen resmi ini akan tersimpan di peladen LLDIKTI X dan menjadi lampiran digital bagi seluruh peserta rapat.
               </Text>
@@ -154,7 +161,7 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
               variant="primary"
               size="lg"
               fullWidth
-              icon={<MaterialIcons name="cloud-done" size={20} color={colors.onPrimary} />}
+              icon={<CloudCheck size={20} color={colors.onPrimary} strokeWidth={2} />}
             />
             {!isUploading ? (
               <Button
@@ -175,18 +182,16 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    backgroundColor: colors.scrimNeutralTop,
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalCard: {
+    ...cardSurface,
     width: Math.min(SCREEN_WIDTH - spacing.md * 2, 440),
-    backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    ...elevations.level3,
+    borderColor: colors.borderStrong,
     overflow: 'hidden',
   },
   header: {
@@ -196,8 +201,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -209,7 +214,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: rounded.full,
-    backgroundColor: 'rgba(0, 102, 204, 0.1)',
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm,
@@ -219,20 +224,20 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
   },
   headerSubtitle: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     borderRadius: rounded.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   btnPressed: {
     opacity: 0.7,
@@ -243,21 +248,21 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   meetingInfoCard: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: colors.borderSubtle,
     gap: 3,
   },
   meetingInfoLabel: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
   },
   meetingInfoTitle: {
     ...typography.bodyMd,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
   },
   meetingInfoDateRow: {
     flexDirection: 'row',
@@ -267,13 +272,13 @@ const styles = StyleSheet.create({
   },
   meetingInfoDateText: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
   fileCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.lg,
     padding: spacing.md,
     borderWidth: 1,
@@ -291,13 +296,13 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   pdfBadge: {
     width: 44,
     height: 44,
     borderRadius: rounded.sm,
-    backgroundColor: 'rgba(220, 38, 38, 0.08)',
+    backgroundColor: colors.errorContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -307,8 +312,8 @@ const styles = StyleSheet.create({
   },
   fileName: {
     ...typography.bodyMd,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
-    fontWeight: '600',
   },
   fileMetaRow: {
     flexDirection: 'row',
@@ -316,48 +321,51 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   badgeFormat: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: rounded.sm,
   },
   badgeFormatText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
-    fontWeight: '700',
     fontSize: 10,
   },
   fileSizeText: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
   },
   changeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
     borderRadius: rounded.sm,
-    backgroundColor: 'rgba(0, 102, 204, 0.08)',
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   changeBtnText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.primary,
-    fontWeight: '600',
   },
   noticeBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.xs,
-    backgroundColor: 'rgba(0, 102, 204, 0.05)',
+    backgroundColor: colors.infoBg,
     padding: spacing.sm,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(0, 102, 204, 0.12)',
+    borderColor: colors.infoBorder,
   },
   noticeText: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.infoText,
     flex: 1,
     lineHeight: 18,
   },

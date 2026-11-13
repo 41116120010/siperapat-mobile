@@ -1,8 +1,27 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import {
+  Calendar,
+  CheckCircle2,
+  Clock,
+  FileText,
+  LucideIcon,
+  TrendingUp,
+  Users,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { cardSurface, rounded, spacing } from '../../../core/theme/tokens';
+
+const LEGACY_STAT_ICONS: Record<string, LucideIcon> = {
+  event: Calendar,
+  calendar: Calendar,
+  'check-circle': CheckCircle2,
+  schedule: Clock,
+  people: Users,
+  'trending-up': TrendingUp,
+  description: FileText,
+};
 
 export interface BentoStatItem {
   label: string;
@@ -11,6 +30,7 @@ export interface BentoStatItem {
   isPrimary?: boolean;
   valueColor?: string;
   subValueColor?: string;
+  icon?: string | LucideIcon;
 }
 
 interface BentoStatCardProps extends BentoStatItem {}
@@ -22,12 +42,28 @@ export const BentoStatCard: React.FC<BentoStatCardProps> = ({
   isPrimary = false,
   valueColor,
   subValueColor,
+  icon,
 }) => {
+  const IconComponent: LucideIcon | null = icon
+    ? typeof icon === 'string'
+      ? (LEGACY_STAT_ICONS[icon] ?? Calendar)
+      : icon
+    : null;
+
   return (
     <View style={styles.card}>
-      <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
-        {label}
-      </Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
+          {label}
+        </Text>
+        {IconComponent ? (
+          <IconComponent
+            size={14}
+            color={isPrimary ? colors.primary : colors.textMuted}
+            strokeWidth={2}
+          />
+        ) : null}
+      </View>
       <View style={styles.metricContainer}>
         <Text
           style={[
@@ -70,6 +106,7 @@ export const BentoGrid: React.FC<{
           isPrimary={stat.isPrimary}
           valueColor={stat.valueColor}
           subValueColor={stat.subValueColor}
+          icon={stat.icon}
         />
       ))}
     </View>
@@ -79,37 +116,30 @@ export const BentoGrid: React.FC<{
 const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
-    gap: 6,
+    gap: spacing.xs + 2,
     marginVertical: spacing.sm,
   },
   card: {
+    ...cardSurface,
     flex: 1,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.md,
+    borderRadius: rounded.card,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
     justifyContent: 'space-between',
     minHeight: 74,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
   },
   label: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    flex: 1,
+    color: colors.textMuted,
     fontSize: 11,
-    fontWeight: '500',
   },
   metricContainer: {
     marginTop: spacing.xs,
@@ -117,16 +147,16 @@ const styles = StyleSheet.create({
   },
   value: {
     ...typography.headlineMd,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
     fontSize: 19,
     lineHeight: 23,
+    fontVariant: ['tabular-nums'],
   },
   subValue: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
     fontSize: 10.5,
-    fontWeight: '500',
     marginTop: 2,
   },
 });

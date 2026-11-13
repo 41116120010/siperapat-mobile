@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Platform, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { ChevronLeft } from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { MIN_TOUCH_TARGET, spacing } from '../../../core/theme/tokens';
 
-interface HeaderProps {
+export interface HeaderProps {
   title?: string;
   subtitle?: string;
   showBack?: boolean;
@@ -41,13 +41,13 @@ export const Header: React.FC<HeaderProps> = ({
               accessibilityRole="button"
               accessibilityLabel="Kembali"
             >
-              <MaterialIcons
-                name="chevron-left"
-                size={28}
+              <ChevronLeft
+                size={24}
                 color={colors.primary}
+                strokeWidth={2}
               />
             </Pressable>
-            <View style={[styles.textContainer, rightAction ? { paddingRight: 48 } : undefined]}>
+            <View style={[styles.textContainer, rightAction ? { paddingRight: MIN_TOUCH_TARGET + 4 } : undefined]}>
               <Text style={styles.title} numberOfLines={1}>
                 {title}
               </Text>
@@ -88,14 +88,9 @@ export const Header: React.FC<HeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
-    elevation: 2,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
     zIndex: 10,
   },
   contentRow: {
@@ -133,31 +128,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: MIN_TOUCH_TARGET / 2,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: -spacing.xs,
     marginRight: spacing.xs,
   },
   backButtonPressed: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   textContainer: {
     flex: 1,
   },
   title: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansExtraBold,
     fontSize: 15,
     color: colors.primary,
-    fontWeight: '800',
     letterSpacing: -0.2,
   },
   subtitle: {
     ...typography.labelSm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    fontWeight: '500',
+    color: colors.textSecondary,
     marginTop: 1,
   },
   rightActionAbsolute: {

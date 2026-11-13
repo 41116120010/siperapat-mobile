@@ -4,13 +4,19 @@ import {
   View,
   Text,
   StyleSheet,
-  Platform,
   Pressable,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  HelpCircle,
+  Info,
+  LucideIcon,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { cardSurface, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 import { FeedbackType } from '../../store/useFeedbackStore';
 
@@ -41,50 +47,55 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
-  const getThemeConfig = () => {
+  const getThemeConfig = (): {
+    Icon: LucideIcon;
+    color: string;
+    bgColor: string;
+    defaultConfirmText: string;
+  } => {
     switch (type) {
       case 'success':
         return {
-          icon: 'check-circle' as keyof typeof MaterialIcons.glyphMap,
+          Icon: CheckCircle2,
           color: colors.success,
-          bgColor: 'rgba(5, 150, 105, 0.12)',
+          bgColor: colors.successContainer,
           defaultConfirmText: 'Selesai',
         };
       case 'error':
         return {
-          icon: 'error-outline' as keyof typeof MaterialIcons.glyphMap,
+          Icon: AlertCircle,
           color: colors.error,
-          bgColor: 'rgba(186, 26, 26, 0.12)',
+          bgColor: colors.errorContainer,
           defaultConfirmText: 'Mengerti',
         };
       case 'warning':
         return {
-          icon: 'warning-amber' as keyof typeof MaterialIcons.glyphMap,
+          Icon: AlertTriangle,
           color: colors.warning,
-          bgColor: 'rgba(217, 119, 6, 0.12)',
+          bgColor: colors.warningContainer,
           defaultConfirmText: 'Lanjutkan',
         };
       case 'confirm':
         return {
-          icon: 'help-outline' as keyof typeof MaterialIcons.glyphMap,
-          color: colors.secondary,
-          bgColor: 'rgba(0, 81, 213, 0.12)',
+          Icon: HelpCircle,
+          color: colors.infoText,
+          bgColor: colors.infoBg,
           defaultConfirmText: 'Ya, Lanjutkan',
         };
       case 'info':
       default:
         return {
-          icon: 'info-outline' as keyof typeof MaterialIcons.glyphMap,
+          Icon: Info,
           color: colors.primary,
-          bgColor: 'rgba(0, 35, 111, 0.1)',
+          bgColor: colors.surfaceSoft,
           defaultConfirmText: 'Mengerti',
         };
     }
   };
 
-  const config = getThemeConfig();
+  const { Icon: StatusIcon, color: iconColor, bgColor, defaultConfirmText } = getThemeConfig();
   const showCancel = Boolean(cancelText) || type === 'confirm';
-  const resolvedConfirmText = confirmText || config.defaultConfirmText;
+  const resolvedConfirmText = confirmText || defaultConfirmText;
   const resolvedCancelText = cancelText || 'Batal';
 
   const handleConfirm = () => {
@@ -121,8 +132,8 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
 
         <View style={styles.card}>
           {/* Circular Themed Icon Header */}
-          <View style={[styles.iconWrap, { backgroundColor: config.bgColor }]}>
-            <MaterialIcons name={config.icon} size={32} color={config.color} />
+          <View style={[styles.iconWrap, { backgroundColor: bgColor }]}>
+            <StatusIcon size={32} color={iconColor} strokeWidth={2} />
           </View>
 
           {/* Texts */}
@@ -180,7 +191,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.52)',
+    backgroundColor: colors.scrimNeutralMid,
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.lg,
@@ -189,27 +200,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
   },
   card: {
-    backgroundColor: colors.surfaceContainerLowest,
+    ...cardSurface,
     borderRadius: rounded.xl,
+    borderColor: colors.borderStrong,
     padding: spacing.lg,
     width: '100%',
     maxWidth: 380,
     alignItems: 'center',
     gap: spacing.md,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.16,
-        shadowRadius: 18,
-      },
-      android: {
-        elevation: 0,
-        borderWidth: 1,
-        borderColor: 'rgba(197, 197, 211, 0.5)',
-      },
-    }),
   },
   iconWrap: {
     width: 60,
@@ -225,41 +224,40 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansExtraBold,
     fontSize: 16,
-    fontWeight: '800',
     color: colors.onSurface,
     textAlign: 'center',
   },
   message: {
     ...typography.bodySm,
     fontSize: 12.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },
   monoBox: {
     width: '100%',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.md,
     padding: spacing.sm + 2,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.45)',
+    borderColor: colors.borderSubtle,
   },
   monoText: {
-    ...typography.labelSm,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    ...typography.labelMono,
     color: colors.onSurface,
     fontSize: 11,
     textAlign: 'center',
   },
   summaryBox: {
     width: '100%',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.md,
     padding: spacing.sm + 2,
     gap: 6,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.45)',
+    borderColor: colors.borderSubtle,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -269,12 +267,12 @@ const styles = StyleSheet.create({
   summaryKey: {
     ...typography.labelSm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
   },
   summaryVal: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 11.5,
-    fontWeight: '600',
     color: colors.onSurface,
     maxWidth: '65%',
   },

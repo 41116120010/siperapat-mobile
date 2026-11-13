@@ -8,10 +8,19 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  AlertCircle,
+  Building2,
+  CheckCircle2,
+  FileText,
+  Hash,
+  PauseCircle,
+  PlusCircle,
+  X,
+} from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
@@ -111,14 +120,19 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
           {/* ERROR ALERT BANNER */}
           {error ? (
             <View style={styles.errorBanner}>
-              <MaterialIcons
-                name="error-outline"
+              <AlertCircle
                 size={18}
                 color={colors.error}
+                strokeWidth={2}
               />
               <Text style={styles.errorText}>{error}</Text>
-              <Pressable onPress={clearError} hitSlop={8}>
-                <MaterialIcons name="close" size={16} color={colors.error} />
+              <Pressable
+                onPress={clearError}
+                style={styles.errorCloseButton}
+                accessibilityRole="button"
+                accessibilityLabel="Tutup pesan kesalahan"
+              >
+                <X size={16} color={colors.error} strokeWidth={2} />
               </Pressable>
             </View>
           ) : null}
@@ -127,13 +141,13 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderIcon}>
-                <MaterialIcons
-                  name="domain"
+                <Building2
                   size={20}
                   color={colors.primary}
+                  strokeWidth={2}
                 />
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.cardHeaderTextWrap}>
                 <Text style={styles.cardTitle}>Informasi Pokok Unit Kerja</Text>
                 <Text style={styles.cardSubtitle}>
                   Lengkapi identitas singkatan dan nama unit kerja resmi
@@ -158,10 +172,10 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
                 isMono
                 helperText="Digunakan sebagai kode referensi cepat pada sistem dan agenda rapat"
                 leftIcon={
-                  <MaterialIcons
-                    name="tag"
+                  <Hash
                     size={18}
                     color={colors.onSurfaceVariant}
+                    strokeWidth={2}
                   />
                 }
               />
@@ -179,10 +193,10 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
                 maxLength={150}
                 helperText="Nama lengkap bidang atau subbagian kelembagaan"
                 leftIcon={
-                  <MaterialIcons
-                    name="domain"
+                  <Building2
                     size={18}
                     color={colors.onSurfaceVariant}
+                    strokeWidth={2}
                   />
                 }
               />
@@ -198,10 +212,10 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
                 maxLength={500}
                 helperText="Catatan ruang lingkup tanggung jawab unit kerja kedinasan (maks. 500 karakter)"
                 leftIcon={
-                  <MaterialIcons
-                    name="description"
+                  <FileText
                     size={18}
                     color={colors.onSurfaceVariant}
+                    strokeWidth={2}
                   />
                 }
               />
@@ -219,10 +233,10 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
                     accessibilityRole="button"
                     accessibilityLabel="Pilih status unit aktif"
                   >
-                    <MaterialIcons
-                      name="check-circle"
+                    <CheckCircle2
                       size={18}
                       color={isActive ? colors.success : colors.outline}
+                      strokeWidth={2}
                     />
                     <Text
                       style={[
@@ -243,10 +257,10 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
                     accessibilityRole="button"
                     accessibilityLabel="Pilih status unit nonaktif"
                   >
-                    <MaterialIcons
-                      name="pause-circle"
+                    <PauseCircle
                       size={18}
                       color={!isActive ? colors.error : colors.outline}
+                      strokeWidth={2}
                     />
                     <Text
                       style={[
@@ -276,10 +290,10 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
               isLoading={isLoading}
               disabled={!isFormValid || isLoading}
               icon={
-                <MaterialIcons
-                  name="domain-add"
+                <PlusCircle
                   size={20}
                   color={colors.onPrimary}
+                  strokeWidth={2}
                 />
               }
             />
@@ -332,37 +346,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(186, 26, 26, 0.08)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    backgroundColor: colors.errorContainer,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
+    paddingVertical: spacing.xs,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(186, 26, 26, 0.3)',
+    borderColor: colors.errorBorder,
   },
   errorText: {
     ...typography.bodySm,
-    color: colors.error,
+    color: colors.onErrorContainer,
     flex: 1,
     fontSize: 12,
   },
+  errorCloseButton: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   card: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.lg,
+    ...cardSurface,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
     gap: spacing.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -370,7 +377,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingBottom: spacing.sm + 2,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.3)',
+    borderBottomColor: colors.borderSubtle,
   },
   cardHeaderIcon: {
     width: 40,
@@ -380,12 +387,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
+  },
+  cardHeaderTextWrap: {
+    flex: 1,
   },
   cardTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 14,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   cardSubtitle: {
@@ -403,8 +413,8 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 12,
-    fontWeight: '600',
     color: colors.onSurface,
   },
   fieldHint: {
@@ -420,6 +430,7 @@ const styles = StyleSheet.create({
   },
   statusPill: {
     flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -428,29 +439,29 @@ const styles = StyleSheet.create({
     borderRadius: rounded.sm,
     backgroundColor: colors.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderStrong,
   },
   statusPillActive: {
-    backgroundColor: 'rgba(5, 150, 105, 0.08)',
-    borderColor: 'rgba(5, 150, 105, 0.4)',
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
   },
   statusPillInactive: {
-    backgroundColor: 'rgba(186, 26, 26, 0.08)',
-    borderColor: 'rgba(186, 26, 26, 0.4)',
+    backgroundColor: colors.errorContainer,
+    borderColor: colors.errorBorder,
   },
   statusPillText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 12,
-    fontWeight: '500',
     color: colors.onSurfaceVariant,
   },
   statusPillTextActive: {
-    color: colors.success,
-    fontWeight: '700',
+    color: colors.onSuccessContainer,
+    fontFamily: fontFamilies.sansBold,
   },
   statusPillTextInactive: {
-    color: colors.error,
-    fontWeight: '700',
+    color: colors.onErrorContainer,
+    fontFamily: fontFamilies.sansBold,
   },
   actionContainer: {
     marginTop: spacing.xs,

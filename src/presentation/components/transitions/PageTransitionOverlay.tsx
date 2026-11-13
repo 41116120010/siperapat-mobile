@@ -123,9 +123,9 @@ export const PageTransitionOverlay: React.FC = () => {
               rx="45%"
               ry="35%"
             >
-              <Stop offset="0%" stopColor="#00236F" stopOpacity={0.35} />
-              <Stop offset="40%" stopColor="#081426" stopOpacity={0.55} />
-              <Stop offset="100%" stopColor="#040914" stopOpacity={0.68} />
+              <Stop offset="0%" stopColor={colors.primary} stopOpacity={0.35} />
+              <Stop offset="40%" stopColor={colors.primaryContainer} stopOpacity={0.55} />
+              <Stop offset="100%" stopColor={colors.primaryDarkest} stopOpacity={0.68} />
             </RadialGradient>
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#centerFocusGlow)" />
@@ -170,11 +170,11 @@ export const PageTransitionOverlay: React.FC = () => {
                   x2="100%"
                   y2="0%"
                 >
-                  <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0} />
-                  <Stop offset="25%" stopColor="#FFFFFF" stopOpacity={0.15} />
-                  <Stop offset="50%" stopColor="#FFFFFF" stopOpacity={0.85} />
-                  <Stop offset="75%" stopColor="#FFFFFF" stopOpacity={0.2} />
-                  <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
+                  <Stop offset="0%" stopColor={colors.onPrimary} stopOpacity={0} />
+                  <Stop offset="25%" stopColor={colors.onPrimary} stopOpacity={0.15} />
+                  <Stop offset="50%" stopColor={colors.onPrimary} stopOpacity={0.85} />
+                  <Stop offset="75%" stopColor={colors.onPrimary} stopOpacity={0.2} />
+                  <Stop offset="100%" stopColor={colors.onPrimary} stopOpacity={0} />
                 </LinearGradient>
               </Defs>
               <Rect x={0} y={0} width={75} height={180} fill="url(#silauGrad)" />
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   },
   backdropLayer: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(7, 15, 29, 0.42)',
+    backgroundColor: colors.scrimNeutralMid,
   },
   badgeBox: {
     width: 104,
@@ -205,12 +205,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(0, 35, 111, 0.14)',
+    borderColor: colors.borderSubtle,
     overflow: 'hidden',
     // iOS Soft Shadow (Android uses elevation: 0 to avoid black-box artifact)
     ...Platform.select({
       ios: {
-        shadowColor: '#00184A',
+        shadowColor: colors.primaryDarkest,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.18,
         shadowRadius: 16,

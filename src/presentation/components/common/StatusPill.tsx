@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
+import { fontFamilies, typography } from '../../../core/theme/typography';
 import { rounded, spacing } from '../../../core/theme/tokens';
 
 export type StatusPillType =
   | 'ongoing'
+  | 'completed'
   | 'sah'
   | 'upcoming'
   | 'cancelled'
@@ -13,7 +14,7 @@ export type StatusPillType =
   | 'izin'
   | 'ditolak';
 
-interface StatusPillProps {
+export interface StatusPillProps {
   status: StatusPillType;
   label?: string;
   style?: ViewStyle;
@@ -29,43 +30,64 @@ export const StatusPill: React.FC<StatusPillProps> = ({
       case 'ongoing':
         return {
           bg: colors.warningContainer,
-          text: colors.warning,
+          text: colors.onWarningContainer,
+          border: colors.warningBorder,
           dot: colors.warningLight,
           defaultLabel: 'Presensi Dibuka',
+        };
+      case 'completed':
+        return {
+          bg: colors.successContainer,
+          text: colors.onSuccessContainer,
+          border: colors.successBorder,
+          dot: colors.successLight,
+          defaultLabel: 'Selesai',
         };
       case 'sah':
         return {
           bg: colors.successContainer,
-          text: colors.success,
+          text: colors.onSuccessContainer,
+          border: colors.successBorder,
           dot: colors.successLight,
           defaultLabel: 'Presensi Sah',
         };
       case 'upcoming':
         return {
-          bg: colors.surfaceContainerLow,
-          text: colors.secondary,
-          dot: colors.secondaryAccent,
+          bg: colors.surfaceSoft,
+          text: colors.primary,
+          border: colors.borderStrong,
+          dot: colors.textMuted,
           defaultLabel: 'Akan Datang',
         };
       case 'cancelled':
-      case 'ditolak' as StatusPillType:
         return {
           bg: colors.errorContainer,
-          text: colors.error,
+          text: colors.onErrorContainer,
+          border: colors.errorBorder,
           dot: colors.errorLight,
-          defaultLabel: 'Ditutup',
+          defaultLabel: 'Dibatalkan',
+        };
+      case 'ditolak':
+        return {
+          bg: colors.errorContainer,
+          text: colors.onErrorContainer,
+          border: colors.errorBorder,
+          dot: colors.errorLight,
+          defaultLabel: 'Ditolak',
         };
       case 'terlambat':
         return {
-          bg: '#FEF3C7',
-          text: '#B45309',
-          dot: '#D97706',
+          bg: colors.warningSoftBg,
+          text: colors.warningSoftText,
+          border: colors.warningBorder,
+          dot: colors.warningLight,
           defaultLabel: 'Terlambat',
         };
       case 'izin':
         return {
           bg: colors.surfaceSubtle,
           text: colors.textSecondary,
+          border: colors.borderStrong,
           dot: colors.textMuted,
           defaultLabel: 'Tugas Luar',
         };
@@ -73,6 +95,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({
         return {
           bg: colors.surfaceSubtle,
           text: colors.textSecondary,
+          border: colors.borderStrong,
           dot: colors.textMuted,
           defaultLabel: status,
         };
@@ -82,7 +105,13 @@ export const StatusPill: React.FC<StatusPillProps> = ({
   const config = getConfig();
 
   return (
-    <View style={[styles.pill, { backgroundColor: config.bg }, style]}>
+    <View
+      style={[
+        styles.pill,
+        { backgroundColor: config.bg, borderColor: config.border },
+        style,
+      ]}
+    >
       <View style={[styles.dot, { backgroundColor: config.dot }]} />
       <Text style={[styles.label, { color: config.text }]}>
         {label ?? config.defaultLabel}
@@ -98,6 +127,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm + 2,
     borderRadius: rounded.full,
+    borderWidth: 1,
     alignSelf: 'flex-start',
   },
   dot: {
@@ -108,6 +138,6 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.labelSm,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansBold,
   },
 });

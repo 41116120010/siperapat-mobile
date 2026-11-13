@@ -9,10 +9,10 @@ import {
   Alert,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Check, PenTool, RotateCcw, ShieldCheck } from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 
 interface DigitalSignaturePadProps {
   onSignatureChange: (signatureSvg: string) => void;
@@ -24,6 +24,8 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
   const [paths, setPaths] = useState<string[]>([]);
   const currentPathRef = useRef<string>('');
   const svgRef = useRef<Svg>(null);
+
+  const hasDrawn = paths.length > 0;
 
   // ponytail: menggunakan PanResponder native React Native untuk kanvas TTD ringan tanpa library eksternal berlebih
   const panResponder = useRef(
@@ -66,11 +68,18 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.sectionHeader}>
-        <MaterialIcons name="draw" size={20} color={colors.primary} />
+        <View style={styles.sectionStepBadge}>
+          <Text style={styles.sectionStepText}>2</Text>
+        </View>
         <View style={styles.headerText}>
-          <Text style={styles.title}>2. Tanda Tangan Digital Resmi ASN</Text>
+          <Text style={styles.title}>Tanda Tangan Digital</Text>
           <Text style={styles.subtitle}>
             Bubuhkan tanda tangan pada area kanvas berikut
+          </Text>
+        </View>
+        <View style={[styles.statusBadge, hasDrawn && styles.statusBadgeReady]}>
+          <Text style={[styles.statusBadgeText, hasDrawn && styles.statusBadgeTextReady]}>
+            {hasDrawn ? 'Tanda Tangan Terisi' : 'Belum Ditandatangani'}
           </Text>
         </View>
       </View>
@@ -78,9 +87,19 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
       {/* Signature Canvas Box */}
       <View style={styles.canvasContainer}>
         {/* Institutional Watermark */}
-        <View style={styles.watermark}>
-          <MaterialIcons name="verified-user" size={100} color={colors.primary} />
+        <View style={styles.watermark} pointerEvents="none">
+          <ShieldCheck size={96} color={colors.primary} strokeWidth={1.5} />
         </View>
+
+        {/* Empty Canvas Placeholder */}
+        {!hasDrawn ? (
+          <View style={styles.placeholderOverlay} pointerEvents="none">
+            <PenTool size={24} color={colors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.placeholderText}>
+              Goreskan tanda tangan Anda di area ini
+            </Text>
+          </View>
+        ) : null}
 
         {/* SVG Drawing Layer */}
         <View style={styles.touchArea} {...panResponder.panHandlers}>
@@ -90,7 +109,7 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
                 key={index}
                 d={d}
                 stroke={colors.primary}
-                strokeWidth={3}
+                strokeWidth={2.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 fill="none"
@@ -100,7 +119,7 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
         </View>
 
         {/* Baseline Guide */}
-        <View style={styles.baselineGuide}>
+        <View style={styles.baselineGuide} pointerEvents="none">
           <Text style={styles.baselineLabel}>Tanda Tangan Digital ASN</Text>
           <Text style={styles.baselineLabel}>Garis Batas</Text>
         </View>
@@ -108,18 +127,25 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
 
       {/* Utilities Bar */}
       <View style={styles.utilityBar}>
-        <Text style={styles.utilityNotice}>
-          {paths.length > 0 ? '✓ Tanda tangan terdata' : 'Tanda tangan tersimpan otomatis'}
-        </Text>
+        <View style={styles.utilityNoticeRow}>
+          {hasDrawn ? (
+            <Check size={14} color={colors.success} strokeWidth={2} />
+          ) : null}
+          <Text style={[styles.utilityNotice, hasDrawn && styles.utilityNoticeActive]}>
+            {hasDrawn ? 'Tanda tangan terdata' : 'Tanda tangan tersimpan otomatis'}
+          </Text>
+        </View>
         <Pressable
           onPress={handleClear}
           style={({ pressed }) => [
             styles.clearButton,
             pressed && styles.clearButtonPressed,
           ]}
+          accessibilityRole="button"
+          accessibilityLabel="Bersihkan dan ulangi tanda tangan"
         >
-          <MaterialIcons name="refresh" size={16} color={colors.onSurfaceVariant} />
-          <Text style={styles.clearButtonText}>Hapus / Ulangi</Text>
+          <RotateCcw size={16} color={colors.textSecondary} strokeWidth={2} />
+          <Text style={styles.clearButtonText}>Bersihkan / Ulangi TTD</Text>
         </Pressable>
       </View>
     </View>
@@ -128,57 +154,98 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.lg,
+    ...cardSurface,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
     marginBottom: spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm + 2,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    paddingBottom: spacing.sm + 2,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  sectionStepBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: rounded.full,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionStepText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.onPrimary,
   },
   headerText: {
-    marginLeft: spacing.sm,
     flex: 1,
   },
   title: {
     ...typography.headlineSm,
-    color: colors.onSurface,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 15,
+    color: colors.primaryDarkest,
   },
   subtitle: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
-    marginTop: 2,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  statusBadgeReady: {
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
+  },
+  statusBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10.5,
+    color: colors.textMuted,
+  },
+  statusBadgeTextReady: {
+    color: colors.onSuccessContainer,
   },
   canvasContainer: {
-    height: 160,
-    backgroundColor: '#FAF5FF',
+    height: 176,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.md,
     borderWidth: 1.5,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderStrong,
     position: 'relative',
     overflow: 'hidden',
   },
   watermark: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    opacity: 0.06,
+    opacity: 0.05,
+  },
+  placeholderOverlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  placeholderText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   touchArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'transparent',
   },
   baselineGuide: {
@@ -187,7 +254,7 @@ const styles = StyleSheet.create({
     left: spacing.md,
     right: spacing.md,
     borderBottomWidth: 1.5,
-    borderBottomColor: '#CBD5E1',
+    borderBottomColor: colors.borderStrong,
     borderStyle: 'dashed',
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -195,6 +262,7 @@ const styles = StyleSheet.create({
   },
   baselineLabel: {
     ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
     fontSize: 10,
     color: colors.outline,
   },
@@ -202,30 +270,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: spacing.sm,
-    paddingTop: spacing.xs,
+    marginTop: spacing.sm + 2,
+    gap: spacing.sm,
+  },
+  utilityNoticeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
   },
   utilityNotice: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     fontSize: 11,
+  },
+  utilityNoticeActive: {
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.success,
   },
   clearButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm + 2,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.sm,
+    justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.sm + 4,
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    gap: 4,
+    borderColor: colors.borderStrong,
+    gap: 6,
   },
   clearButtonPressed: {
     backgroundColor: colors.surfaceContainer,
   },
   clearButtonText: {
-    ...typography.labelSm,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
     color: colors.onSurface,
   },
 });

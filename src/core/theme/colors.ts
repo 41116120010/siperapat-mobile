@@ -1,77 +1,93 @@
 /**
- * SIPERAPAT - Gov-Tech Institutional Design Tokens
- * Source: stitch_lldikti_meeting_attendance_app/modern_gov_tech_institutional/DESIGN.md
+ * SIPERAPAT - Gov-Tech Slate Monochrome Design Tokens
+ * Single Source of Truth: lldikti-x/resources/css/app.css
  * Meets WCAG 2.1 AA Contrast standards.
  */
 
 export const colors = {
-  // Institutional Navy & Authority
-  primary: '#00236F',
-  primaryContainer: '#1E3A8A',
+  // Institutional Slate Navy & Authority
+  primary: '#0F172A',
+  primaryContainer: '#1E293B',
+  primaryDarkest: '#020617',
   onPrimary: '#FFFFFF',
-  onPrimaryContainer: '#90A8FF',
-  primaryFixed: '#DCE1FF',
-  onPrimaryFixed: '#00164E',
+  onPrimaryContainer: '#E2E8F0',
+  primaryFixed: '#F1F5F9',
+  onPrimaryFixed: '#0F172A',
 
   // Accent & Interactive
-  secondary: '#0051D5',
-  secondaryAccent: '#2563EB',
-  secondaryContainer: '#316BF3',
+  secondary: '#334155',
+  secondaryAccent: '#1E293B',
+  secondaryContainer: '#475569',
   onSecondary: '#FFFFFF',
-  onSecondaryContainer: '#FEFCFF',
-  secondaryFixedDim: '#B4C5FF',
-  onSecondaryFixed: '#00174B',
+  onSecondaryContainer: '#F8FAFC',
+  secondaryFixedDim: '#CBD5E1',
+  onSecondaryFixed: '#0F172A',
 
   // Surfaces & Backgrounds
-  background: '#F8F9FF',
-  surface: '#F8F9FF',
+  background: '#F8FAFC',
+  surface: '#F8FAFC',
+  surfaceBright: '#F8FAFC',
   surfaceCard: '#FFFFFF',
   surfaceContainerLowest: '#FFFFFF',
-  surfaceContainerLow: '#EFF4FF',
-  surfaceContainer: '#E5EEFF',
-  surfaceContainerHigh: '#DCE9FF',
-  surfaceContainerHighest: '#D3E4FE',
+  surfaceSoft: '#F1F5F9',
+  surfaceContainerLow: '#F1F5F9',
+  surfaceContainer: '#E2E8F0',
+  surfaceContainerHigh: '#E2E8F0',
+  surfaceContainerHighest: '#CBD5E1',
   surfaceSubtle: '#F1F5F9',
-  surfaceDim: '#CBDBF5',
-  surfaceBright: '#F8F9FF',
+  surfaceDim: '#CBD5E1',
 
   // Content & Typography
-  onSurface: '#0B1C30',
-  onSurfaceVariant: '#444651',
+  onSurface: '#0F172A',
+  onSurfaceVariant: '#334155',
   textSecondary: '#334155',
   textMuted: '#64748B',
-  inverseSurface: '#213145',
-  inverseOnSurface: '#EAF1FF',
+  inverseSurface: '#0F172A',
+  inverseOnSurface: '#F8FAFC',
   textSplashMuted: '#E2E8F0',
   textSplashMinistry: 'rgba(226, 232, 240, 0.85)',
 
   // Neutral Scrim & Atmospheric Layers
-  scrimNeutralTop: 'rgba(10, 15, 26, 0.60)',
-  scrimNeutralMid: 'rgba(10, 15, 26, 0.42)',
-  scrimNeutralBottom: 'rgba(4, 7, 14, 0.88)',
+  scrimNeutralTop: 'rgba(15, 23, 42, 0.65)',
+  scrimNeutralMid: 'rgba(15, 23, 42, 0.45)',
+  scrimNeutralBottom: 'rgba(2, 6, 23, 0.88)',
 
   // Borders & Outlines
-  outline: '#757682',
-  outlineVariant: '#C5C5D3',
+  outline: '#64748B',
+  outlineVariant: '#CBD5E1',
   borderSubtle: '#E2E8F0',
+  borderStrong: '#CBD5E1',
 
   // Semantics: Success (Sah, Hadir, Terverifikasi, Geofence Valid)
-  success: '#059669',
-  successLight: '#10B981',
+  success: '#047857',
+  successLight: '#059669',
   successContainer: '#ECFDF5',
   onSuccessContainer: '#065F46',
+  successBorder: '#A7F3D0',
 
   // Semantics: Warning / Ongoing (Presensi Dibuka, Sedang Berlangsung)
-  warning: '#D97706',
-  warningLight: '#F59E0B',
+  warning: '#B45309',
+  warningLight: '#D97706',
   warningContainer: '#FFFBEB',
   onWarningContainer: '#92400E',
+  warningBorder: '#FDE68A',
+  warningSoftBg: '#FEF3C7',
+  warningSoftText: '#B45309',
 
   // Semantics: Error / Danger (Batal, Ditutup, Gagal, Di Luar Radius)
-  error: '#BA1A1A',
-  errorLight: '#E11D48',
+  error: '#E11D48',
+  errorLight: '#F43F5E',
   errorContainer: '#FFF1F2',
-  onErrorContainer: '#93000A',
+  onErrorContainer: '#BE123C',
+  errorBorder: '#FECDD3',
+  destructivePressed: '#FFE4E6',
+
+  // Semantics: Info & Toast
+  infoBg: '#EFF6FF',
+  infoBorder: '#BFDBFE',
+  infoText: '#1E40AF',
+  toastBg: '#0F172A',
+  toastBorder: '#334155',
 
   // Tertiary Government Tech Accent
   tertiary: '#003120',

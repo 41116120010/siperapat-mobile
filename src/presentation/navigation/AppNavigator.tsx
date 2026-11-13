@@ -6,9 +6,10 @@ import {
   BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Calendar, Clock, Home, LucideIcon, UserCircle } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { RootStackParamList, MainTabParamList } from './types';
 
 // Screens
@@ -24,12 +25,14 @@ import { ReceiptScreen } from '../screens/ReceiptScreen';
 import { CreateMeetingScreen } from '../screens/CreateMeetingScreen';
 import { EditMeetingScreen } from '../screens/EditMeetingScreen';
 import { MonitoringScreen } from '../screens/MonitoringScreen';
+import { AgendaDetailScreen } from '../screens/AgendaDetailScreen';
 import { EmployeeDirectoryScreen } from '../screens/EmployeeDirectoryScreen';
 import { AddEmployeeScreen } from '../screens/AddEmployeeScreen';
 import { EditEmployeeScreen } from '../screens/EditEmployeeScreen';
 import { AddUnitScreen } from '../screens/AddUnitScreen';
 import { EditUnitScreen } from '../screens/EditUnitScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
+import { ReportsScreen } from '../screens/ReportsScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import { GlobalFeedbackHost } from '../components/common/GlobalFeedbackHost';
 import { PageTransitionOverlay } from '../components/transitions/PageTransitionOverlay';
@@ -39,11 +42,11 @@ import { useAuthStore } from '../store/useAuthStore';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof MaterialIcons.glyphMap> = {
-  Beranda: 'dashboard',
-  Agenda: 'event-available',
-  Riwayat: 'history-edu',
-  Profil: 'account-circle',
+const TAB_ICONS: Record<keyof MainTabParamList, LucideIcon> = {
+  Beranda: Home,
+  Agenda: Calendar,
+  Riwayat: Clock,
+  Profil: UserCircle,
 };
 
 const CustomBottomTabBar: React.FC<BottomTabBarProps> = ({
@@ -79,8 +82,8 @@ const CustomBottomTabBar: React.FC<BottomTabBarProps> = ({
           });
         };
 
-        const color = isFocused ? colors.primary : colors.outline;
-        const iconName = TAB_ICONS[route.name as keyof MainTabParamList] || 'circle';
+        const color = isFocused ? colors.primary : colors.textMuted;
+        const IconComponent = TAB_ICONS[route.name as keyof MainTabParamList] ?? Home;
 
         return (
           <Pressable
@@ -93,8 +96,14 @@ const CustomBottomTabBar: React.FC<BottomTabBarProps> = ({
             onLongPress={onLongPress}
             style={styles.tabItem}
           >
-            <MaterialIcons name={iconName} size={22} color={color} />
-            <Text style={[styles.tabBarLabel, { color }]}>
+            <IconComponent size={22} color={color} strokeWidth={2} />
+            <Text
+              style={[
+                styles.tabBarLabel,
+                isFocused && styles.tabBarLabelActive,
+                { color },
+              ]}
+            >
               {route.name}
             </Text>
           </Pressable>
@@ -106,6 +115,7 @@ const CustomBottomTabBar: React.FC<BottomTabBarProps> = ({
 
 export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: rootStackNav }) => {
   const user = useAuthStore((state) => state.user);
+  const detailRoute = user?.role === 'staff' ? 'AgendaDetail' : 'Monitoring';
   useEffect(() => {
     if (!user) rootStackNav.replace('Login');
   }, [user, rootStackNav]);
@@ -126,7 +136,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
             }}
             onNavigateDetail={(id) => {
               triggerPageTransition();
-              rootStackNav.navigate('Monitoring', { meetingId: id });
+              rootStackNav.navigate(detailRoute, { meetingId: id });
             }}
             onNavigateAgenda={() => {
               tabNav.navigate('Agenda');
@@ -140,7 +150,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
           <AgendaScreen
             onNavigateDetail={(id) => {
               triggerPageTransition();
-              rootStackNav.navigate('Monitoring', { meetingId: id });
+              rootStackNav.navigate(detailRoute, { meetingId: id });
             }}
             onNavigateCreate={() => {
               triggerPageTransition();
@@ -179,6 +189,10 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
             onNavigateChangePassword={() => {
               triggerPageTransition();
               rootStackNav.navigate('ChangePassword');
+            }}
+            onNavigateReports={() => {
+              triggerPageTransition();
+              rootStackNav.navigate('Reports');
             }}
           />
         )}
@@ -268,7 +282,7 @@ export const AppNavigator: React.FC = () => {
             onDone={() => navigation.navigate('MainTabs')}
             onViewAgendaDetail={(meetingId) => {
               if (meetingId) {
-                navigation.navigate('Monitoring', { meetingId });
+                navigation.navigate(role === 'staff' ? 'AgendaDetail' : 'Monitoring', { meetingId });
               } else {
                 navigation.navigate('MainTabs');
               }
@@ -294,6 +308,19 @@ export const AppNavigator: React.FC = () => {
             onNavigateEdit={(id) => {
               triggerPageTransition();
               navigation.navigate('EditMeeting', { meetingId: id });
+            }}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="AgendaDetail">
+        {({ navigation, route }) => (
+          <AgendaDetailScreen
+            meetingId={route.params.meetingId}
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
+            onNavigatePresensi={(id) => {
+              triggerPageTransition();
+              navigation.navigate('Presensi', { meetingId: id });
             }}
           />
         )}
@@ -377,6 +404,18 @@ export const AppNavigator: React.FC = () => {
         )}
       </Stack.Screen>
 
+      <Stack.Screen name="Reports">
+        {({ navigation }) => canManageEmployees ? (
+          <ReportsScreen
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
+            onOpenAgenda={(id) => {
+              triggerPageTransition();
+              navigation.navigate('Monitoring', { meetingId: id });
+            }}
+          />
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
+      </Stack.Screen>
+
       <Stack.Screen name="ChangePassword">
         {({ navigation }) => (
           <ChangePasswordScreen
@@ -393,11 +432,13 @@ export const AppNavigator: React.FC = () => {
 };
 
 const RoleAccessDenied: React.FC<{ onBack: () => void }> = ({ onBack }) => (
-  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.background }}>
-    <Text style={{ color: colors.onSurface, fontSize: 17, fontWeight: '700', textAlign: 'center' }}>Akses tidak tersedia</Text>
-    <Text style={{ color: colors.onSurfaceVariant, fontSize: 13, textAlign: 'center', marginTop: 8 }}>Akun Anda tidak memiliki izin untuk membuka halaman ini.</Text>
-    <Pressable onPress={onBack} accessibilityRole="button" style={{ marginTop: 20, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.primary }}>
-      <Text style={{ color: colors.onPrimary, fontWeight: '700' }}>Kembali</Text>
+  <View style={styles.deniedContainer}>
+    <Text style={styles.deniedTitle}>Akses tidak tersedia</Text>
+    <Text style={styles.deniedSubtitle}>
+      Akun Anda tidak memiliki izin untuk membuka halaman ini.
+    </Text>
+    <Pressable onPress={onBack} accessibilityRole="button" style={styles.deniedButton}>
+      <Text style={styles.deniedButtonText}>Kembali</Text>
     </Pressable>
   </View>
 );
@@ -405,7 +446,7 @@ const RoleAccessDenied: React.FC<{ onBack: () => void }> = ({ onBack }) => (
 const styles = StyleSheet.create({
   tabBar: {
     height: 62,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderTopWidth: 1,
     borderTopColor: colors.borderSubtle,
     flexDirection: 'row',
@@ -413,14 +454,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingBottom: 6,
     paddingTop: 6,
-    elevation: 4,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
   },
   tabItem: {
     flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 2,
@@ -428,7 +465,46 @@ const styles = StyleSheet.create({
   },
   tabBarLabel: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 11,
-    fontWeight: '600',
+  },
+  tabBarLabelActive: {
+    fontFamily: fontFamilies.sansBold,
+  },
+  deniedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: colors.background,
+  },
+  deniedTitle: {
+    ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 17,
+    color: colors.onSurface,
+    textAlign: 'center',
+  },
+  deniedSubtitle: {
+    ...typography.bodyMd,
+    fontSize: 13,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  deniedButton: {
+    marginTop: spacing.md + 4,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deniedButtonText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
   },
 });

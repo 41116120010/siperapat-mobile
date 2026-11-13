@@ -10,18 +10,87 @@ import {
   TextInput,
   KeyboardAvoidingView,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  Archive,
+  Award,
+  BarChart3,
+  Building,
+  Building2,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  CircleDot,
+  Clock,
+  DoorOpen,
+  FilePenLine,
+  FlaskConical,
+  GraduationCap,
+  IdCard,
+  Landmark,
+  LucideIcon,
+  Monitor,
+  Network,
+  NotebookPen,
+  Pencil,
+  Plus,
+  PlusCircle,
+  Radio,
+  RefreshCw,
+  Scale,
+  Search,
+  SearchX,
+  ShieldCheck,
+  User,
+  Wallet,
+  X,
+  XCircle,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { PaginationBar } from '../common/PaginationBar';
+
+const LEGACY_OPTION_ICONS: Record<string, LucideIcon> = {
+  'account-balance': Landmark,
+  school: GraduationCap,
+  business: Building2,
+  badge: IdCard,
+  gavel: Scale,
+  'inventory-2': Archive,
+  verified: ShieldCheck,
+  hub: Network,
+  computer: Monitor,
+  'account-balance-wallet': Wallet,
+  science: FlaskConical,
+  'military-tech': Award,
+  'sync-alt': RefreshCw,
+  assessment: BarChart3,
+  'meeting-room': DoorOpen,
+  apartment: Building,
+  edit: Pencil,
+  person: User,
+  'edit-note': FilePenLine,
+  schedule: Clock,
+  sensors: Radio,
+  'task-alt': CheckCircle2,
+  cancel: XCircle,
+};
+
+function resolveOptionIcon(icon?: string | LucideIcon): LucideIcon | null {
+  if (!icon) return null;
+  if (typeof icon === 'string') {
+    return LEGACY_OPTION_ICONS[icon] ?? CircleDot;
+  }
+  return icon;
+}
 
 export interface AgendaOption {
   id: string;
   title: string;
   subtitle?: string;
   badge?: string;
-  icon?: keyof typeof MaterialIcons.glyphMap;
+  // Accepts LucideIcon or legacy icon keys mapped via LEGACY_OPTION_ICONS (employeeOptions / meetingOptions).
+  icon?: LucideIcon | string;
 }
 
 interface AgendaOptionModalProps {
@@ -187,15 +256,11 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                   styles.closeButton,
                   pressed && styles.closeButtonPressed,
                 ]}
-                hitSlop={8}
+                hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel="Tutup dialog"
               >
-                <MaterialIcons
-                  name="close"
-                  size={20}
-                  color={colors.onSurfaceVariant}
-                />
+                <X size={20} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
 
@@ -207,16 +272,16 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                   isSearchFocused && styles.searchContainerFocused,
                 ]}
               >
-                <MaterialIcons
-                  name="search"
+                <Search
                   size={18}
-                  color={isSearchFocused ? colors.primary : colors.onSurfaceVariant}
+                  color={isSearchFocused ? colors.primary : colors.textMuted}
+                  strokeWidth={2}
                   style={styles.searchIcon}
                 />
                 <TextInput
                   style={styles.searchInput}
                   placeholder={searchPlaceholder ?? 'Cari nama, NIP, atau jabatan...'}
-                  placeholderTextColor={colors.onSurfaceVariant}
+                  placeholderTextColor={colors.textMuted}
                   value={searchQuery}
                   onChangeText={handleSearchChange}
                   onFocus={() => setIsSearchFocused(true)}
@@ -233,15 +298,11 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                       styles.clearSearchBtn,
                       pressed && styles.clearSearchBtnPressed,
                     ]}
-                    hitSlop={6}
+                    hitSlop={10}
                     accessibilityRole="button"
                     accessibilityLabel="Hapus pencarian"
                   >
-                    <MaterialIcons
-                      name="close"
-                      size={15}
-                      color={colors.onSurfaceVariant}
-                    />
+                    <X size={15} color={colors.textSecondary} strokeWidth={2} />
                   </Pressable>
                 ) : null}
               </View>
@@ -251,7 +312,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
             {filteredOptions.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <View style={styles.emptyIconWrap}>
-                  <MaterialIcons name="search-off" size={26} color={colors.outline} />
+                  <SearchX size={26} color={colors.textMuted} strokeWidth={2} />
                 </View>
                 <Text style={styles.emptyTitle}>Data Tidak Ditemukan</Text>
                 <Text style={styles.emptySubtitle}>
@@ -267,7 +328,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                     accessibilityRole="button"
                     accessibilityLabel={`Gunakan ${searchQuery.trim()} sebagai ${customOptionLabel}`}
                   >
-                    <MaterialIcons name="add-circle" size={17} color={colors.primary} />
+                    <PlusCircle size={17} color={colors.primary} strokeWidth={2} />
                     <Text style={styles.emptyCustomButtonText} numberOfLines={1}>
                       Gunakan "{searchQuery.trim()}" sebagai {customOptionLabel}
                     </Text>
@@ -305,7 +366,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                     accessibilityLabel={`Gunakan ${searchQuery.trim()} sebagai ${customOptionLabel}`}
                   >
                     <View style={styles.quickCustomIconWrap}>
-                      <MaterialIcons name="add" size={18} color={colors.primary} />
+                      <Plus size={18} color={colors.primary} strokeWidth={2} />
                     </View>
                     <View style={styles.optionTextGroup}>
                       <View style={styles.titleRow}>
@@ -320,16 +381,13 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                         Jadikan sebagai {customOptionLabel.toLowerCase()} baru
                       </Text>
                     </View>
-                    <MaterialIcons
-                      name="arrow-forward-ios"
-                      size={14}
-                      color={colors.primary}
-                    />
+                    <ChevronRight size={16} color={colors.primary} strokeWidth={2} />
                   </Pressable>
                 ) : null}
 
                 {displayedOptions.map((option) => {
                   const isSelected = option.id === selectedId;
+                  const OptionIcon = resolveOptionIcon(option.icon);
                   return (
                     <Pressable
                       key={option.id}
@@ -346,17 +404,17 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                       accessibilityState={{ selected: isSelected }}
                     >
                       {/* Left Icon (if provided) */}
-                      {option.icon ? (
+                      {OptionIcon ? (
                         <View
                           style={[
                             styles.iconWrap,
                             isSelected ? styles.iconWrapActive : styles.iconWrapInactive,
                           ]}
                         >
-                          <MaterialIcons
-                            name={option.icon}
+                          <OptionIcon
                             size={18}
-                            color={isSelected ? colors.primary : colors.onSurfaceVariant}
+                            color={isSelected ? colors.primary : colors.textSecondary}
+                            strokeWidth={2}
                           />
                         </View>
                       ) : null}
@@ -421,10 +479,10 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                             selectedId === 'custom' ? styles.iconWrapActive : styles.manualCustomIconWrap,
                           ]}
                         >
-                          <MaterialIcons
-                            name="edit"
+                          <Pencil
                             size={18}
                             color={selectedId === 'custom' ? colors.primary : colors.secondary}
+                            strokeWidth={2}
                           />
                         </View>
                         <View style={styles.optionTextGroup}>
@@ -465,18 +523,19 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                       <View style={styles.inlineCustomCard}>
                         <View style={styles.inlineCustomHeader}>
                           <View style={styles.inlineCustomHeaderLeft}>
-                            <MaterialIcons name="edit-note" size={18} color={colors.primary} />
+                            <NotebookPen size={18} color={colors.primary} strokeWidth={2} />
                             <Text style={styles.inlineCustomHeaderText}>
                               Input {customOptionLabel} Kustom
                             </Text>
                           </View>
                           <Pressable
                             onPress={() => setIsCustomExpanded(false)}
-                            hitSlop={8}
+                            style={styles.inlineCloseBtn}
+                            hitSlop={6}
                             accessibilityRole="button"
                             accessibilityLabel="Tutup form input kustom"
                           >
-                            <MaterialIcons name="close" size={18} color={colors.onSurfaceVariant} />
+                            <X size={18} color={colors.textSecondary} strokeWidth={2} />
                           </Pressable>
                         </View>
                         <TextInput
@@ -484,7 +543,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                           placeholder={
                             customOptionPlaceholder ?? `Ketik nama ${customOptionLabel.toLowerCase()}...`
                           }
-                          placeholderTextColor={colors.onSurfaceVariant}
+                          placeholderTextColor={colors.textMuted}
                           value={customInputValue}
                           onChangeText={setCustomInputValue}
                           returnKeyType="done"
@@ -514,7 +573,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                             accessibilityRole="button"
                             accessibilityLabel={`Gunakan ${customOptionLabel}`}
                           >
-                            <MaterialIcons name="check" size={16} color={colors.onPrimary} />
+                            <Check size={16} color={colors.onPrimary} strokeWidth={2} />
                             <Text style={styles.inlineConfirmBtnText}>Gunakan Opsi</Text>
                           </Pressable>
                         </View>
@@ -548,14 +607,14 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: colors.scrimNeutralMid,
     justifyContent: 'flex-end',
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
   },
   sheetContainer: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderTopLeftRadius: rounded.xl,
     borderTopRightRadius: rounded.xl,
     paddingTop: spacing.sm,
@@ -563,17 +622,17 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? spacing.xl + 8 : spacing.lg,
     maxHeight: '80%',
     overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: colors.borderStrong,
     ...Platform.select({
       ios: {
-        shadowColor: '#0F172A',
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: -4 },
         shadowOpacity: 0.12,
         shadowRadius: 16,
       },
       android: {
         elevation: 0,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(197, 197, 211, 0.5)',
       },
     }),
   },
@@ -585,7 +644,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(197, 197, 211, 0.8)',
+    backgroundColor: colors.borderStrong,
     alignSelf: 'center',
     marginBottom: spacing.sm,
   },
@@ -596,28 +655,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.3)',
+    borderBottomColor: colors.borderSubtle,
   },
   headerTextGroup: {
     flex: 1,
   },
   headerTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 16.5,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   headerSubtitle: {
     ...typography.bodySm,
     fontSize: 11.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceContainerLow,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: MIN_TOUCH_TARGET / 2,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.sm,
@@ -635,6 +694,7 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     padding: spacing.sm + 4,
     borderRadius: rounded.md,
     borderWidth: 1,
@@ -642,15 +702,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   optionCardActive: {
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.surfaceSoft,
     borderColor: colors.primary,
   },
   optionCardInactive: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderColor: 'rgba(197, 197, 211, 0.55)',
+    backgroundColor: colors.surfaceCard,
+    borderColor: colors.borderStrong,
   },
   optionCardPressed: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   iconWrap: {
     width: 32,
@@ -660,10 +720,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapActive: {
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    backgroundColor: colors.surfaceContainer,
   },
   iconWrapInactive: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   optionTextGroup: {
     flex: 1,
@@ -676,33 +736,33 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 12.5,
-    fontWeight: '600',
     color: colors.onSurface,
   },
   optionTitleActive: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
-    fontWeight: '700',
   },
   optionSubtitle: {
     ...typography.bodySm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     lineHeight: 15,
   },
   badgePill: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderSubtle,
   },
   badgePillText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 9.5,
-    color: colors.onSurfaceVariant,
-    fontWeight: '600',
+    color: colors.textSecondary,
   },
   radioCircle: {
     width: 18,
@@ -716,7 +776,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   radioCircleInactive: {
-    borderColor: 'rgba(197, 197, 211, 0.8)',
+    borderColor: colors.borderStrong,
   },
   radioInner: {
     width: 9,
@@ -731,17 +791,17 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderStrong,
     paddingHorizontal: spacing.sm + 2,
     marginBottom: spacing.sm,
-    height: 42,
+    minHeight: MIN_TOUCH_TARGET,
   },
   searchContainerFocused: {
     borderColor: colors.primary,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
   },
   searchIcon: {
     marginRight: spacing.xs + 2,
@@ -754,16 +814,16 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   clearSearchBtn: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(197, 197, 211, 0.35)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.xs,
   },
   clearSearchBtnPressed: {
-    backgroundColor: 'rgba(197, 197, 211, 0.6)',
+    backgroundColor: colors.surfaceContainer,
   },
   emptyContainer: {
     flex: 1,
@@ -777,46 +837,50 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   emptyTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 14,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   emptySubtitle: {
     ...typography.bodySm,
     fontSize: 12,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 16,
   },
   resetSearchButton: {
     marginTop: spacing.xs,
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderRadius: rounded.full,
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   resetSearchButtonPressed: {
-    backgroundColor: 'rgba(0, 35, 111, 0.16)',
+    backgroundColor: colors.surfaceContainer,
   },
   resetSearchButtonText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.primary,
-    fontWeight: '600',
     fontSize: 11.5,
   },
   stickyFooter: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.3)',
+    borderTopColor: colors.borderSubtle,
     paddingTop: spacing.xs,
     paddingBottom: 0,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
   },
   paginationContainer: {
     marginTop: 0,
@@ -825,32 +889,35 @@ const styles = StyleSheet.create({
   emptyCustomButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     gap: 6,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderRadius: rounded.full,
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: 'rgba(0, 35, 111, 0.2)',
+    borderColor: colors.borderStrong,
     marginTop: spacing.xs,
     maxWidth: '90%',
   },
   emptyCustomButtonPressed: {
-    backgroundColor: 'rgba(0, 35, 111, 0.16)',
+    backgroundColor: colors.surfaceContainer,
   },
   emptyCustomButtonText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.primary,
-    fontWeight: '600',
     fontSize: 12,
   },
   quickCustomCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.md,
     borderRadius: rounded.md,
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: colors.primary,
@@ -861,35 +928,37 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: rounded.sm,
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    backgroundColor: colors.surfaceContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
   quickCustomTitle: {
     ...typography.bodyMd,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 13.5,
-    fontWeight: '700',
     color: colors.primary,
     flex: 1,
   },
   quickCustomSubtitle: {
     ...typography.bodySm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 1,
   },
   badgePillCustom: {
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: rounded.full,
-    backgroundColor: 'rgba(0, 81, 213, 0.12)',
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
     marginLeft: spacing.xs,
   },
   badgePillCustomText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 9.5,
-    color: colors.secondary,
-    fontWeight: '700',
+    color: colors.infoText,
   },
   manualCustomSection: {
     marginTop: spacing.xs,
@@ -898,23 +967,24 @@ const styles = StyleSheet.create({
   manualCustomTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.md,
     borderRadius: rounded.md,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderStrong,
     gap: spacing.sm,
   },
   manualCustomTriggerSelected: {
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.surfaceSoft,
     borderColor: colors.primary,
   },
   manualCustomIconWrap: {
-    backgroundColor: 'rgba(0, 81, 213, 0.08)',
+    backgroundColor: colors.surfaceContainer,
   },
   inlineCustomCard: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.md,
     borderWidth: 1.5,
     borderColor: colors.primary,
@@ -931,19 +1001,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  inlineCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   inlineCustomHeaderText: {
     ...typography.labelMd,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
     fontSize: 13,
   },
   inlineCustomInput: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
-    borderRadius: rounded.sm,
+    borderColor: colors.borderStrong,
+    borderRadius: rounded.md,
     paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 4,
+    minHeight: MIN_TOUCH_TARGET,
     ...typography.bodyMd,
     fontSize: 13,
     color: colors.onSurface,
@@ -955,24 +1032,28 @@ const styles = StyleSheet.create({
     gap: spacing.xs + 4,
   },
   inlineCancelBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: rounded.full,
-    backgroundColor: 'rgba(197, 197, 211, 0.3)',
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   inlineCancelBtnText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 11.5,
-    color: colors.onSurfaceVariant,
-    fontWeight: '600',
+    color: colors.textSecondary,
   },
   inlineConfirmBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     gap: 4,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: rounded.full,
+    borderRadius: rounded.md,
     backgroundColor: colors.primary,
   },
   inlineConfirmBtnDisabled: {
@@ -980,9 +1061,9 @@ const styles = StyleSheet.create({
   },
   inlineConfirmBtnText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 11.5,
     color: colors.onPrimary,
-    fontWeight: '700',
   },
   inlineBtnPressed: {
     opacity: 0.8,

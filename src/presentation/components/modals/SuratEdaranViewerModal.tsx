@@ -10,12 +10,26 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  AlertCircle,
+  BookOpen,
+  CheckCircle2,
+  CloudUpload,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  ImageOff,
+  Info,
+  RefreshCw,
+  Share2,
+  ShieldCheck,
+  X,
+} from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
@@ -311,11 +325,11 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   isImage ? styles.headerIconImage : styles.headerIconPdf,
                 ]}
               >
-                <MaterialIcons
-                  name={isImage ? 'image' : 'picture-as-pdf'}
-                  size={22}
-                  color={isImage ? colors.primary : '#DC2626'}
-                />
+                {isImage ? (
+                  <ImageIcon size={22} color={colors.primary} strokeWidth={2} />
+                ) : (
+                  <FileText size={22} color={colors.error} strokeWidth={2} />
+                )}
               </View>
               <View style={styles.headerTitleWrap}>
                 <Text style={styles.headerTitle} numberOfLines={1}>
@@ -331,7 +345,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
               style={({ pressed }) => [styles.closeBtn, pressed && styles.btnPressed]}
               accessibilityLabel="Tutup pratinjau surat edaran"
             >
-              <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
+              <X size={20} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -358,7 +372,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
             {!isPreparing && cacheError ? (
               <View style={styles.errorContainer}>
                 <View style={styles.errorIconCircle}>
-                  <MaterialIcons name="error-outline" size={36} color={colors.error} />
+                  <AlertCircle size={36} color={colors.error} strokeWidth={2} />
                 </View>
                 <Text style={styles.errorTitle}>Gagal Memuat Surat Edaran</Text>
                 <Text style={styles.errorMessage}>{cacheError}</Text>
@@ -367,7 +381,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   onPress={() => void prepareFile()}
                   variant="outline"
                   size="md"
-                  icon={<MaterialIcons name="refresh" size={18} color={colors.primary} />}
+                  icon={<RefreshCw size={18} color={colors.primary} strokeWidth={2} />}
                   style={styles.retryBtn}
                 />
               </View>
@@ -393,7 +407,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   />
                   {imageError ? (
                     <View style={styles.imageErrorBox}>
-                      <MaterialIcons name="broken-image" size={42} color={colors.error} />
+                      <ImageOff size={42} color={colors.error} strokeWidth={2} />
                       <Text style={styles.imageErrorText}>Gagal memuat pratinjau gambar.</Text>
                       <Button
                         title="Muat Ulang Gambar"
@@ -406,7 +420,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   ) : null}
                 </ScrollView>
                 <View style={styles.imageMetaBar}>
-                  <MaterialIcons name="info-outline" size={14} color={colors.onSurfaceVariant} />
+                  <Info size={14} color={colors.textSecondary} strokeWidth={2} />
                   <Text style={styles.imageMetaText} numberOfLines={1}>
                     {resolvedFileName} {formattedSize ? `• ${formattedSize}` : ''}
                   </Text>
@@ -420,18 +434,18 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                 {/* Official Insignia Banner */}
                 <View style={styles.pdfInsigniaBox}>
                   <View style={styles.pdfBadgeIcon}>
-                    <MaterialIcons name="picture-as-pdf" size={42} color="#DC2626" />
+                    <FileText size={38} color={colors.error} strokeWidth={2} />
                   </View>
                   <Text style={styles.pdfDocTitle} numberOfLines={2}>
                     {resolvedFileName}
                   </Text>
                   <View style={styles.verifiedRow}>
-                    <MaterialIcons name="verified" size={15} color={colors.success} />
+                    <ShieldCheck size={15} color={colors.success} strokeWidth={2} />
                     <Text style={styles.verifiedText}>Dokumen Digital Resmi LLDIKTI X</Text>
                   </View>
                   {cachedLocalUri ? (
                     <View style={styles.cachedBadge}>
-                      <MaterialIcons name="check-circle" size={13} color={colors.primary} />
+                      <CheckCircle2 size={13} color={colors.infoText} strokeWidth={2} />
                       <Text style={styles.cachedBadgeText}>Tersedia di Penyimpanan Lokal (Siap Dibaca)</Text>
                     </View>
                   ) : null}
@@ -448,7 +462,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   {meetingCode ? (
                     <View style={styles.metaRow}>
                       <Text style={styles.metaLabel}>Kode Rapat</Text>
-                      <Text style={styles.metaValue}>{meetingCode}</Text>
+                      <Text style={styles.metaValueMono}>{meetingCode}</Text>
                     </View>
                   ) : null}
                   {meetingDate ? (
@@ -474,8 +488,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                   variant="primary"
                   size="lg"
                   fullWidth
-                  icon={<MaterialIcons name="chrome-reader-mode" size={20} color={colors.onPrimary} />}
-                  style={styles.primaryReaderBtn}
+                  icon={<BookOpen size={20} color={colors.onPrimary} strokeWidth={2} />}
                 />
 
                 {/* Auxiliary Action Buttons */}
@@ -486,7 +499,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                     disabled={isSharing || isPreparing}
                     variant="outline"
                     size="md"
-                    icon={<MaterialIcons name="share" size={18} color={colors.primary} />}
+                    icon={<Share2 size={18} color={colors.primary} strokeWidth={2} />}
                     style={{ flex: 1 }}
                   />
                   {canonicalDocumentUrl ? (
@@ -495,7 +508,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                       onPress={() => void handleOpenExternal()}
                       variant="ghost"
                       size="md"
-                      icon={<MaterialIcons name="open-in-new" size={18} color={colors.primary} />}
+                      icon={<ExternalLink size={18} color={colors.primary} strokeWidth={2} />}
                       style={{ flex: 1 }}
                     />
                   ) : null}
@@ -516,7 +529,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                 variant="outline"
                 size="md"
                 fullWidth
-                icon={<MaterialIcons name="cloud-upload" size={18} color={colors.primary} />}
+                icon={<CloudUpload size={18} color={colors.primary} strokeWidth={2} />}
                 style={styles.replaceBtn}
               />
             ) : null}
@@ -537,19 +550,17 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    backgroundColor: colors.scrimNeutralTop,
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.md,
   },
   modalCard: {
+    ...cardSurface,
     width: Math.min(SCREEN_WIDTH - spacing.md * 2, 460),
     maxHeight: SCREEN_HEIGHT * 0.88,
-    backgroundColor: colors.surfaceContainerLowest,
     borderRadius: rounded.xl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    ...elevations.level3,
+    borderColor: colors.borderStrong,
     overflow: 'hidden',
   },
   header: {
@@ -559,8 +570,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -577,30 +588,30 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   headerIconPdf: {
-    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    backgroundColor: colors.errorContainer,
   },
   headerIconImage: {
-    backgroundColor: 'rgba(0, 102, 204, 0.1)',
+    backgroundColor: colors.surfaceSoft,
   },
   headerTitleWrap: {
     flex: 1,
   },
   headerTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
   },
   headerSubtitle: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
   closeBtn: {
-    width: 34,
-    height: 34,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     borderRadius: rounded.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   btnPressed: {
     opacity: 0.7,
@@ -622,13 +633,13 @@ const styles = StyleSheet.create({
   },
   loadingTitle: {
     ...typography.bodyMd,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
-    fontWeight: '600',
     textAlign: 'center',
   },
   loadingSubtitle: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 
@@ -643,19 +654,19 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: rounded.full,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: colors.errorContainer,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xs,
   },
   errorTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     color: colors.error,
-    fontWeight: '700',
   },
   errorMessage: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: spacing.md,
   },
@@ -672,7 +683,7 @@ const styles = StyleSheet.create({
     height: 300,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.lg,
     overflow: 'hidden',
   },
@@ -684,7 +695,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     gap: spacing.xs,
     padding: spacing.md,
   },
@@ -699,12 +710,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.full,
   },
   imageMetaText: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
 
   // PDF Document Card Styles
@@ -714,10 +725,10 @@ const styles = StyleSheet.create({
   pdfInsigniaBox: {
     alignItems: 'center',
     paddingVertical: spacing.md,
-    backgroundColor: 'rgba(220, 38, 38, 0.04)',
+    backgroundColor: colors.errorContainer,
     borderRadius: rounded.lg,
     borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.15)',
+    borderColor: colors.errorBorder,
     borderStyle: 'dashed',
     gap: spacing.xs,
   },
@@ -725,15 +736,17 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: rounded.full,
-    backgroundColor: 'rgba(220, 38, 38, 0.08)',
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xs,
   },
   pdfDocTitle: {
     ...typography.bodyMd,
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontWeight: '700',
     textAlign: 'center',
     paddingHorizontal: spacing.md,
   },
@@ -741,21 +754,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+    backgroundColor: colors.successContainer,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderRadius: rounded.full,
   },
   verifiedText: {
     ...typography.labelSm,
-    color: colors.success,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSuccessContainer,
   },
   cachedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(0, 102, 204, 0.08)',
+    backgroundColor: colors.infoBg,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: rounded.full,
@@ -763,41 +776,44 @@ const styles = StyleSheet.create({
   },
   cachedBadgeText: {
     ...typography.labelSm,
-    color: colors.primary,
-    fontWeight: '500',
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.infoText,
     fontSize: 10,
   },
   metaTable: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: colors.borderSubtle,
   },
   metaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
   },
   metaLabel: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
     flex: 1,
   },
   metaValue: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
-    fontWeight: '600',
     textAlign: 'right',
     flex: 2,
   },
-  primaryReaderBtn: {
-    backgroundColor: '#DC2626',
-    borderColor: '#DC2626',
+  metaValueMono: {
+    ...typography.labelMono,
+    fontSize: 11.5,
+    color: colors.primary,
+    textAlign: 'right',
+    flex: 2,
   },
   auxiliaryGrid: {
     flexDirection: 'row',
@@ -809,8 +825,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
     paddingBottom: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.outlineVariant,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
     gap: spacing.xs,
   },
   replaceBtn: {

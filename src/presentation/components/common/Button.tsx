@@ -9,13 +9,13 @@ import {
   View,
 } from 'react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 
 export interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'destructive' | 'outline' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'success' | 'destructive' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   disabled?: boolean;
@@ -59,6 +59,10 @@ export const Button: React.FC<ButtonProps> = ({
         list.push(styles.secondary);
         if (pressed && !isButtonDisabled) list.push(styles.secondaryPressed);
         break;
+      case 'success':
+        list.push(styles.success);
+        if (pressed && !isButtonDisabled) list.push(styles.successPressed);
+        break;
       case 'outline':
         list.push(styles.outline);
         if (pressed && !isButtonDisabled) list.push(styles.outlinePressed);
@@ -83,18 +87,24 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const getTextColor = (): string => {
-    if (isButtonDisabled) return colors.outline;
+    if (isButtonDisabled) {
+      return variant === 'primary' || variant === 'success'
+        ? colors.onPrimary
+        : colors.textMuted;
+    }
     switch (variant) {
       case 'primary':
         return colors.onPrimary;
       case 'secondary':
-        return colors.onSecondary;
+        return colors.onSurface;
+      case 'success':
+        return colors.onPrimary;
       case 'outline':
         return colors.primary;
       case 'destructive':
         return colors.onErrorContainer;
       case 'ghost':
-        return colors.primary;
+        return colors.secondary;
       default:
         return colors.onPrimary;
     }
@@ -141,60 +151,75 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     overflow: 'hidden',
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   fullWidth: {
     width: '100%',
   },
   sizeSm: {
-    height: 36,
+    minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.sm,
   },
   sizeMd: {
-    height: 48,
+    minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
   },
   sizeLg: {
-    height: 52,
+    minHeight: 48,
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 4,
   },
   primary: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   primaryPressed: {
     backgroundColor: colors.primaryContainer,
-    transform: [{ scale: 0.99 }],
+    borderColor: colors.primaryContainer,
   },
   secondary: {
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.surfaceCard,
+    borderColor: colors.borderStrong,
   },
   secondaryPressed: {
-    backgroundColor: colors.secondaryContainer,
+    backgroundColor: colors.background,
+    borderColor: colors.outline,
+  },
+  success: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
+  },
+  successPressed: {
+    backgroundColor: colors.onSuccessContainer,
+    borderColor: colors.onSuccessContainer,
   },
   outline: {
     backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderStrong,
   },
   outlinePressed: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
+    borderColor: colors.outline,
   },
   destructive: {
     backgroundColor: colors.errorContainer,
-    borderWidth: 1,
     borderColor: colors.error,
   },
   destructivePressed: {
-    backgroundColor: '#FFE4E6',
+    backgroundColor: colors.destructivePressed,
   },
   ghost: {
     backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
   ghostPressed: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   disabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   contentRow: {
     flexDirection: 'row',
@@ -205,14 +230,17 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   text: {
-    ...typography.labelLg,
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
     textAlign: 'center',
   },
   textSm: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
   },
   textLg: {
-    ...typography.headlineSm,
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
   },
   spinner: {
     marginVertical: 2,

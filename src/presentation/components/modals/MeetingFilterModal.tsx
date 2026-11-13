@@ -7,10 +7,17 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  CheckCircle2,
+  Clock,
+  LayoutGrid,
+  LucideIcon,
+  PlayCircle,
+  X,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 
 export type FilterStatus = 'all' | 'ongoing' | 'upcoming' | 'completed';
@@ -25,11 +32,11 @@ interface MeetingFilterModalProps {
   onReset: () => void;
 }
 
-const STATUS_OPTIONS: { id: FilterStatus; label: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
-  { id: 'all', label: 'Semua Status', icon: 'apps' },
-  { id: 'ongoing', label: 'Berlangsung', icon: 'play-circle-outline' },
-  { id: 'upcoming', label: 'Akan Datang', icon: 'schedule' },
-  { id: 'completed', label: 'Selesai', icon: 'task-alt' },
+const STATUS_OPTIONS: { id: FilterStatus; label: string; Icon: LucideIcon }[] = [
+  { id: 'all', label: 'Semua Status', Icon: LayoutGrid },
+  { id: 'ongoing', label: 'Berlangsung', Icon: PlayCircle },
+  { id: 'upcoming', label: 'Akan Datang', Icon: Clock },
+  { id: 'completed', label: 'Selesai', Icon: CheckCircle2 },
 ];
 
 const ORDER_OPTIONS: { id: FilterOrder; label: string; desc: string }[] = [
@@ -110,10 +117,10 @@ export const MeetingFilterModal: React.FC<MeetingFilterModalProps> = ({
                 styles.closeButton,
                 pressed && styles.closeButtonPressed,
               ]}
-              hitSlop={8}
+              hitSlop={4}
               accessibilityLabel="Tutup"
             >
-              <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
+              <X size={20} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -123,6 +130,7 @@ export const MeetingFilterModal: React.FC<MeetingFilterModalProps> = ({
             <View style={styles.chipGrid}>
               {STATUS_OPTIONS.map((opt) => {
                 const isSelected = selectedStatus === opt.id;
+                const StatusIcon = opt.Icon;
                 return (
                   <Pressable
                     key={opt.id}
@@ -133,10 +141,10 @@ export const MeetingFilterModal: React.FC<MeetingFilterModalProps> = ({
                       pressed && styles.chipPressed,
                     ]}
                   >
-                    <MaterialIcons
-                      name={opt.icon}
+                    <StatusIcon
                       size={16}
-                      color={isSelected ? colors.onPrimary : colors.onSurfaceVariant}
+                      color={isSelected ? colors.onPrimary : colors.textSecondary}
+                      strokeWidth={2}
                     />
                     <Text
                       style={[
@@ -220,14 +228,14 @@ export const MeetingFilterModal: React.FC<MeetingFilterModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(11, 28, 48, 0.45)',
+    backgroundColor: colors.scrimNeutralMid,
     justifyContent: 'flex-end',
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
   },
   sheetContainer: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderTopLeftRadius: rounded.xl,
     borderTopRightRadius: rounded.xl,
     paddingHorizontal: spacing.md,
@@ -235,14 +243,14 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? spacing.xl + 8 : spacing.lg,
     borderWidth: 1,
     borderBottomWidth: 0,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderStrong,
     overflow: 'hidden',
   },
   handleBar: {
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(197, 197, 211, 0.8)',
+    backgroundColor: colors.borderStrong,
     alignSelf: 'center',
     marginBottom: spacing.sm + 4,
   },
@@ -253,28 +261,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.3)',
+    borderBottomColor: colors.borderSubtle,
   },
   headerTextGroup: {
     flex: 1,
   },
   headerTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 17,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   headerSubtitle: {
     ...typography.bodySm,
     fontSize: 12,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceContainerLow,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: MIN_TOUCH_TARGET / 2,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.sm,
@@ -287,10 +295,10 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 10,
-    fontWeight: '700',
     letterSpacing: 0.6,
-    color: colors.outline,
+    color: colors.textMuted,
     marginBottom: spacing.xs + 2,
   },
   chipGrid: {
@@ -301,6 +309,7 @@ const styles = StyleSheet.create({
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     gap: 6,
     paddingVertical: 9,
     paddingHorizontal: 12,
@@ -313,8 +322,8 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   statusChipInactive: {
-    backgroundColor: colors.surfaceContainerLow,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    backgroundColor: colors.surfaceSoft,
+    borderColor: colors.borderStrong,
   },
   chipPressed: {
     opacity: 0.85,
@@ -324,12 +333,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   chipTextActive: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
-    fontWeight: '700',
   },
   chipTextInactive: {
-    color: colors.onSurfaceVariant,
-    fontWeight: '500',
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
   },
   orderContainer: {
     gap: spacing.xs + 4,
@@ -337,6 +346,7 @@ const styles = StyleSheet.create({
   orderCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: MIN_TOUCH_TARGET,
     padding: spacing.sm + 4,
     borderRadius: rounded.md,
     borderWidth: 1,
@@ -344,12 +354,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   orderCardActive: {
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.surfaceSoft,
     borderColor: colors.primary,
   },
   orderCardInactive: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    backgroundColor: colors.surfaceCard,
+    borderColor: colors.borderStrong,
   },
   orderRadioCircle: {
     width: 18,
@@ -371,18 +381,18 @@ const styles = StyleSheet.create({
   },
   orderTitle: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 13,
-    fontWeight: '600',
     color: colors.onSurface,
   },
   orderTitleActive: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
-    fontWeight: '700',
   },
   orderDesc: {
     ...typography.bodySm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 1,
     lineHeight: 15,
   },
@@ -392,7 +402,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.3)',
+    borderTopColor: colors.borderSubtle,
   },
   resetButtonWrapper: {
     width: '36%',

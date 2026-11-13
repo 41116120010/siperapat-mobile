@@ -4,12 +4,11 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Pressable,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { AlertCircle, CheckCircle2 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { cardSurface, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Button } from '../components/common/Button';
 import { FaceOvalOverlay } from '../components/attendance/FaceOvalOverlay';
@@ -34,29 +33,32 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
 
   const [selfieUri, setSelfieUri] = useState<string>('');
   const [signatureSvg, setSignatureSvg] = useState<string>('');
-  const [isAgreementChecked, setIsAgreementChecked] = useState(false);
 
-  useEffect(() => { void fetchPortal(meetingId); }, [meetingId, fetchPortal]);
+  useEffect(() => {
+    void fetchPortal(meetingId);
+  }, [meetingId, fetchPortal]);
+
   const meeting = portal?.agenda;
 
   const handleSubmit = async () => {
-    if (!isAgreementChecked) {
+    if (!portal?.isOngoing || !portal.isEligible || portal.hasAttended) {
       useFeedbackStore.getState().showToast({
         type: 'warning',
-        message: 'Harap centang pernyataan sah integritas kehadiran sebelum mengirim.',
+        message: 'Presensi tidak tersedia untuk agenda ini menurut status dan hak akses server.',
       });
       return;
     }
-
-    if (!portal?.isOngoing || !portal.isEligible || portal.hasAttended) {
-      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Presensi tidak tersedia untuk agenda ini menurut status dan hak akses server.' });
-      return;
-    }
     if (!selfieUri.startsWith('data:image/') || !signatureSvg.startsWith('data:image/')) {
-      useFeedbackStore.getState().showToast({ type: 'warning', message: 'Ambil foto dan bubuhkan tanda tangan sebelum mengirim presensi.' });
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Ambil foto dan bubuhkan tanda tangan sebelum mengirim presensi.',
+      });
       return;
     }
-    const record = await submitAttendance(meetingId, { selfie_data: selfieUri, signature_data: signatureSvg });
+    const record = await submitAttendance(meetingId, {
+      selfie_data: selfieUri,
+      signature_data: signatureSvg,
+    });
     if (record) {
       onSuccess(record.id);
     }
@@ -78,7 +80,7 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
         {/* Step 2: Digital Signature Canvas */}
         <DigitalSignaturePad onSignatureChange={setSignatureSvg} />
 
-        {/* Step 3: Identity & Geofence Verification Metadata Card */}
+        {/* Step 3: Identity Metadata & Attendance Statement (aligned with Web create.blade.php) */}
         <View style={styles.metadataCard}>
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>NIP Pegawai ASN</Text>
@@ -91,55 +93,46 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
 
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Waktu & IP Sesi</Text>
-            <Text style={styles.metaValue}>Diisi oleh server</Text>
+            <Text style={styles.metaValue}>Tercatat otomatis oleh server</Text>
           </View>
 
           <View style={styles.metaDivider} />
 
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Lokasi Presensi</Text>
-            <View style={styles.geofenceValidRow}>
-              <Text style={styles.metaValidText}>
-                Validasi lokasi tidak disediakan API
-              </Text>
-            </View>
-          </View>
-
-          {/* Legal Checkbox */}
-          <Pressable
-            onPress={() => setIsAgreementChecked(!isAgreementChecked)}
-            style={styles.checkboxRow}
-          >
-            <MaterialIcons
-              name={isAgreementChecked ? 'check-box' : 'check-box-outline-blank'}
-              size={22}
-              color={isAgreementChecked ? colors.primary : colors.outline}
-            />
-            <Text style={styles.checkboxText}>
-              Saya menyatakan secara sah kehadiran saya pada rapat kedinasan ini sesuai data yang sebenarnya.
+          <View style={styles.statementBox}>
+            <Text style={styles.statementTitle}>Pernyataan Kehadiran:</Text>
+            <Text style={styles.statementBody}>
+              Dengan menekan tombol di bawah, saya menyatakan hadir secara sah pada agenda rapat kedinasan ini.
             </Text>
-          </Pressable>
+          </View>
         </View>
 
         {/* Error notification if any */}
         {error ? (
           <View style={styles.errorBox}>
-            <MaterialIcons name="error-outline" size={18} color={colors.error} />
+            <AlertCircle size={18} color={colors.error} strokeWidth={2} />
             <Text style={styles.errorMsg}>{error}</Text>
           </View>
         ) : null}
 
-        {/* Submit Button */}
+        {/* Submit Button (Web SSOT: emerald bg-emerald-700 CTA) */}
         <Button
-          title="Kirim Presensi Sah Kedinasan"
+          title="Konfirmasi & Kirim Presensi"
           onPress={handleSubmit}
-          variant="primary"
+          variant="success"
           size="lg"
           fullWidth
           isLoading={isSubmitting}
-          disabled={isSubmitting || isLoading || !isAgreementChecked || !portal?.isOngoing || !portal.isEligible || portal.hasAttended || !selfieUri || !signatureSvg}
+          disabled={
+            isSubmitting ||
+            isLoading ||
+            !portal?.isOngoing ||
+            !portal.isEligible ||
+            portal.hasAttended ||
+            !selfieUri ||
+            !signatureSvg
+          }
           style={styles.submitBtn}
-          icon={<MaterialIcons name="verified" size={20} color={colors.onPrimary} />}
+          icon={<CheckCircle2 size={20} color={colors.onPrimary} strokeWidth={2} />}
         />
       </ScrollView>
     </View>
@@ -156,11 +149,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl * 2,
   },
   metadataCard: {
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: rounded.lg,
+    ...cardSurface,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderStrong,
     marginBottom: spacing.md,
   },
   metaRow: {
@@ -171,64 +162,57 @@ const styles = StyleSheet.create({
   },
   metaLabel: {
     ...typography.labelSm,
-    color: colors.onSurfaceVariant,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
   },
   metaValue: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     color: colors.onSurface,
-    fontWeight: '600',
   },
   metaValueMono: {
     ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
     color: colors.primary,
-    fontWeight: '700',
-  },
-  geofenceValidRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaValidText: {
-    ...typography.labelSm,
-    color: colors.tertiaryContainer,
-    fontWeight: '700',
   },
   metaDivider: {
     height: 1,
     backgroundColor: colors.borderSubtle,
     marginVertical: spacing.xs,
   },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    gap: spacing.sm,
+  statementBox: {
+    paddingTop: spacing.xs,
+    gap: 2,
   },
-  checkboxText: {
+  statementTitle: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primaryDarkest,
+  },
+  statementBody: {
     ...typography.bodySm,
-    color: colors.onSurface,
-    flex: 1,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.errorContainer,
-    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+    padding: spacing.sm + 2,
     borderRadius: rounded.md,
     marginBottom: spacing.md,
-    gap: spacing.xs,
+    gap: spacing.xs + 2,
   },
   errorMsg: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
     color: colors.onErrorContainer,
     flex: 1,
   },
   submitBtn: {
-    backgroundColor: colors.primary,
     marginBottom: spacing.lg,
   },
 });

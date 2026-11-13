@@ -21,6 +21,9 @@ interface AuthState {
   updateProfile: (
     payload: { phone?: string; name?: string; email?: string }
   ) => Promise<{ success: boolean; message?: string }>;
+  forgotPassword: (
+    identity: string
+  ) => Promise<{ success: boolean; message: string; maskedEmail?: string }>;
   clearError: () => void;
 }
 

@@ -15,6 +15,7 @@ export type RootStackParamList = {
   AddUnit: undefined;
   EditUnit: { unitId: number | string };
   AuditLog: undefined;
+  Reports: undefined;
   ChangePassword: undefined;
 };
 

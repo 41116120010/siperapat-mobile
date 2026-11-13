@@ -5,24 +5,25 @@ import {
   StyleSheet,
   ImageBackground,
   Image,
-  Dimensions,
+  Platform,
   Pressable,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowRight } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { useAuthStore } from '../store/useAuthStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
-
-const { width, height } = Dimensions.get('window');
 
 interface SplashScreenProps {
   onFinish: (hasSession: boolean) => void;
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
+  const insets = useSafeAreaInsets();
   const { user, checkSession, isLoading } = useAuthStore();
   const [isEntering, setIsEntering] = useState(false);
 
@@ -40,6 +41,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="light" />
       <ImageBackground
         source={require('../../../assets/images/rumah-gadang-bg.jpg')}
         style={styles.backgroundImage}
@@ -51,10 +53,10 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           <Svg width="100%" height="100%">
             <Defs>
               <SvgLinearGradient id="neutralScrim" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0%" stopColor="#0A0F1A" stopOpacity="0.60" />
-                <Stop offset="32%" stopColor="#0B1222" stopOpacity="0.40" />
-                <Stop offset="65%" stopColor="#070D1A" stopOpacity="0.66" />
-                <Stop offset="100%" stopColor="#03060E" stopOpacity="0.88" />
+                <Stop offset="0%" stopColor={colors.primaryDarkest} stopOpacity="0.72" />
+                <Stop offset="35%" stopColor={colors.primary} stopOpacity="0.45" />
+                <Stop offset="68%" stopColor={colors.primaryDarkest} stopOpacity="0.72" />
+                <Stop offset="100%" stopColor={colors.primaryDarkest} stopOpacity="0.92" />
               </SvgLinearGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#neutralScrim)" />
@@ -62,7 +64,15 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         </View>
 
         {/* Content Container */}
-        <View style={styles.content}>
+        <View
+          style={[
+            styles.content,
+            {
+              paddingTop: Math.max(spacing.xl * 2, insets.top + spacing.xl),
+              paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.md),
+            },
+          ]}
+        >
           {/* Top & Center Branding Block */}
           <View style={styles.brandingBlock}>
             {/* Logo Container: Tut Wuri Handayani in pristine white tile */}
@@ -99,7 +109,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
               style={({ pressed }) => [
                 styles.enterButton,
                 pressed && styles.enterButtonPressed,
-                isEntering && { opacity: 0.8 },
+                isEntering && styles.enterButtonBusy,
               ]}
               accessibilityRole="button"
               accessibilityLabel="Masuk ke Sistem"
@@ -107,19 +117,16 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
               <Text style={styles.enterButtonText}>
                 Masuk ke Sistem
               </Text>
-              <MaterialIcons
-                name="arrow-forward"
+              <ArrowRight
                 size={20}
                 color={colors.primary}
+                strokeWidth={2}
               />
             </Pressable>
 
             <Text style={styles.copyrightText}>
-              @ 2026 LLDIKTI WILAYAH X
+              © 2026 LLDIKTI WILAYAH X
             </Text>
-
-            {/* Home indicator pill */}
-            <View style={styles.homeIndicator} />
           </View>
         </View>
       </ImageBackground>
@@ -130,18 +137,16 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#070D1A',
+    backgroundColor: colors.primaryDarkest,
   },
   backgroundImage: {
-    width,
-    height,
+    flex: 1,
+    width: '100%',
   },
   content: {
     flex: 1,
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
-    paddingTop: height * 0.12,
-    paddingBottom: spacing.xl,
     zIndex: 10,
   },
   brandingBlock: {
@@ -152,17 +157,21 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceCard,
     padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    ...elevations.level3,
-    shadowColor: '#000000',
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
+    borderColor: colors.borderSubtle,
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: colors.primaryDarkest,
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.35,
+          shadowRadius: 16,
+        }
+      : {}),
   },
   logo: {
     width: '100%',
@@ -174,33 +183,34 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.headlineLg,
+    fontFamily: fontFamilies.sansExtraBold,
     fontSize: 34,
-    color: '#FFFFFF',
-    fontWeight: '800',
+    lineHeight: 42,
+    color: colors.onPrimary,
     letterSpacing: 2,
     textAlign: 'center',
   },
   tagline: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 15,
     color: colors.textSplashMuted,
-    fontWeight: '500',
     textAlign: 'center',
     letterSpacing: 0.5,
     marginTop: 4,
   },
   institutionContainer: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.18)',
+    borderTopColor: colors.toastBorder,
     paddingTop: spacing.md,
     maxWidth: 280,
     alignItems: 'center',
   },
   institutionTitle: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 15,
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: colors.onPrimary,
     letterSpacing: 1.2,
     textAlign: 'center',
     marginBottom: 4,
@@ -209,7 +219,6 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     fontSize: 12,
     color: colors.textSplashMinistry,
-    fontWeight: '400',
     textAlign: 'center',
     lineHeight: 18,
   },
@@ -220,39 +229,40 @@ const styles = StyleSheet.create({
   },
   enterButton: {
     width: '100%',
-    height: 50,
-    backgroundColor: '#FFFFFF',
+    minHeight: Math.max(50, MIN_TOUCH_TARGET),
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.xl,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs + 2,
-    ...elevations.level2,
-    shadowColor: '#000000',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: colors.primaryDarkest,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+        }
+      : {}),
   },
   enterButtonPressed: {
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surfaceSoft,
     transform: [{ scale: 0.98 }],
+  },
+  enterButtonBusy: {
+    opacity: 0.8,
   },
   enterButtonText: {
     ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
     fontSize: 15,
-    fontWeight: '700',
   },
   copyrightText: {
     ...typography.labelSm,
     color: colors.outlineVariant,
     fontSize: 11,
-    fontWeight: '500',
-  },
-  homeIndicator: {
-    width: 128,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
-    marginTop: 4,
   },
 });

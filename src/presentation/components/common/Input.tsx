@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { colors } from '../../../core/theme/colors';
 import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -69,7 +69,7 @@ export const Input: React.FC<InputProps> = ({
             Boolean(rightAction) && styles.inputWithRightAction,
             style,
           ]}
-          placeholderTextColor={colors.outline}
+          placeholderTextColor={colors.textMuted}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           textAlignVertical={isMultiline ? 'top' : (rest.textAlignVertical ?? 'center')}
@@ -104,16 +104,15 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.onSurface,
     marginBottom: spacing.xs + 2,
-    fontWeight: '600',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 48,
-    backgroundColor: colors.surfaceContainerLowest,
+    minHeight: MIN_TOUCH_TARGET,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderStrong,
     overflow: 'hidden',
   },
   inputContainerMultiline: {
@@ -122,7 +121,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   inputFocused: {
-    borderColor: colors.secondaryAccent,
+    borderColor: colors.primary,
     borderWidth: 1.5,
   },
   inputError: {

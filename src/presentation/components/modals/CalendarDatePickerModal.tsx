@@ -7,10 +7,17 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  Calendar,
+  CalendarCheck,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 
 export const AGENDA_TIME_ZONE = 'Asia/Jakarta';
@@ -283,15 +290,11 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
                 styles.closeButton,
                 pressed && styles.closeButtonPressed,
               ]}
-              hitSlop={8}
+              hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel="Tutup dialog"
             >
-              <MaterialIcons
-                name="close"
-                size={20}
-                color={colors.onSurfaceVariant}
-              />
+              <X size={20} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -299,7 +302,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
           <View style={styles.previewCard}>
             <View style={styles.previewLeft}>
               <View style={styles.previewIconWrap}>
-                <MaterialIcons name="event-available" size={20} color={colors.primary} />
+                <CalendarCheck size={20} color={colors.primary} strokeWidth={2} />
               </View>
               <View style={styles.previewTextGroup}>
                 <Text style={styles.previewDateText}>
@@ -355,19 +358,19 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
                 isPrevMonthDisabled && styles.navMonthBtnDisabled,
                 pressed && !isPrevMonthDisabled && styles.navMonthBtnPressed,
               ]}
-              hitSlop={8}
+              hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel="Bulan sebelumnya"
             >
-              <MaterialIcons
-                name="chevron-left"
+              <ChevronLeft
                 size={22}
                 color={isPrevMonthDisabled ? colors.outlineVariant : colors.onSurface}
+                strokeWidth={2}
               />
             </Pressable>
 
             <View style={styles.monthTitleWrap}>
-              <MaterialIcons name="calendar-month" size={18} color={colors.primary} />
+              <Calendar size={18} color={colors.primary} strokeWidth={2} />
               <Text style={styles.monthTitleText}>
                 {MONTH_NAMES[viewMonth]} {viewYear}
               </Text>
@@ -379,15 +382,11 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
                 styles.navMonthBtn,
                 pressed && styles.navMonthBtnPressed,
               ]}
-              hitSlop={8}
+              hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel="Bulan berikutnya"
             >
-              <MaterialIcons
-                name="chevron-right"
-                size={22}
-                color={colors.onSurface}
-              />
+              <ChevronRight size={22} color={colors.onSurface} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -467,7 +466,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
               variant="primary"
               size="md"
               style={styles.applyBtn}
-              icon={<MaterialIcons name="check" size={18} color={colors.onPrimary} />}
+              icon={<Check size={18} color={colors.onPrimary} strokeWidth={2} />}
               onPress={handleConfirm}
             />
           </View>
@@ -480,31 +479,31 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: colors.scrimNeutralMid,
     justifyContent: 'flex-end',
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
   },
   sheetContainer: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     borderTopLeftRadius: rounded.xl,
     borderTopRightRadius: rounded.xl,
     paddingTop: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? spacing.xl + 8 : spacing.lg,
     overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: colors.borderStrong,
     ...Platform.select({
       ios: {
-        shadowColor: '#0F172A',
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: -4 },
         shadowOpacity: 0.12,
         shadowRadius: 16,
       },
       android: {
         elevation: 0,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(197, 197, 211, 0.5)',
       },
     }),
   },
@@ -512,7 +511,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(197, 197, 211, 0.8)',
+    backgroundColor: colors.borderStrong,
     alignSelf: 'center',
     marginBottom: spacing.sm,
   },
@@ -523,28 +522,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm + 2,
     paddingBottom: spacing.xs + 2,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.3)',
+    borderBottomColor: colors.borderSubtle,
   },
   headerTextGroup: {
     flex: 1,
   },
   headerTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 16.5,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   headerSubtitle: {
     ...typography.bodySm,
     fontSize: 11.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceContainerLow,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: MIN_TOUCH_TARGET / 2,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.sm,
@@ -556,9 +555,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: 'rgba(0, 35, 111, 0.12)',
+    borderColor: colors.borderSubtle,
     borderRadius: rounded.lg,
     paddingHorizontal: spacing.sm + 4,
     paddingVertical: spacing.sm,
@@ -574,7 +573,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    backgroundColor: colors.surfaceContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -583,28 +582,28 @@ const styles = StyleSheet.create({
   },
   previewDateText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 13,
-    fontWeight: '700',
     color: colors.primary,
   },
   previewSubText: {
     ...typography.bodySm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 1,
   },
   badgePill: {
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderStrong,
   },
   badgePillText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 10,
-    fontWeight: '600',
     color: colors.primary,
   },
   shortcutsRow: {
@@ -615,11 +614,12 @@ const styles = StyleSheet.create({
   },
   shortcutChip: {
     flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     paddingVertical: 6,
     borderRadius: rounded.full,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -632,13 +632,13 @@ const styles = StyleSheet.create({
   },
   shortcutChipText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 11,
-    fontWeight: '600',
     color: colors.onSurface,
   },
   shortcutChipTextActive: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
-    fontWeight: '700',
   },
   monthNavigator: {
     flexDirection: 'row',
@@ -648,18 +648,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs + 2,
   },
   navMonthBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceContainerLow,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
+    borderColor: colors.borderStrong,
   },
   navMonthBtnDisabled: {
     opacity: 0.4,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceCard,
   },
   navMonthBtnPressed: {
     backgroundColor: colors.surfaceContainer,
@@ -671,14 +671,14 @@ const styles = StyleSheet.create({
   },
   monthTitleText: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 14.5,
-    fontWeight: '700',
     color: colors.onSurface,
   },
   dayOfWeekHeader: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.25)',
+    borderBottomColor: colors.borderSubtle,
     paddingBottom: 6,
     marginBottom: 4,
   },
@@ -689,9 +689,9 @@ const styles = StyleSheet.create({
   },
   dayOfWeekText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
   dayOfWeekTextWeekend: {
     color: colors.error,
@@ -705,12 +705,12 @@ const styles = StyleSheet.create({
     width: `${100 / 7}%`,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 3,
+    paddingVertical: 2,
   },
   dayCell: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.full,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -721,19 +721,20 @@ const styles = StyleSheet.create({
   dayCellToday: {
     borderWidth: 1.5,
     borderColor: colors.primary,
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.surfaceSoft,
   },
   dayCellDisabled: {
     opacity: 0.35,
   },
   dayCellPressed: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
   },
   dayNumberText: {
     ...typography.bodyMd,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 12.5,
-    fontWeight: '500',
     color: colors.onSurface,
+    fontVariant: ['tabular-nums'],
   },
   dayNumberOutOfMonth: {
     color: colors.outlineVariant,
@@ -742,19 +743,19 @@ const styles = StyleSheet.create({
     color: colors.error,
   },
   dayNumberToday: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.primary,
-    fontWeight: '700',
   },
   dayNumberSelected: {
+    fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
-    fontWeight: '700',
   },
   dayNumberDisabled: {
     color: colors.outline,
   },
   todayDot: {
     position: 'absolute',
-    bottom: 3,
+    bottom: 4,
     width: 4,
     height: 4,
     borderRadius: 2,
@@ -765,7 +766,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.3)',
+    borderTopColor: colors.borderSubtle,
     paddingTop: spacing.sm + 2,
   },
   cancelBtn: {

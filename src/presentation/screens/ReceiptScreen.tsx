@@ -8,10 +8,10 @@ import {
   Share,
   Pressable,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { CheckCircle2, Share2 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { spacing, rounded } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { MIN_TOUCH_TARGET, spacing, rounded } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { PerforatedTicket } from '../components/receipt/PerforatedTicket';
 import { ErrorState } from '../components/common/ErrorState';
@@ -64,6 +64,7 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
         'TANDA TERIMA PRESENSI KEDINASAN LLDIKTI WILAYAH X',
         '================================================',
         `No. Bukti  : ${receipt.verificationToken || `SIP-${receipt.id.padStart(6, '0')}`}`,
+        `ID Bukti   : #ATT-${receipt.id.padStart(6, '0')}`,
         `Agenda     : ${receipt.meetingTitle}`,
         `Peserta    : ${receipt.asnName} (NIP ${receipt.asnNip})`,
         `Unit Kerja : ${receipt.asnUnitKerja || 'LLDIKTI Wilayah X'}`,
@@ -102,7 +103,7 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
               accessibilityRole="button"
               accessibilityLabel="Bagikan Tanda Terima Presensi"
             >
-              <MaterialIcons name="share" size={20} color={colors.primary} />
+              <Share2 size={20} color={colors.primary} strokeWidth={2} />
             </Pressable>
           ) : undefined
         }
@@ -129,7 +130,7 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
                 title="Bagikan Tanda Terima"
                 variant="outline"
                 onPress={() => void handleShareReceipt()}
-                icon={<MaterialIcons name="share" size={18} color={colors.primary} />}
+                icon={<Share2 size={18} color={colors.primary} strokeWidth={2} />}
                 fullWidth
                 style={styles.actionButton}
               />
@@ -137,7 +138,7 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
                 title="Selesai & Kembali"
                 variant="primary"
                 onPress={onDone}
-                icon={<MaterialIcons name="check-circle" size={18} color="#FFFFFF" />}
+                icon={<CheckCircle2 size={18} color={colors.onPrimary} strokeWidth={2} />}
                 fullWidth
               />
             </View>
@@ -172,14 +173,14 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
   shareHeaderBtn: {
-    width: 36,
-    height: 36,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     borderRadius: rounded.full,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 35, 111, 0.15)',
+    borderColor: colors.borderStrong,
   },
   shareHeaderBtnPressed: {
     backgroundColor: colors.surfaceContainer,
@@ -198,14 +199,14 @@ const styles = StyleSheet.create({
   },
   loadingTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 16,
-    fontWeight: '700',
     color: colors.onSurface,
     marginTop: spacing.md,
   },
   loadingSubtitle: {
     ...typography.bodySm,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: spacing.xs,
     textAlign: 'center',
   },

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,21 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  Modal,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Circle,
+  Eye,
+  EyeOff,
+  Info,
+  KeyRound,
+  Lock,
+  User,
+} from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
@@ -41,7 +50,6 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // Kriteria Validasi Kata Sandi
   const hasMinLength = newPassword.length >= 8;
   const hasUpperAndLower =
     /[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword);
@@ -53,23 +61,23 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
   const isMatch =
     confirmPassword.length > 0 && newPassword === confirmPassword;
 
-  const isFormValid = useMemo(() => {
-    return (
+  const isFormValid = useMemo(
+    () =>
       currentPassword.trim().length > 0 &&
       hasMinLength &&
       hasUpperAndLower &&
       hasNumber &&
       isDifferentFromCurrent &&
-      isMatch
-    );
-  }, [
-    currentPassword,
-    hasMinLength,
-    hasUpperAndLower,
-    hasNumber,
-    isDifferentFromCurrent,
-    isMatch,
-  ]);
+      isMatch,
+    [
+      currentPassword,
+      hasMinLength,
+      hasUpperAndLower,
+      hasNumber,
+      isDifferentFromCurrent,
+      isMatch,
+    ]
+  );
 
   const handleSubmit = async () => {
     if (!isFormValid || isLoading) return;
@@ -86,7 +94,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
     }
   };
 
-  const isActionHandledRef = React.useRef(false);
+  const isActionHandledRef = useRef(false);
 
   const handleBack = () => {
     if (isActionHandledRef.current) return;
@@ -100,6 +108,16 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
     setShowSuccessModal(false);
     onSuccess();
   };
+
+  const criteriaItems = [
+    { label: 'Minimal 8 karakter', met: hasMinLength },
+    {
+      label: 'Kombinasi huruf besar (A-Z) dan kecil (a-z)',
+      met: hasUpperAndLower,
+    },
+    { label: 'Memuat sekurang-kurangnya satu angka (0-9)', met: hasNumber },
+    { label: 'Berbeda dari kata sandi saat ini', met: isDifferentFromCurrent },
+  ];
 
   return (
     <View style={styles.container}>
@@ -123,7 +141,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
           <View style={styles.accountCard}>
             <View style={styles.accountTopRow}>
               <View style={styles.avatarWrap}>
-                <MaterialIcons name="person" size={24} color={colors.primary} />
+                <User size={20} strokeWidth={2} color={colors.primary} />
               </View>
               <View style={styles.accountMeta}>
                 <Text style={styles.accountName}>
@@ -140,14 +158,9 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
           <View style={styles.formCard}>
             <Text style={styles.cardTitle}>Pembaruan Kredensial</Text>
 
-            {/* Error Message Alert jika ada */}
             {errorMessage ? (
               <View style={styles.errorAlert}>
-                <MaterialIcons
-                  name="error-outline"
-                  size={18}
-                  color={colors.error}
-                />
+                <AlertCircle size={18} strokeWidth={2} color={colors.error} />
                 <Text style={styles.errorAlertText}>{errorMessage}</Text>
               </View>
             ) : null}
@@ -164,26 +177,30 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
                   if (errorMessage) setErrorMessage(null);
                 }}
                 leftIcon={
-                  <MaterialIcons
-                    name="lock-outline"
-                    size={20}
-                    color={colors.outline}
-                  />
+                  <Lock size={18} strokeWidth={2} color={colors.textMuted} />
                 }
                 rightAction={
                   <Pressable
                     onPress={() => setShowCurrent(!showCurrent)}
-                    hitSlop={8}
+                    style={styles.eyeButton}
                     accessibilityRole="button"
                     accessibilityLabel={
                       showCurrent ? 'Sembunyikan sandi' : 'Tampilkan sandi'
                     }
                   >
-                    <MaterialIcons
-                      name={showCurrent ? 'visibility-off' : 'visibility'}
-                      size={20}
-                      color={colors.onSurfaceVariant}
-                    />
+                    {showCurrent ? (
+                      <EyeOff
+                        size={19}
+                        strokeWidth={2}
+                        color={colors.onSurfaceVariant}
+                      />
+                    ) : (
+                      <Eye
+                        size={19}
+                        strokeWidth={2}
+                        color={colors.onSurfaceVariant}
+                      />
+                    )}
                   </Pressable>
                 }
               />
@@ -201,22 +218,30 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
                   if (errorMessage) setErrorMessage(null);
                 }}
                 leftIcon={
-                  <MaterialIcons name="lock" size={20} color={colors.primary} />
+                  <KeyRound size={18} strokeWidth={2} color={colors.primary} />
                 }
                 rightAction={
                   <Pressable
                     onPress={() => setShowNew(!showNew)}
-                    hitSlop={8}
+                    style={styles.eyeButton}
                     accessibilityRole="button"
                     accessibilityLabel={
                       showNew ? 'Sembunyikan sandi' : 'Tampilkan sandi'
                     }
                   >
-                    <MaterialIcons
-                      name={showNew ? 'visibility-off' : 'visibility'}
-                      size={20}
-                      color={colors.onSurfaceVariant}
-                    />
+                    {showNew ? (
+                      <EyeOff
+                        size={19}
+                        strokeWidth={2}
+                        color={colors.onSurfaceVariant}
+                      />
+                    ) : (
+                      <Eye
+                        size={19}
+                        strokeWidth={2}
+                        color={colors.onSurfaceVariant}
+                      />
+                    )}
                   </Pressable>
                 }
               />
@@ -239,127 +264,79 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
                     : undefined
                 }
                 leftIcon={
-                  <MaterialIcons
-                    name="lock-reset"
-                    size={20}
+                  <KeyRound
+                    size={18}
+                    strokeWidth={2}
                     color={colors.secondary}
                   />
                 }
                 rightAction={
                   <Pressable
                     onPress={() => setShowConfirm(!showConfirm)}
-                    hitSlop={8}
+                    style={styles.eyeButton}
                     accessibilityRole="button"
                     accessibilityLabel={
                       showConfirm ? 'Sembunyikan sandi' : 'Tampilkan sandi'
                     }
                   >
-                    <MaterialIcons
-                      name={showConfirm ? 'visibility-off' : 'visibility'}
-                      size={20}
-                      color={colors.onSurfaceVariant}
-                    />
+                    {showConfirm ? (
+                      <EyeOff
+                        size={19}
+                        strokeWidth={2}
+                        color={colors.onSurfaceVariant}
+                      />
+                    ) : (
+                      <Eye
+                        size={19}
+                        strokeWidth={2}
+                        color={colors.onSurfaceVariant}
+                      />
+                    )}
                   </Pressable>
                 }
               />
             </View>
 
-            {/* CHECKLIST KRITERIA KEAMANAN (ANTI-UI-SLOP) */}
+            {/* CHECKLIST KRITERIA KEAMANAN */}
             <View style={styles.checklistCard}>
               <Text style={styles.checklistTitle}>
                 Kriteria Keamanan Kata Sandi Kedinasan:
               </Text>
 
-              <View style={styles.checkItem}>
-                <MaterialIcons
-                  name={hasMinLength ? 'check-circle' : 'radio-button-unchecked'}
-                  size={16}
-                  color={hasMinLength ? colors.success : colors.outlineVariant}
-                />
-                <Text
-                  style={[
-                    styles.checkText,
-                    hasMinLength && styles.checkTextActive,
-                  ]}
-                >
-                  Minimal 8 karakter
-                </Text>
-              </View>
-
-              <View style={styles.checkItem}>
-                <MaterialIcons
-                  name={
-                    hasUpperAndLower
-                      ? 'check-circle'
-                      : 'radio-button-unchecked'
-                  }
-                  size={16}
-                  color={
-                    hasUpperAndLower ? colors.success : colors.outlineVariant
-                  }
-                />
-                <Text
-                  style={[
-                    styles.checkText,
-                    hasUpperAndLower && styles.checkTextActive,
-                  ]}
-                >
-                  Kombinasi huruf besar (A-Z) dan kecil (a-z)
-                </Text>
-              </View>
-
-              <View style={styles.checkItem}>
-                <MaterialIcons
-                  name={hasNumber ? 'check-circle' : 'radio-button-unchecked'}
-                  size={16}
-                  color={hasNumber ? colors.success : colors.outlineVariant}
-                />
-                <Text
-                  style={[
-                    styles.checkText,
-                    hasNumber && styles.checkTextActive,
-                  ]}
-                >
-                  Memuat sekurang-kurangnya satu angka (0-9)
-                </Text>
-              </View>
-
-              <View style={styles.checkItem}>
-                <MaterialIcons
-                  name={
-                    isDifferentFromCurrent
-                      ? 'check-circle'
-                      : 'radio-button-unchecked'
-                  }
-                  size={16}
-                  color={
-                    isDifferentFromCurrent
-                      ? colors.success
-                      : colors.outlineVariant
-                  }
-                />
-                <Text
-                  style={[
-                    styles.checkText,
-                    isDifferentFromCurrent && styles.checkTextActive,
-                  ]}
-                >
-                  Berbeda dari kata sandi saat ini
-                </Text>
-              </View>
+              {criteriaItems.map((item) => (
+                <View key={item.label} style={styles.checkItem}>
+                  {item.met ? (
+                    <CheckCircle2
+                      size={16}
+                      strokeWidth={2}
+                      color={colors.success}
+                    />
+                  ) : (
+                    <Circle
+                      size={16}
+                      strokeWidth={2}
+                      color={colors.borderStrong}
+                    />
+                  )}
+                  <Text
+                    style={[
+                      styles.checkText,
+                      item.met && styles.checkTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </View>
+              ))}
             </View>
 
             {/* KOTAK INFORMASI KEAMANAN INSTITUSI */}
             <View style={styles.noticeBox}>
-              <MaterialIcons
-                name="info-outline"
-                size={18}
-                color={colors.primary}
-              />
+              <Info size={18} strokeWidth={2} color={colors.infoText} />
               <Text style={styles.noticeText}>
                 Pembaruan kata sandi ini akan disinkronkan secara otomatis
-                dengan seluruh layanan kedinasan LLDIKTI Wilayah X. Jaga
-                kerahasiaan kredensial akun Anda.
+                dengan seluruh layanan kedinasan LLDIKTI Wilayah X dan mencabut
+                sesi perangkat lain.
               </Text>
             </View>
 
@@ -367,15 +344,15 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
             <View style={styles.actionsRow}>
               <Button
                 title={isLoading ? 'Menyimpan...' : 'Simpan Kata Sandi'}
-                onPress={handleSubmit}
+                onPress={() => void handleSubmit()}
                 disabled={!isFormValid || isLoading}
                 isLoading={isLoading}
                 variant="primary"
                 fullWidth
                 icon={
-                  <MaterialIcons
-                    name="check-circle"
+                  <CheckCircle2
                     size={18}
+                    strokeWidth={2}
                     color={colors.onPrimary}
                   />
                 }
@@ -393,7 +370,6 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* MODAL FEEDBACK SUKSES ENTERPRISE */}
       <FeedbackModal
         visible={showSuccessModal}
         onClose={handleFinishSuccess}
@@ -421,24 +397,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl + 20,
   },
   accountCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.xl,
+    ...cardSurface,
+    borderRadius: rounded.card,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
     overflow: 'hidden',
     gap: spacing.xs + 2,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
   accountTopRow: {
     flexDirection: 'row',
@@ -446,67 +409,54 @@ const styles = StyleSheet.create({
     gap: spacing.sm + 2,
   },
   avatarWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceContainerLow,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.5)',
+    borderColor: colors.borderSubtle,
   },
   accountMeta: {
     flex: 1,
   },
   accountName: {
     ...typography.labelMd,
-    fontSize: 13,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 13.5,
     color: colors.onSurface,
   },
   accountNip: {
     ...typography.bodySm,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-    marginTop: 1,
+    marginTop: 2,
   },
   formCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.xl,
+    ...cardSurface,
+    borderRadius: rounded.card,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
     overflow: 'hidden',
     gap: spacing.sm,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
   },
   cardTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 14.5,
-    fontWeight: '700',
     color: colors.onSurface,
-    paddingBottom: spacing.xs,
+    paddingBottom: spacing.xs + 2,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.3)',
+    borderBottomColor: colors.borderSubtle,
     marginBottom: 4,
   },
   errorAlert: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    backgroundColor: colors.errorContainer,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: colors.errorBorder,
     borderRadius: rounded.md,
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: spacing.sm,
@@ -522,19 +472,26 @@ const styles = StyleSheet.create({
   inputWrapper: {
     marginBottom: -4,
   },
+  eyeButton: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -10,
+  },
   checklistCard: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.md,
-    padding: spacing.sm + 2,
+    padding: spacing.sm + 4,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.4)',
-    gap: 6,
+    borderColor: colors.borderSubtle,
+    gap: 8,
     marginVertical: 4,
   },
   checklistTitle: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 11,
-    fontWeight: '700',
     color: colors.onSurface,
     marginBottom: 2,
   },
@@ -545,29 +502,30 @@ const styles = StyleSheet.create({
   },
   checkText: {
     ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
+    fontSize: 11.5,
+    color: colors.textMuted,
+    flex: 1,
   },
   checkTextActive: {
     color: colors.onSurface,
-    fontWeight: '600',
+    fontFamily: fontFamilies.sansSemiBold,
   },
   noticeBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: 'rgba(0, 35, 111, 0.04)',
+    backgroundColor: colors.infoBg,
     borderRadius: rounded.md,
-    padding: spacing.sm + 2,
+    padding: spacing.sm + 4,
     borderWidth: 1,
-    borderColor: 'rgba(0, 35, 111, 0.12)',
+    borderColor: colors.infoBorder,
     marginTop: 4,
     marginBottom: 8,
   },
   noticeText: {
     ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
+    fontSize: 11.5,
+    color: colors.infoText,
     flex: 1,
     lineHeight: 16,
   },

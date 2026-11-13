@@ -1,10 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform, Image, ActivityIndicator } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
+import {
+  Calendar,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  FileText,
+  Fingerprint,
+  MapPin,
+  PenTool,
+  ShieldCheck,
+  Smartphone,
+  User,
+  ZoomIn,
+} from 'lucide-react-native';
 import { Attendance } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
-import { typography } from '../../../core/theme/typography';
-import { rounded, spacing } from '../../../core/theme/tokens';
+import { fontFamilies, typography } from '../../../core/theme/typography';
+import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { formatWaktuWIB, formatTanggalIndonesia } from '../../../core/utils/dateFormatter';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
 import { EvidenceViewerModal } from '../modals/EvidenceViewerModal';
@@ -74,8 +88,25 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
     setIsEvidenceModalVisible(true);
   };
 
+  const attReference = `#ATT-${attendance.id.padStart(6, '0')}`;
+  const sipReference = attendance.verificationToken || `SIP-${attendance.id.padStart(6, '0')}`;
+
   return (
     <View style={styles.card}>
+      {/* 0. Top Receipt Confirmation Banner (aligned with Web success.blade.php) */}
+      <View style={styles.confirmationBanner}>
+        <View style={styles.confirmationCheckCircle}>
+          <Check size={24} color={colors.onPrimary} strokeWidth={2.5} />
+        </View>
+        <View style={styles.confirmationPill}>
+          <Text style={styles.confirmationPillText}>KEHADIRAN TERVERIFIKASI SAH</Text>
+        </View>
+        <Text style={styles.confirmationTitle}>Tanda Terima Presensi Digital</Text>
+        <Text style={styles.confirmationId}>
+          ID Bukti: {attReference} • {sipReference}
+        </Text>
+      </View>
+
       {/* 1. Institutional Header */}
       <View style={styles.header}>
         <Text style={styles.ministryText}>
@@ -94,11 +125,11 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
         <View style={styles.identifierLeft}>
           <Text style={styles.identifierLabel}>NOMOR BUKTI PRESENSI</Text>
           <Text style={styles.identifierCode}>
-            {attendance.verificationToken || `SIP-${attendance.id.padStart(6, '0')} • Sah Kedinasan`}
+            {attendance.verificationToken || `${sipReference} • Sah Kedinasan`}
           </Text>
         </View>
         <View style={styles.identifierBadge}>
-          <MaterialIcons name="verified-user" size={14} color={colors.primary} />
+          <ShieldCheck size={14} color={colors.primary} strokeWidth={2} />
           <Text style={styles.identifierBadgeText}>Resmi</Text>
         </View>
       </View>
@@ -117,7 +148,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
 
         <View style={styles.agendaGrid}>
           <View style={styles.agendaGridItem}>
-            <MaterialIcons name="assignment" size={16} color={colors.primary} />
+            <FileText size={16} color={colors.primary} strokeWidth={2} />
             <View style={styles.agendaColContent}>
               <Text style={styles.agendaGridLabel}>Berita Acara / Jadwal</Text>
               <Text style={styles.agendaGridText} numberOfLines={2}>
@@ -126,7 +157,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             </View>
           </View>
           <View style={styles.agendaGridItem}>
-            <MaterialIcons name="schedule" size={16} color={colors.primary} />
+            <Clock size={16} color={colors.primary} strokeWidth={2} />
             <View style={styles.agendaColContent}>
               <Text style={styles.agendaGridLabel}>Waktu Presensi Sah</Text>
               <Text style={styles.agendaGridDate}>
@@ -140,7 +171,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
         </View>
 
         <View style={styles.formatBox}>
-          <MaterialIcons name="meeting-room" size={16} color={colors.primary} />
+          <MapPin size={16} color={colors.primary} strokeWidth={2} />
           <Text style={styles.formatText}>
             <Text style={styles.formatBold}>Format & Lokasi: </Text>
             {[attendance.meetingFormat, attendance.meetingLocation].filter(Boolean).join(' • ') || 'Format kedinasan resmi LLDIKTI'}
@@ -166,7 +197,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             <View style={styles.participantCol}>
               <Text style={styles.participantLabel}>Status Verifikasi</Text>
               <View style={styles.verifiedBadgeRow}>
-                <MaterialIcons name="verified" size={14} color={colors.success} />
+                <CheckCircle2 size={14} color={colors.success} strokeWidth={2} />
                 <Text style={styles.participantValueSuccess}>
                   {attendance.validationStatusLabel || 'Hadir Sah Terverifikasi'}
                 </Text>
@@ -175,14 +206,14 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
           </View>
           <View style={styles.validationDetailsRow}>
             <View style={styles.validationItem}>
-              <MaterialIcons name="fingerprint" size={13} color={colors.onSurfaceVariant} />
+              <Fingerprint size={13} color={colors.textSecondary} strokeWidth={2} />
               <Text style={styles.validationText}>
                 Metode: {attendance.verificationMethod || 'Swafoto & TTD Digital'}
               </Text>
             </View>
             {attendance.ipAddress ? (
               <View style={styles.validationItem}>
-                <MaterialIcons name="devices" size={13} color={colors.onSurfaceVariant} />
+                <Smartphone size={13} color={colors.textSecondary} strokeWidth={2} />
                 <Text style={styles.validationText}>
                   IP: {attendance.ipAddress}
                 </Text>
@@ -222,11 +253,11 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
                 </View>
               ) : (
                 <View style={styles.evidencePlaceholder}>
-                  <MaterialIcons name="person" size={40} color={colors.outline} />
+                  <User size={36} color={colors.outline} strokeWidth={1.75} />
                 </View>
               )}
               <View style={styles.evidenceBadgeOverlay}>
-                <MaterialIcons name="zoom-in" size={13} color="#FFFFFF" />
+                <ZoomIn size={13} color={colors.onPrimary} strokeWidth={2} />
               </View>
             </View>
             <Text style={styles.evidenceTitle}>Swafoto Presensi</Text>
@@ -258,11 +289,11 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
                 </View>
               ) : (
                 <View style={styles.signaturePlaceholder}>
-                  <MaterialIcons name="draw" size={32} color={colors.outline} />
+                  <PenTool size={30} color={colors.outline} strokeWidth={1.75} />
                 </View>
               )}
               <View style={styles.evidenceBadgeOverlay}>
-                <MaterialIcons name="zoom-in" size={13} color="#FFFFFF" />
+                <ZoomIn size={13} color={colors.onPrimary} strokeWidth={2} />
               </View>
             </View>
             <Text style={styles.evidenceTitle}>Tanda Tangan Digital</Text>
@@ -286,14 +317,10 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             accessibilityLabel="Lihat Detail Agenda"
           >
             <View style={styles.detailButtonLeft}>
-              <MaterialIcons name="event-note" size={18} color={colors.primary} />
+              <Calendar size={18} color={colors.primary} strokeWidth={2} />
               <Text style={styles.detailButtonText}>Lihat Detail Agenda</Text>
             </View>
-            <MaterialIcons
-              name="chevron-right"
-              size={18}
-              color={colors.onSurfaceVariant}
-            />
+            <ChevronRight size={18} color={colors.textSecondary} strokeWidth={2} />
           </Pressable>
         </View>
       ) : null}
@@ -325,35 +352,71 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: rounded.xl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    ...cardSurface,
+    borderColor: colors.borderStrong,
     overflow: 'hidden',
     marginBottom: spacing.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0F172A',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
+  },
+  confirmationBanner: {
+    backgroundColor: colors.primaryDarkest,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primaryContainer,
+    gap: spacing.xs + 2,
+  },
+  confirmationCheckCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: rounded.full,
+    backgroundColor: colors.successLight,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  confirmationPill: {
+    backgroundColor: colors.onSuccessContainer,
+    borderWidth: 1,
+    borderColor: colors.successLight,
+    borderRadius: rounded.full,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 3,
+  },
+  confirmationPillText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10.5,
+    color: colors.onPrimary,
+    letterSpacing: 0.6,
+  },
+  confirmationTitle: {
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 18,
+    color: colors.onPrimary,
+    textAlign: 'center',
+  },
+  confirmationId: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 12,
+    color: colors.textSplashMuted,
+    textAlign: 'center',
   },
   header: {
     padding: spacing.md,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: colors.borderSubtle,
     alignItems: 'center',
   },
   ministryText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 10,
-    fontWeight: '700',
     color: colors.primary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
@@ -362,8 +425,8 @@ const styles = StyleSheet.create({
   },
   institutionText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansExtraBold,
     fontSize: 12.5,
-    fontWeight: '800',
     color: colors.onSurface,
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -373,54 +436,55 @@ const styles = StyleSheet.create({
   addressText: {
     ...typography.bodySm,
     fontSize: 10.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   identifierRow: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
-    backgroundColor: 'rgba(229, 238, 255, 0.4)',
+    backgroundColor: colors.surfaceCard,
     borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: colors.borderSubtle,
     borderStyle: 'dashed',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   identifierLeft: {
     flex: 1,
   },
   identifierLabel: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 9.5,
-    color: colors.onSurfaceVariant,
-    fontWeight: '600',
+    color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   identifierCode: {
     ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
     fontSize: 12.5,
-    fontWeight: '700',
     color: colors.primary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
     marginTop: 1,
   },
   identifierBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(0, 35, 111, 0.08)',
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: rounded.full,
     borderWidth: 1,
-    borderColor: 'rgba(0, 35, 111, 0.15)',
+    borderColor: colors.borderStrong,
   },
   identifierBadgeText: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 10.5,
-    fontWeight: '700',
     color: colors.primary,
   },
   perforationRow: {
@@ -437,13 +501,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.background,
     borderRightWidth: 1,
-    borderRightColor: colors.outlineVariant,
+    borderRightColor: colors.borderStrong,
     zIndex: 10,
   },
   dashedDivider: {
     width: '88%',
     borderTopWidth: 1.5,
-    borderTopColor: colors.outlineVariant,
+    borderTopColor: colors.borderStrong,
     borderStyle: 'dashed',
   },
   notchRight: {
@@ -454,7 +518,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.background,
     borderLeftWidth: 1,
-    borderLeftColor: colors.outlineVariant,
+    borderLeftColor: colors.borderStrong,
     zIndex: 10,
   },
   bodySection: {
@@ -464,18 +528,18 @@ const styles = StyleSheet.create({
   },
   sectionHeading: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 10,
-    fontWeight: '700',
-    color: colors.primary,
+    color: colors.textMuted,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   meetingTitle: {
     ...typography.headlineSm,
-    fontSize: 14.5,
-    fontWeight: '700',
-    color: colors.onSurface,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 15,
+    color: colors.primaryDarkest,
     lineHeight: 20,
     marginBottom: spacing.xs + 2,
   },
@@ -496,24 +560,24 @@ const styles = StyleSheet.create({
   agendaGridLabel: {
     ...typography.labelSm,
     fontSize: 9.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
     marginBottom: 1,
   },
   agendaGridDate: {
     ...typography.bodySm,
     fontSize: 10.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
   agendaGridText: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 11,
     color: colors.onSurface,
-    fontWeight: '500',
   },
   agendaGridBold: {
-    ...typography.bodySm,
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
     fontSize: 11,
-    fontWeight: '700',
     color: colors.primary,
     marginTop: 1,
   },
@@ -521,7 +585,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(229, 238, 255, 0.5)',
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
     padding: spacing.sm,
     borderRadius: rounded.md,
     marginTop: 4,
@@ -529,48 +595,51 @@ const styles = StyleSheet.create({
   formatText: {
     ...typography.bodySm,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     flex: 1,
   },
   formatBold: {
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
   },
   subSection: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.6)',
+    borderTopColor: colors.borderSubtle,
   },
   participantBox: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.8)',
+    borderColor: colors.borderStrong,
     borderRadius: rounded.md,
     padding: spacing.sm + 2,
     marginTop: 4,
   },
   participantHeader: {
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(197, 197, 211, 0.6)',
+    borderBottomColor: colors.borderSubtle,
     paddingBottom: spacing.xs + 2,
     marginBottom: spacing.xs + 2,
   },
   participantName: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 14.5,
-    fontWeight: '700',
-    color: colors.onSurface,
+    color: colors.primaryDarkest,
   },
   participantNip: {
     ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
     fontSize: 11,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   participantGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   participantCol: {
     flex: 1,
@@ -578,12 +647,12 @@ const styles = StyleSheet.create({
   participantLabel: {
     ...typography.labelSm,
     fontSize: 10,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
   },
   participantValue: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
     fontSize: 11.5,
-    fontWeight: '500',
     color: colors.onSurface,
     marginTop: 1,
   },
@@ -595,15 +664,16 @@ const styles = StyleSheet.create({
   },
   participantValueSuccess: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 11.5,
-    fontWeight: '700',
     color: colors.success,
+    flexShrink: 1,
   },
   validationDetailsRow: {
     marginTop: spacing.xs + 2,
     paddingTop: spacing.xs + 2,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.4)',
+    borderTopColor: colors.borderSubtle,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
@@ -616,14 +686,14 @@ const styles = StyleSheet.create({
   validationText: {
     ...typography.bodySm,
     fontSize: 10.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
   evidenceSection: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.6)',
+    borderTopColor: colors.borderSubtle,
   },
   evidenceSectionHeader: {
     flexDirection: 'row',
@@ -633,9 +703,9 @@ const styles = StyleSheet.create({
   },
   evidenceSectionHint: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 9.5,
     color: colors.primary,
-    fontWeight: '600',
   },
   evidenceGrid: {
     flexDirection: 'row',
@@ -644,17 +714,17 @@ const styles = StyleSheet.create({
   },
   evidenceCard: {
     flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.8)',
-    backgroundColor: colors.surfaceContainerLowest,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
     borderRadius: rounded.md,
     padding: spacing.sm,
     alignItems: 'center',
   },
   evidenceCardPressed: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderColor: colors.primary,
-    transform: [{ scale: 0.99 }],
   },
   evidenceImageWrapper: {
     width: '100%',
@@ -663,7 +733,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.surfaceContainer,
     borderWidth: 1,
-    borderColor: 'rgba(197, 197, 211, 0.6)',
+    borderColor: colors.borderStrong,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
@@ -677,9 +747,9 @@ const styles = StyleSheet.create({
     height: 84,
     borderRadius: rounded.sm,
     overflow: 'hidden',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.borderStrong,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
@@ -705,21 +775,18 @@ const styles = StyleSheet.create({
     bottom: 4,
     right: 4,
     backgroundColor: colors.primary,
-    borderRadius: 8,
-    width: 20,
-    height: 20,
+    borderRadius: rounded.sm + 2,
+    width: 22,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: colors.onPrimary,
   },
   evidenceTitle: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 11,
-    fontWeight: '700',
     color: colors.onSurface,
     marginTop: 6,
     textAlign: 'center',
@@ -727,15 +794,15 @@ const styles = StyleSheet.create({
   evidenceSub: {
     ...typography.labelSm,
     fontSize: 9.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textMuted,
     textAlign: 'center',
     marginTop: 1,
   },
   evidenceSubActive: {
     ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 9.5,
     color: colors.primary,
-    fontWeight: '600',
     textAlign: 'center',
     marginTop: 1,
   },
@@ -743,18 +810,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.6)',
+    borderTopColor: colors.borderSubtle,
   },
   detailButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm + 2,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.sm + 4,
     borderRadius: rounded.md,
     borderWidth: 1,
-    borderColor: 'rgba(0, 35, 111, 0.3)',
-    backgroundColor: colors.surfaceContainerLow,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceSoft,
   },
   detailButtonPressed: {
     backgroundColor: colors.surfaceContainer,
@@ -766,15 +833,15 @@ const styles = StyleSheet.create({
   },
   detailButtonText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
     fontSize: 12,
-    fontWeight: '600',
     color: colors.primary,
   },
   tearBorder: {
     height: 8,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(197, 197, 211, 0.6)',
+    borderTopColor: colors.borderStrong,
     borderStyle: 'dashed',
   },
 });

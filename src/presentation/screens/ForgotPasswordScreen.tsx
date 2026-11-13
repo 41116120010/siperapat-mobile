@@ -10,11 +10,24 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import {
+  AlertCircle,
+  ArrowLeft,
+  Clock,
+  CreditCard,
+  ExternalLink,
+  Info,
+  KeyRound,
+  LogIn,
+  Mail,
+  MailCheck,
+  Send,
+} from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../core/theme/colors';
-import { typography } from '../../core/theme/typography';
-import { rounded, spacing, elevations } from '../../core/theme/tokens';
+import { fontFamilies, typography } from '../../core/theme/typography';
+import { MIN_TOUCH_TARGET, cardSurface, rounded, spacing } from '../../core/theme/tokens';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { formatNIP } from '../../core/utils/nipValidator';
@@ -116,6 +129,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.keyboardView}
     >
+      <StatusBar style="dark" />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -152,40 +166,48 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
             <>
               <View style={styles.formHeaderRow}>
                 <View style={styles.formIconWrap}>
-                  <MaterialIcons name="lock-reset" size={22} color={colors.primary} />
+                  <KeyRound size={20} color={colors.primary} strokeWidth={2} />
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={styles.formHeaderText}>
                   <Text style={styles.cardHeading}>Lupa Kata Sandi?</Text>
                   <Text style={styles.cardInstruction}>
-                    Masukkan NIP atau Email dinas resmi Anda untuk menerima instruksi pemulihan.
+                    Masukkan NIP (18 Digit), Username, atau Email kedinasan Anda. Sistem akan mengirimkan tautan untuk mengatur ulang kata sandi.
                   </Text>
                 </View>
               </View>
 
-              {/* Input NIP / Email */}
+              {/* Input NIP / Username / Email */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>NIP (18 Digit) atau Email Kedinasan</Text>
+                <Text style={styles.inputLabel}>NIP, Username, atau Email Kedinasan</Text>
                 <Input
-                  label=""
-                  placeholder="Masukkan NIP atau email dinas"
+                  placeholder="Contoh: 19701205... / afdalisma / nama@..."
                   value={identifier}
                   onChangeText={handleIdentifierChange}
                   keyboardType="default"
+                  autoCapitalize="none"
                   maxLength={40}
                   isMono={isNumericInput}
+                  containerStyle={styles.compactInputContainer}
                   leftIcon={
-                    <MaterialIcons
-                      name={isNumericInput ? 'badge' : 'mail'}
-                      size={20}
-                      color={colors.outline}
-                    />
+                    isNumericInput ? (
+                      <CreditCard size={18} color={colors.textMuted} strokeWidth={2} />
+                    ) : (
+                      <Mail size={18} color={colors.textMuted} strokeWidth={2} />
+                    )
                   }
                 />
               </View>
 
+              {authError ? (
+                <View style={styles.errorBanner}>
+                  <AlertCircle size={16} color={colors.error} strokeWidth={2} />
+                  <Text style={styles.errorText}>{authError}</Text>
+                </View>
+              ) : null}
+
               {/* Info Box Pedoman Keamanan */}
               <View style={styles.noticeBox}>
-                <MaterialIcons name="info" size={18} color={colors.primary} />
+                <Info size={16} color={colors.infoText} strokeWidth={2} />
                 <Text style={styles.noticeText}>
                   Tautan pemulihan hanya akan dikirimkan ke alamat email kedinasan aktif
                   yang telah terdaftar di database kepegawaian LLDIKTI X.
@@ -195,24 +217,24 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               {/* Tombol Aksi */}
               <View style={styles.actionColumn}>
                 <Button
-                  title="Kirim Tautan Pemulihan"
+                  title="Kirim Tautan Atur Ulang"
                   onPress={handleSubmit}
                   variant="primary"
                   size="lg"
                   fullWidth
                   isLoading={authLoading}
                   disabled={authLoading || !identifier.trim()}
-                  icon={<MaterialIcons name="send" size={18} color={colors.onPrimary} />}
+                  icon={<Send size={18} color={colors.onPrimary} strokeWidth={2} />}
                 />
 
                 <Button
                   title="Kembali ke Halaman Masuk"
                   onPress={onBack}
-                  variant="outline"
+                  variant="secondary"
                   size="lg"
                   fullWidth
                   disabled={authLoading}
-                  icon={<MaterialIcons name="arrow-back" size={18} color={colors.primary} />}
+                  icon={<ArrowLeft size={18} color={colors.primary} strokeWidth={2} />}
                 />
               </View>
             </>
@@ -220,7 +242,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
             /* STATE 2: KONFIRMASI SUKSES PENGIRIMAN */
             <View style={styles.successStateWrap}>
               <View style={styles.successBadgeWrap}>
-                <MaterialIcons name="mark-email-read" size={44} color={colors.primary} />
+                <MailCheck size={36} color={colors.success} strokeWidth={2} />
               </View>
 
               <Text style={styles.successTitle}>Periksa Email Kedinasan</Text>
@@ -231,20 +253,20 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
 
               {/* Target Masking Card */}
               <View style={styles.targetPill}>
-                <MaterialIcons
-                  name={submittedTarget.includes('@') ? 'mail-outline' : 'badge'}
-                  size={18}
-                  color={colors.primary}
-                />
+                {submittedTarget.includes('@') ? (
+                  <Mail size={16} color={colors.primary} strokeWidth={2} />
+                ) : (
+                  <CreditCard size={16} color={colors.primary} strokeWidth={2} />
+                )}
                 <Text style={styles.targetPillText}>
                   {maskEmailOrNIP(submittedTarget)}
                 </Text>
               </View>
 
               <View style={styles.expiryNoticeBox}>
-                <MaterialIcons name="schedule" size={16} color={colors.secondary} />
+                <Clock size={16} color={colors.primary} strokeWidth={2} />
                 <Text style={styles.expiryNoticeText}>
-                  Tautan berlaku selama 15 menit. Jika tidak ditemukan di Kotak Masuk,
+                  Tautan berlaku selama 60 menit. Jika tidak ditemukan di Kotak Masuk,
                   periksa folder Spam email dinas Anda.
                 </Text>
               </View>
@@ -257,7 +279,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                   variant="primary"
                   size="lg"
                   fullWidth
-                  icon={<MaterialIcons name="login" size={18} color={colors.onPrimary} />}
+                  icon={<LogIn size={18} color={colors.onPrimary} strokeWidth={2} />}
                 />
 
                 {/* Resend Link */}
@@ -266,7 +288,8 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                   <Pressable
                     onPress={handleResend}
                     disabled={cooldown > 0 || authLoading}
-                    hitSlop={6}
+                    style={styles.resendButton}
+                    accessibilityRole="button"
                   >
                     <Text
                       style={[
@@ -289,11 +312,15 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
         <View style={styles.footer}>
           <View style={styles.helpdeskRow}>
             <Text style={styles.helpdeskText}>Kendala akun kedinasan? </Text>
-            <Pressable onPress={handleHelpdesk} style={styles.helpdeskLinkWrap}>
+            <Pressable
+              onPress={handleHelpdesk}
+              style={styles.helpdeskLinkWrap}
+              accessibilityRole="button"
+            >
               <Text style={styles.helpdeskLink}>
                 Hubungi Helpdesk Kepegawaian
               </Text>
-              <MaterialIcons name="open-in-new" size={12} color={colors.secondary} />
+              <ExternalLink size={12} color={colors.primary} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -314,7 +341,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.xl,
   },
   header: {
@@ -322,38 +349,34 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   logoTile: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    padding: 10,
+    width: 60,
+    height: 60,
+    borderRadius: rounded.xl,
+    backgroundColor: colors.surfaceCard,
+    padding: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
-    ...elevations.level2,
-    shadowColor: '#00236F',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    borderColor: colors.borderStrong,
   },
   logo: {
     width: '100%',
     height: '100%',
   },
   appTitle: {
-    ...typography.headlineLg,
-    fontSize: 24,
+    ...typography.headlineLgMobile,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 22,
     color: colors.primary,
-    fontWeight: '800',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
     textAlign: 'center',
   },
   appSubtitle: {
     ...typography.labelSm,
-    color: colors.secondary,
-    letterSpacing: 1.2,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textSecondary,
+    letterSpacing: 1,
     fontSize: 11,
     textAlign: 'center',
     marginTop: 2,
@@ -362,79 +385,102 @@ const styles = StyleSheet.create({
   welcomeSubtitle: {
     ...typography.bodySm,
     fontSize: 12.5,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
     marginTop: 6,
-    maxWidth: 290,
+    maxWidth: 300,
   },
   card: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: 20,
+    ...cardSurface,
+    borderRadius: rounded.xl,
+    borderColor: colors.borderStrong,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
-    ...elevations.level2,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
     gap: spacing.md,
   },
   formHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     marginBottom: 2,
+  },
+  formHeaderText: {
+    flex: 1,
   },
   formIconWrap: {
     width: 42,
     height: 42,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardHeading: {
     ...typography.headlineSm,
-    fontSize: 15,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 16,
     color: colors.onSurface,
   },
   cardInstruction: {
     ...typography.bodySm,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
-    lineHeight: 16,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
     marginTop: 2,
   },
   inputGroup: {
     gap: spacing.xs,
   },
+  compactInputContainer: {
+    marginBottom: 0,
+  },
   inputLabel: {
-    ...typography.labelMd,
-    fontSize: 12,
-    fontWeight: '600',
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     color: colors.onSurface,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.errorContainer,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+    padding: spacing.sm + 2,
+    borderRadius: rounded.md,
+  },
+  errorText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 12,
+    color: colors.onErrorContainer,
+    flex: 1,
   },
   noticeBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    backgroundColor: colors.surfaceContainerLow,
-    padding: spacing.sm + 2,
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    padding: spacing.sm + 4,
     borderRadius: rounded.md,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
   },
   noticeText: {
     ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
+    fontSize: 11.5,
+    color: colors.infoText,
     lineHeight: 16,
     flex: 1,
   },
   actionColumn: {
-    gap: spacing.sm,
+    width: '100%',
+    gap: spacing.sm + 2,
     marginTop: 4,
   },
   successStateWrap: {
@@ -442,25 +488,27 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   successBadgeWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.surfaceContainerLow,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
   successTitle: {
     ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 17,
-    fontWeight: '700',
     color: colors.onSurface,
     textAlign: 'center',
   },
   successDesc: {
     ...typography.bodySm,
     fontSize: 12,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
     marginTop: 4,
@@ -470,63 +518,71 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
+    paddingVertical: spacing.xs + 4,
     borderRadius: rounded.full,
     marginVertical: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
+    borderColor: colors.borderStrong,
   },
   targetPillText: {
     ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 12.5,
-    fontWeight: '600',
     color: colors.primary,
   },
   expiryNoticeBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(79, 107, 153, 0.08)',
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.sm,
     borderRadius: rounded.md,
     marginBottom: spacing.lg,
+    width: '100%',
   },
   expiryNoticeText: {
     ...typography.bodySm,
-    fontSize: 11,
-    color: colors.secondary,
-    lineHeight: 15,
+    fontSize: 11.5,
+    color: colors.textSecondary,
+    lineHeight: 16,
     flex: 1,
   },
   resendRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    marginTop: 2,
+  },
+  resendButton: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
   },
   resendText: {
     ...typography.bodySm,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   resendLink: {
     ...typography.labelSm,
-    fontSize: 11.5,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
     color: colors.primary,
-    fontWeight: '700',
     textDecorationLine: 'underline',
   },
   resendLinkDisabled: {
-    color: colors.outline,
+    color: colors.textMuted,
     textDecorationLine: 'none',
   },
   footer: {
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
     alignItems: 'center',
-    gap: spacing.xs + 2,
+    gap: spacing.xs,
   },
   helpdeskRow: {
     flexDirection: 'row',
@@ -536,27 +592,29 @@ const styles = StyleSheet.create({
   },
   helpdeskText: {
     ...typography.bodySm,
-    fontSize: 11.5,
-    color: colors.onSurfaceVariant,
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   helpdeskLinkWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
   },
   helpdeskLink: {
     ...typography.labelSm,
-    fontSize: 11.5,
-    color: colors.secondary,
-    fontWeight: '700',
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.primary,
     textDecorationLine: 'underline',
   },
   copyrightText: {
     ...typography.labelSm,
-    fontSize: 10,
-    color: colors.outline,
+    fontSize: 11,
+    color: colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: spacing.md,
-    lineHeight: 14,
+    lineHeight: 16,
   },
 });
