@@ -14,9 +14,12 @@ import {
 import {
   Calendar,
   ChevronRight,
+  ChevronsUpDown,
+  Filter,
   Info,
   Search,
   ShieldCheck,
+  User,
   X,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
@@ -28,8 +31,9 @@ import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { Button } from '../components/common/Button';
 import { CalendarDatePickerModal } from '../components/modals/CalendarDatePickerModal';
-import { activityLogApi } from '../../data/datasources/userApi';
-import { ApiActivityLogDto, ApiActivityLogPage } from '../../data/datasources/apiTypes';
+import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
+import { activityLogApi, userApi } from '../../data/datasources/userApi';
+import { ApiActivityLogDto, ApiActivityLogPage, ApiUserDto } from '../../data/datasources/apiTypes';
 import { useAuthStore } from '../store/useAuthStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
 
@@ -38,6 +42,76 @@ interface AuditLogScreenProps {
 }
 
 type LogTone = 'success' | 'warning' | 'danger' | 'info' | 'export';
+
+const KNOWN_ACTIVITY_TYPES = [
+  'AUTH_LOGIN',
+  'AUTH_API_LOGIN',
+  'AUTH_LOGOUT',
+  'AUTH_API_LOGOUT',
+  'AUTH_LOGIN_FAILED',
+  'AUTH_CHANGE_PASSWORD',
+  'AUTH_FORGOT_PASSWORD_REQUEST',
+  'AUTH_PASSWORD_RESET',
+  'CREATE_AGENDA',
+  'UPDATE_AGENDA',
+  'DELETE_AGENDA',
+  'UPDATE_AGENDA_STATUS',
+  'UPDATE_AGENDA_MINUTES',
+  'UPDATE_AGENDA_CIRCULAR',
+  'UPDATE_AGENDA_ROLES',
+  'DELETE_AGENDA_DOCUMENTATION',
+  'AUTO_CLOSE_AGENDA',
+  'RECORD_ATTENDANCE',
+  'CREATE_USER',
+  'UPDATE_USER',
+  'DELETE_USER',
+  'TOGGLE_USER_STATUS',
+  'CREATE_UNIT',
+  'UPDATE_UNIT',
+  'DELETE_UNIT',
+  'TOGGLE_UNIT_STATUS',
+  'UPDATE_PROFILE',
+  'EXPORT_PDF',
+  'EXPORT_PDF_API',
+  'EXPORT_WORD',
+  'EXPORT_WORD_API',
+  'EXPORT_CSV',
+  'EXPORT_CSV_API',
+  'EXPORT_AGENDA_CSV_API',
+];
+
+function formatRelativeTimeId(iso?: string | null): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const diffSec = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (diffSec < 60) return `${diffSec} detik yang lalu`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} menit yang lalu`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} jam yang lalu`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay} hari yang lalu`;
+  const diffMonth = Math.floor(diffDay / 30);
+  if (diffMonth < 12) return `${diffMonth} bulan yang lalu`;
+  return `${Math.floor(diffMonth / 12)} tahun yang lalu`;
+}
+
+function formatWibDateTime(iso?: string | null): string {
+  if (!iso) return '-';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '-';
+  return `${date.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Jakarta',
+  })} WIB`;
+}
 
 const getLogTone = (activityType: string): { tone: LogTone; label: string } => {
   if (activityType.includes('DELETE')) return { tone: 'danger', label: 'Hapus' };
@@ -61,12 +135,22 @@ const formatDateShort = (isoDate: string): string => {
 };
 
 export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdministrator = currentUser?.role === 'administrator';
+
+  const [logScope, setLogScope] = useState<'system' | 'personal'>(
+    isAdministrator ? 'system' : 'personal'
+  );
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
+  const [selectedType, setSelectedType] = useState<string>('');
+  const [selectedActorId, setSelectedActorId] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
+  const [optionModal, setOptionModal] = useState<'type' | 'actor' | null>(null);
   const [selectedLog, setSelectedLog] = useState<ApiActivityLogDto | null>(null);
+  const [actorUsers, setActorUsers] = useState<ApiUserDto[]>([]);
 
   const [logs, setLogs] = useState<ApiActivityLogDto[]>([]);
   const [total, setTotal] = useState(0);
@@ -76,9 +160,25 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentUser = useAuthStore((state) => state.user);
-  const isAdministrator = currentUser?.role === 'administrator';
   const scrollViewRef = useRef<ScrollViewInstance | null>(null);
+
+  useEffect(() => {
+    if (!isAdministrator) return;
+    let cancelled = false;
+    void userApi
+      .users(1, { perPage: 100 })
+      .then((res) => {
+        if (!cancelled && res.success) {
+          setActorUsers(res.data);
+        }
+      })
+      .catch(() => {
+        // Actor dropdown gracefully falls back to seen log actors
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdministrator]);
 
   const categoryValue =
     selectedCategory === 'Login'
@@ -98,12 +198,18 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
       try {
         const filters = {
           category: categoryValue,
+          type: selectedType || undefined,
+          userId:
+            isAdministrator && logScope === 'system' && selectedActorId
+              ? selectedActorId
+              : undefined,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
         };
-        const response = isAdministrator
-          ? await activityLogApi.system(nextPage, query, 10, filters)
-          : await activityLogApi.personal(nextPage, query, 10, filters);
+        const response =
+          isAdministrator && logScope === 'system'
+            ? await activityLogApi.system(nextPage, query, 10, filters)
+            : await activityLogApi.personal(nextPage, query, 10, filters);
         setLogs((current) =>
           append ? [...current, ...response.data] : response.data
         );
@@ -121,7 +227,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
         setIsLoading(false);
       }
     },
-    [isAdministrator, search, categoryValue, startDate, endDate]
+    [isAdministrator, logScope, search, categoryValue, selectedType, selectedActorId, startDate, endDate]
   );
 
   const handlePageChange = (nextPage: number) => {
@@ -140,6 +246,50 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
 
   const categories = ['Semua', 'Login', 'Agenda', 'Presensi', 'User'];
 
+  const typeOptions = useMemo<AgendaOption[]>(() => {
+    const merged = new Set<string>(KNOWN_ACTIVITY_TYPES);
+    logs.forEach((l) => {
+      if (l.activity_type) merged.add(l.activity_type);
+    });
+    return [
+      { id: '', title: 'Semua Tipe', subtitle: 'Tampilkan seluruh tipe aktivitas' },
+      ...Array.from(merged)
+        .sort()
+        .map((t) => ({ id: t, title: t })),
+    ];
+  }, [logs]);
+
+  const actorOptions = useMemo<AgendaOption[]>(() => {
+    const map = new Map<string, { name: string; sub: string }>();
+    actorUsers.forEach((u) => {
+      map.set(String(u.id), {
+        name: u.name,
+        sub: [u.nip, u.unit?.kode_unit].filter(Boolean).join(' • ') || u.role.label,
+      });
+    });
+    logs.forEach((l) => {
+      if (l.user?.id && !map.has(String(l.user.id))) {
+        map.set(String(l.user.id), {
+          name: l.user.name,
+          sub: l.user.nip ?? '-',
+        });
+      }
+    });
+    return [
+      { id: '', title: 'Semua Pegawai', subtitle: 'Seluruh aktor pada sistem' },
+      ...Array.from(map.entries()).map(([id, info]) => ({
+        id,
+        title: info.name,
+        subtitle: info.sub,
+      })),
+    ];
+  }, [actorUsers, logs]);
+
+  const selectedActorLabel = useMemo(() => {
+    if (!selectedActorId) return 'Semua Pegawai';
+    return actorOptions.find((opt) => opt.id === selectedActorId)?.title ?? 'Semua Pegawai';
+  }, [selectedActorId, actorOptions]);
+
   const formattedLogs = useMemo(
     () =>
       logs.map((log) => {
@@ -150,18 +300,14 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
           raw: log,
           id: String(log.id),
           tag: log.activity_type,
-          time: log.created_at
-            ? new Date(log.created_at).toLocaleString('id-ID', {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-                timeZone: 'Asia/Jakarta',
-              })
-            : '-',
+          time: formatWibDateTime(log.created_at),
+          relativeTime: formatRelativeTimeId(log.created_at),
           status: badge.label,
           tone: badge.tone,
           actorName:
-            log.user?.name ?? currentUser?.name ?? 'Sistem / Pengguna tidak tersedia',
+            log.user?.name ?? currentUser?.name ?? 'Sistem / Pengguna Terhapus',
           actorNip: log.user?.nip ?? currentUser?.nip ?? '-',
+          unitCode: log.user?.unit?.kode_unit ?? null,
           description: log.description,
           ip: log.ip_address ?? '-',
           meta: log.target_model
@@ -173,9 +319,20 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
     [logs, currentUser?.name, currentUser?.nip]
   );
 
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+      selectedCategory !== 'Semua' ||
+      selectedType ||
+      selectedActorId ||
+      startDate ||
+      endDate
+  );
+
   const handleResetAllFilters = () => {
     setSearch('');
     setSelectedCategory('Semua');
+    setSelectedType('');
+    setSelectedActorId('');
     setStartDate('');
     setEndDate('');
   };
@@ -192,10 +349,14 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   return (
     <View style={styles.container}>
       <Header
-        title={isAdministrator ? 'Log Aktivitas Sistem' : 'Log Aktivitas Saya'}
+        title={
+          isAdministrator && logScope === 'system'
+            ? 'Audit Trail & Log Aktivitas'
+            : 'Log Aktivitas Saya'
+        }
         subtitle={
-          isAdministrator
-            ? 'Audit Trail & Rekam Jejak Kedinasan LLDIKTI X'
+          isAdministrator && logScope === 'system'
+            ? 'Rekaman seluruh tindakan, mutasi data, dan autentikasi pengguna pada sistem'
             : 'Riwayat aktivitas akun Anda'
         }
         showBack={Boolean(onBack)}
@@ -210,6 +371,51 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
           <RefreshControl refreshing={isLoading} onRefresh={() => loadLogs(1)} />
         }
       >
+        {/* SCOPE TOGGLE (Administrator only: System vs Personal) */}
+        {isAdministrator ? (
+          <View style={styles.scopeSegmentedWrap}>
+            <Pressable
+              onPress={() => setLogScope('system')}
+              style={[
+                styles.scopeSegmentedBtn,
+                logScope === 'system' && styles.scopeSegmentedBtnActive,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: logScope === 'system' }}
+            >
+              <Text
+                style={[
+                  styles.scopeSegmentedText,
+                  logScope === 'system' && styles.scopeSegmentedTextActive,
+                ]}
+              >
+                Log Aktivitas Sistem
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setSelectedActorId('');
+                setLogScope('personal');
+              }}
+              style={[
+                styles.scopeSegmentedBtn,
+                logScope === 'personal' && styles.scopeSegmentedBtnActive,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: logScope === 'personal' }}
+            >
+              <Text
+                style={[
+                  styles.scopeSegmentedText,
+                  logScope === 'personal' && styles.scopeSegmentedTextActive,
+                ]}
+              >
+                Log Aktivitas Saya
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* RINGKASAN AKTIVITAS */}
         <View style={styles.integrityCard}>
           <View style={styles.integrityHeader}>
@@ -246,7 +452,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
           <Search size={18} strokeWidth={2} color={colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Cari deskripsi aktivitas atau alamat IP..."
+            placeholder="Cari deskripsi, IP, nama, NIP..."
             placeholderTextColor={colors.textMuted}
             value={search}
             onChangeText={setSearch}
@@ -259,6 +465,65 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
               accessibilityLabel="Hapus pencarian"
             >
               <X size={17} strokeWidth={2} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {/* TIPE AKTIVITAS & AKTOR PEGAWAI FILTER TRIGGERS (Web SSOT logs/index.blade.php) */}
+        <View style={styles.dropdownRow}>
+          <Pressable
+            onPress={() => setOptionModal('type')}
+            style={({ pressed }) => [
+              styles.dropdownTrigger,
+              selectedType ? styles.dateChipBtnActive : null,
+              pressed && styles.btnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Filter tipe aktivitas"
+          >
+            <Filter
+              size={15}
+              strokeWidth={2}
+              color={selectedType ? colors.primary : colors.textMuted}
+            />
+            <Text
+              style={[
+                styles.dateChipText,
+                selectedType ? styles.dateChipTextActive : null,
+              ]}
+              numberOfLines={1}
+            >
+              {selectedType || 'Semua Tipe'}
+            </Text>
+            <ChevronsUpDown size={14} strokeWidth={2} color={colors.textMuted} />
+          </Pressable>
+
+          {isAdministrator && logScope === 'system' ? (
+            <Pressable
+              onPress={() => setOptionModal('actor')}
+              style={({ pressed }) => [
+                styles.dropdownTrigger,
+                selectedActorId ? styles.dateChipBtnActive : null,
+                pressed && styles.btnPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Filter aktor pegawai"
+            >
+              <User
+                size={15}
+                strokeWidth={2}
+                color={selectedActorId ? colors.primary : colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.dateChipText,
+                  selectedActorId ? styles.dateChipTextActive : null,
+                ]}
+                numberOfLines={1}
+              >
+                {selectedActorLabel}
+              </Text>
+              <ChevronsUpDown size={14} strokeWidth={2} color={colors.textMuted} />
             </Pressable>
           ) : null}
         </View>
@@ -317,22 +582,46 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
             </Text>
           </Pressable>
 
-          {startDate || endDate ? (
+          {hasActiveFilters ? (
             <Pressable
-              onPress={() => {
-                setStartDate('');
-                setEndDate('');
-              }}
+              onPress={handleResetAllFilters}
               style={({ pressed }) => [
                 styles.dateClearBtn,
                 pressed && styles.btnPressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Reset filter tanggal"
+              accessibilityLabel="Reset filter"
             >
               <X size={16} strokeWidth={2} color={colors.onSurfaceVariant} />
             </Pressable>
           ) : null}
+        </View>
+
+        <View style={styles.filterActionsRow}>
+          {hasActiveFilters ? (
+            <Pressable
+              onPress={handleResetAllFilters}
+              style={({ pressed }) => [
+                styles.resetFilterBtn,
+                pressed && styles.btnPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Reset Filter"
+            >
+              <Text style={styles.resetFilterBtnText}>Reset Filter</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => void loadLogs(1, false, search)}
+            style={({ pressed }) => [
+              styles.applyFilterBtn,
+              pressed && styles.btnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Terapkan Filter"
+          >
+            <Text style={styles.applyFilterBtnText}>Terapkan Filter</Text>
+          </Pressable>
         </View>
 
         {/* CATEGORY FILTER PILLS */}
@@ -370,7 +659,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
 
         {/* LIST SECTION HEADER */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Daftar Aktivitas</Text>
+          <Text style={styles.sectionTitle}>Riwayat Aktivitas & Jejak Audit</Text>
           <Text style={styles.sectionCountText}>
             {formattedLogs.length} Catatan
           </Text>
@@ -400,7 +689,10 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                   <View style={styles.logTagRow}>
                     <Text style={styles.logTag}>{item.tag}</Text>
                     <View style={styles.dotSeparator} />
-                    <Text style={styles.logTime}>{item.time}</Text>
+                    <Text style={styles.logTime}>
+                      {item.time}
+                      {item.relativeTime ? ` • ${item.relativeTime}` : ''}
+                    </Text>
                   </View>
                   <View
                     style={[
@@ -429,7 +721,9 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
 
                 <View style={styles.actorRow}>
                   <Text style={styles.actorName}>{item.actorName}</Text>
-                  <Text style={styles.actorNip}>{item.actorNip}</Text>
+                  <Text style={styles.actorNip}>
+                    {item.unitCode ? `${item.actorNip} • ${item.unitCode}` : item.actorNip}
+                  </Text>
                 </View>
 
                 <Text style={styles.logDesc}>{item.description}</Text>
@@ -438,7 +732,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                   <Text style={styles.ipText}>IP {item.ip}</Text>
                   <View style={styles.metaActionRow}>
                     <Text style={styles.metaText} numberOfLines={1}>
-                      {item.hasProperties ? 'Lihat Payload' : item.meta}
+                      {item.hasProperties ? 'Lihat Payload Perubahan' : item.meta}
                     </Text>
                     <ChevronRight
                       size={14}
@@ -457,9 +751,9 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
             description={
               page < lastPage
                 ? 'Tidak ada catatan yang cocok pada halaman ini. Muat halaman berikutnya untuk melanjutkan pencarian.'
-                : 'Tidak ada catatan aktivitas yang cocok dengan kata kunci atau filter yang dipilih.'
+                : 'Tidak ada rekaman log aktivitas yang sesuai dengan kriteria filter.'
             }
-            actionLabel="Atur Ulang Filter"
+            actionLabel="Reset Pencarian & Filter"
             onAction={handleResetAllFilters}
           />
         )}
@@ -515,7 +809,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleRow}>
                 <Info size={18} strokeWidth={2} color={colors.primary} />
-                <Text style={styles.modalTitle}>Detail Jejak Audit</Text>
+                <Text style={styles.modalTitle}>Detail Payload Log Aktivitas</Text>
               </View>
               <Pressable
                 onPress={() => setSelectedLog(null)}
@@ -580,6 +874,32 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
           </View>
         </View>
       </Modal>
+
+      {/* DROPDOWN OPTION MODAL (Tipe Aktivitas / Aktor Pegawai) */}
+      <AgendaOptionModal
+        visible={optionModal !== null}
+        onClose={() => setOptionModal(null)}
+        title={optionModal === 'actor' ? 'Filter Aktor Pegawai' : 'Filter Tipe Aktivitas'}
+        subtitle={
+          optionModal === 'actor'
+            ? 'Pilih pegawai pelaksana aktivitas pada sistem'
+            : 'Pilih kode tipe aktivitas jejak audit'
+        }
+        options={optionModal === 'actor' ? actorOptions : typeOptions}
+        selectedId={optionModal === 'actor' ? selectedActorId : selectedType}
+        searchable
+        searchPlaceholder={
+          optionModal === 'actor' ? 'Cari nama atau NIP pegawai...' : 'Cari tipe aktivitas...'
+        }
+        onSelect={(opt) => {
+          if (optionModal === 'actor') {
+            setSelectedActorId(opt.id);
+          } else {
+            setSelectedType(opt.id);
+          }
+          setOptionModal(null);
+        }}
+      />
     </View>
   );
 };
@@ -593,6 +913,89 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingBottom: spacing.xl * 2,
     gap: spacing.sm + 2,
+  },
+  scopeSegmentedWrap: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    gap: 4,
+  },
+  scopeSegmentedBtn: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.sm,
+  },
+  scopeSegmentedBtnActive: {
+    backgroundColor: colors.primaryDarkest,
+  },
+  scopeSegmentedText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  scopeSegmentedTextActive: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  dropdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dropdownTrigger: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceCard,
+  },
+  filterActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+  },
+  resetFilterBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetFilterBtnText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.onSurface,
+  },
+  applyFilterBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 16,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyFilterBtnText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.onPrimary,
   },
   integrityCard: {
     ...cardSurface,

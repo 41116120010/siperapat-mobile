@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -19,7 +19,7 @@ import { fontFamilies, typography } from '../../../core/theme/typography';
 import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 
-export type HistoryPeriod = 'all' | '2026-10' | '2026-09' | '2026-08';
+export type HistoryPeriod = 'all' | (string & {});
 export type HistoryMeetingType = 'all' | 'hybrid' | 'offline' | 'online';
 
 interface DateFilterModalProps {
@@ -31,12 +31,65 @@ interface DateFilterModalProps {
   onReset: () => void;
 }
 
-const PERIOD_OPTIONS: { id: HistoryPeriod; label: string; Icon: LucideIcon }[] = [
-  { id: 'all', label: 'Semua Periode', Icon: CalendarRange },
-  { id: '2026-10', label: 'Okt 2026 (Bulan Ini)', Icon: Calendar },
-  { id: '2026-09', label: 'September 2026', Icon: History },
-  { id: '2026-08', label: 'Agustus 2026', Icon: History },
+const INDONESIAN_MONTHS = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
 ];
+
+const SHORT_INDONESIAN_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'Mei',
+  'Jun',
+  'Jul',
+  'Agu',
+  'Sep',
+  'Okt',
+  'Nov',
+  'Des',
+];
+
+function buildDynamicPeriodOptions(
+  referenceDate = new Date(),
+): { id: HistoryPeriod; label: string; Icon: LucideIcon }[] {
+  const options: { id: HistoryPeriod; label: string; Icon: LucideIcon }[] = [
+    { id: 'all', label: 'Semua Periode', Icon: CalendarRange },
+  ];
+
+  for (let offset = 0; offset < 3; offset += 1) {
+    const target = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() - offset,
+      1,
+    );
+    const year = target.getFullYear();
+    const monthIndex = target.getMonth();
+    const periodId = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+    const label =
+      offset === 0
+        ? `${SHORT_INDONESIAN_MONTHS[monthIndex]} ${year} (Bulan Ini)`
+        : `${INDONESIAN_MONTHS[monthIndex]} ${year}`;
+    options.push({
+      id: periodId,
+      label,
+      Icon: offset === 0 ? Calendar : History,
+    });
+  }
+
+  return options;
+}
 
 const TYPE_OPTIONS: { id: HistoryMeetingType; label: string; desc: string }[] = [
   {
@@ -71,6 +124,8 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>(currentPeriod);
   const [selectedType, setSelectedType] = useState<HistoryMeetingType>(currentType);
+
+  const periodOptions = useMemo(() => buildDynamicPeriodOptions(), [visible]);
 
   useEffect(() => {
     if (visible) {
@@ -137,7 +192,7 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>PERIODE TANGGAL / BULAN</Text>
             <View style={styles.chipGrid}>
-              {PERIOD_OPTIONS.map((opt) => {
+              {periodOptions.map((opt) => {
                 const isSelected = selectedPeriod === opt.id;
                 const PeriodIcon = opt.Icon;
                 return (

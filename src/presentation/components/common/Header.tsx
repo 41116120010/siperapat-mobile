@@ -16,7 +16,7 @@ export interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   title = 'SIPERAPAT LLDIKTI X',
-  subtitle = 'Sistem Presensi Rapat Kedinasan',
+  subtitle = 'Sistem Pencatatan Kehadiran Rapat Kedinasan',
   showBack = false,
   onBack,
   rightAction,

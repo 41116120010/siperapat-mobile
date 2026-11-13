@@ -23,6 +23,7 @@ import {
   Mail,
   MailCheck,
   Send,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../core/theme/colors';
@@ -155,8 +156,24 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
           <Text style={styles.welcomeSubtitle}>
             {isSubmitted
               ? 'Tautan Pemulihan Kata Sandi Berhasil Dikirim'
-              : 'Pemulihan Kata Sandi Akun Kedinasan ASN'}
+              : 'Pemulihan Akses Kedinasan Mandiri'}
           </Text>
+
+          {/* 3 Pilar Ringkas Pemulihan Akses (forgot-password.blade.php:30-60) */}
+          <View style={styles.pillarsRow}>
+            <View style={styles.pillarChip}>
+              <ShieldCheck size={13} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.pillarChipText}>Verifikasi Multi-Identifier</Text>
+            </View>
+            <View style={styles.pillarChip}>
+              <Mail size={13} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.pillarChipText}>Pengiriman Tautan Aman</Text>
+            </View>
+            <View style={styles.pillarChip}>
+              <Clock size={13} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.pillarChipText}>Batas Waktu Keamanan 60 Menit</Text>
+            </View>
+          </View>
         </View>
 
         {/* Main Authentication Bento Card */}
@@ -325,7 +342,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
           </View>
 
           <Text style={styles.copyrightText}>
-            © 2026 Lembaga Layanan Pendidikan Tinggi Wilayah X • Kemdiktisaintek
+            © 2026 SIPERAPAT - Lembaga Layanan Pendidikan Tinggi (LLDIKTI) Wilayah X.
           </Text>
         </View>
       </ScrollView>
@@ -616,5 +633,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: spacing.md,
     lineHeight: 16,
+  },
+  pillarsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  pillarChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  pillarChipText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 10.5,
+    color: colors.onSurfaceVariant,
   },
 });

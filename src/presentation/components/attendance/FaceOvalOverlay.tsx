@@ -36,13 +36,18 @@ interface FaceOvalOverlayProps {
 export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) => {
   const [facing, setFacing] = useState<'front' | 'back'>('front');
   const [captured, setCaptured] = useState(false);
+  const [captureSource, setCaptureSource] = useState<'camera' | 'gallery' | null>(null);
   const [photoData, setPhotoData] = useState<string | null>(null);
   const [isInspectVisible, setIsInspectVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
-  const acceptPhoto = (base64: string | null | undefined, mimeType?: string | null) => {
+  const acceptPhoto = (
+    base64: string | null | undefined,
+    mimeType?: string | null,
+    source: 'camera' | 'gallery' = 'camera'
+  ) => {
     if (!base64) return;
     const mime = (mimeType ?? 'image/jpeg').toLowerCase();
     const bytes = Math.ceil(base64.length * 0.75);
@@ -56,10 +61,11 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
     const data = `data:${mime};base64,${base64}`;
     setPhotoData(data);
     setCaptured(true);
+    setCaptureSource(source);
     onCapture(data);
   };
 
-  const preparePhoto = async (uri: string) => {
+  const preparePhoto = async (uri: string, source: 'camera' | 'gallery' = 'camera') => {
     // Web SSOT alignment (create.blade.php): width 600, JPEG 0.75; fallback 480 @ 0.5 if > 512 KB
     let prepared = await manipulateAsync(
       uri,
@@ -73,7 +79,7 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
         { base64: true, compress: 0.5, format: SaveFormat.JPEG }
       );
     }
-    acceptPhoto(prepared.base64, 'image/jpeg');
+    acceptPhoto(prepared.base64, 'image/jpeg', source);
   };
 
   const handleCapture = async () => {
@@ -83,7 +89,7 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
       if (!response.granted) {
         Alert.alert(
           'Izin Kamera Ditolak',
-          'Akses kamera tidak diizinkan. Anda dapat menggunakan opsi Unggah Berkas Foto di bawah.'
+          'Akses kamera tidak diizinkan atau tidak didukung. Silakan gunakan opsi unggah foto di bawah.'
         );
       }
       return;
@@ -92,7 +98,7 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
     try {
       const photo = await cameraRef.current?.takePictureAsync({ quality: 0.85 });
       if (photo?.uri) {
-        await preparePhoto(photo.uri);
+        await preparePhoto(photo.uri, 'camera');
       }
     } catch {
       Alert.alert('Kamera gagal', 'Periksa izin kamera dan coba lagi, atau gunakan unggah foto.');
@@ -120,7 +126,7 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
       if (!result.canceled && result.assets?.[0]?.uri) {
         setIsProcessing(true);
         try {
-          await preparePhoto(result.assets[0].uri);
+          await preparePhoto(result.assets[0].uri, 'gallery');
         } finally {
           setIsProcessing(false);
         }
@@ -133,6 +139,7 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
   const handleRetake = () => {
     setIsInspectVisible(false);
     setCaptured(false);
+    setCaptureSource(null);
     setPhotoData(null);
     onCapture('');
   };
@@ -151,7 +158,11 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
         </View>
         <View style={[styles.statusBadge, captured && styles.statusBadgeReady]}>
           <Text style={[styles.statusBadgeText, captured && styles.statusBadgeTextReady]}>
-            {captured ? 'Foto Terverifikasi' : 'Belum Diambil'}
+            {!captured
+              ? 'Belum Diambil'
+              : captureSource === 'gallery'
+              ? 'Berkas Foto Siap'
+              : 'Foto Terverifikasi'}
           </Text>
         </View>
       </View>
@@ -189,7 +200,7 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
             </View>
             <Text style={styles.permissionTitle}>Akses Kamera Belum Diizinkan</Text>
             <Text style={styles.permissionHint}>
-              Ketuk untuk memberi izin kamera atau unggah berkas foto di bawah
+              Akses kamera tidak diizinkan atau tidak didukung. Silakan gunakan opsi unggah foto di bawah.
             </Text>
           </Pressable>
         )}

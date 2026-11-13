@@ -148,6 +148,9 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
           <Text style={styles.clearButtonText}>Bersihkan / Ulangi TTD</Text>
         </Pressable>
       </View>
+      <Text style={styles.helperText}>
+        Gunakan jari tangan pada layar sentuh atau mouse pada layar.
+      </Text>
     </View>
   );
 };
@@ -308,5 +311,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansBold,
     fontSize: 12,
     color: colors.onSurface,
+  },
+  helperText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.xs + 2,
   },
 });

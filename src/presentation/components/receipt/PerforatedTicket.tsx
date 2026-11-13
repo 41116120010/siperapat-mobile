@@ -90,6 +90,37 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
 
   const attReference = `#ATT-${attendance.id.padStart(6, '0')}`;
   const sipReference = attendance.verificationToken || `SIP-${attendance.id.padStart(6, '0')}`;
+  const uaRaw = (attendance.deviceInfo ?? '').trim();
+  const deviceLabel = (() => {
+    if (!uaRaw) return 'Perangkat Tidak Terdeteksi';
+    const platform = uaRaw.includes('Android')
+      ? 'Android'
+      : uaRaw.includes('iPhone')
+      ? 'iPhone (iOS)'
+      : uaRaw.includes('iPad')
+      ? 'iPad (iPadOS)'
+      : uaRaw.includes('Macintosh') || uaRaw.includes('Mac OS')
+      ? 'macOS'
+      : uaRaw.includes('Windows')
+      ? 'Windows'
+      : uaRaw.includes('Linux')
+      ? 'Linux'
+      : 'Perangkat Terdaftar';
+    const browser = uaRaw.includes('Edg')
+      ? 'Microsoft Edge'
+      : uaRaw.includes('Chrome')
+      ? 'Google Chrome'
+      : uaRaw.includes('Safari') && !uaRaw.includes('Chrome')
+      ? 'Safari'
+      : uaRaw.includes('Firefox')
+      ? 'Mozilla Firefox'
+      : uaRaw.includes('Opera') || uaRaw.includes('OPR')
+      ? 'Opera'
+      : uaRaw.includes('Expo') || uaRaw.includes('okhttp') || uaRaw.includes('Dalvik') || uaRaw.includes('CFNetwork')
+      ? 'Aplikasi Mobile'
+      : 'Peramban Web';
+    return `${browser} (${platform})`;
+  })();
 
   return (
     <View style={styles.card}>
@@ -102,9 +133,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
           <Text style={styles.confirmationPillText}>KEHADIRAN TERVERIFIKASI SAH</Text>
         </View>
         <Text style={styles.confirmationTitle}>Tanda Terima Presensi Digital</Text>
-        <Text style={styles.confirmationId}>
-          ID Bukti: {attReference} • {sipReference}
-        </Text>
+        <Text style={styles.confirmationId}>ID Bukti: {attReference}</Text>
       </View>
 
       {/* 1. Institutional Header */}
@@ -195,12 +224,10 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
               <Text style={styles.participantValue}>{attendance.asnUnitKerja || 'LLDIKTI Wilayah X'}</Text>
             </View>
             <View style={styles.participantCol}>
-              <Text style={styles.participantLabel}>Status Verifikasi</Text>
+              <Text style={styles.participantLabel}>Status Kehadiran</Text>
               <View style={styles.verifiedBadgeRow}>
                 <CheckCircle2 size={14} color={colors.success} strokeWidth={2} />
-                <Text style={styles.participantValueSuccess}>
-                  {attendance.validationStatusLabel || 'Hadir Sah Terverifikasi'}
-                </Text>
+                <Text style={styles.participantValueSuccess}>Hadir Sah</Text>
               </View>
             </View>
           </View>
@@ -208,17 +235,44 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             <View style={styles.validationItem}>
               <Fingerprint size={13} color={colors.textSecondary} strokeWidth={2} />
               <Text style={styles.validationText}>
-                Metode: {attendance.verificationMethod || 'Swafoto & TTD Digital'}
+                Metode: {attendance.verificationMethod || 'Selfie + TTD Digital'}
               </Text>
             </View>
-            {attendance.ipAddress ? (
-              <View style={styles.validationItem}>
-                <Smartphone size={13} color={colors.textSecondary} strokeWidth={2} />
-                <Text style={styles.validationText}>
-                  IP: {attendance.ipAddress}
+          </View>
+        </View>
+
+        {/* Informasi Jaringan & Perangkat Autentikasi (Web SSOT success.blade.php) */}
+        <View style={styles.networkCard}>
+          <View style={styles.networkHeader}>
+            <View style={styles.networkHeaderLeft}>
+              <Smartphone size={13} color={colors.textSecondary} strokeWidth={2} />
+              <Text style={styles.networkHeading}>
+                Informasi Jaringan & Perangkat Autentikasi
+              </Text>
+            </View>
+            <View style={styles.deviceLabelPill}>
+              <Text style={styles.deviceLabelText}>{deviceLabel}</Text>
+            </View>
+          </View>
+
+          <View style={styles.networkMetaBlock}>
+            <View style={styles.networkIpRow}>
+              <Text style={styles.networkFieldLabel}>Alamat IP:</Text>
+              <View style={styles.networkIpPill}>
+                <Text style={styles.networkIpText}>
+                  {attendance.ipAddress || '127.0.0.1'}
                 </Text>
               </View>
-            ) : null}
+            </View>
+
+            <View style={styles.networkUaBlock}>
+              <Text style={styles.networkFieldLabel}>Perangkat (User-Agent):</Text>
+              <View style={styles.networkUaBox}>
+                <Text style={styles.networkUaText} selectable>
+                  {uaRaw || 'Tidak terdeteksi'}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
       </View>
@@ -345,6 +399,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
         signedAt={attendance.timestamp}
         ipAddress={attendance.ipAddress}
         deviceInfo={attendance.deviceInfo}
+        deviceLabel={deviceLabel}
       />
     </View>
   );
@@ -687,6 +742,100 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     fontSize: 10.5,
     color: colors.textSecondary,
+  },
+  networkCard: {
+    marginTop: spacing.sm,
+    padding: spacing.sm + 2,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    gap: spacing.sm,
+  },
+  networkHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    paddingBottom: spacing.xs + 2,
+  },
+  networkHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  networkHeading: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 10,
+    color: colors.onSurfaceVariant,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    flexShrink: 1,
+  },
+  deviceLabelPill: {
+    paddingHorizontal: spacing.xs + 4,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  deviceLabelText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    color: colors.onSurface,
+  },
+  networkMetaBlock: {
+    gap: spacing.xs + 2,
+  },
+  networkIpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    flexWrap: 'wrap',
+  },
+  networkFieldLabel: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  networkIpPill: {
+    paddingHorizontal: spacing.xs + 4,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  networkIpText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 11,
+    color: colors.primaryDarkest,
+  },
+  networkUaBlock: {
+    gap: 4,
+  },
+  networkUaBox: {
+    padding: spacing.sm,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  networkUaText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoRegular,
+    fontSize: 10.5,
+    color: colors.onSurfaceVariant,
+    lineHeight: 15,
   },
   evidenceSection: {
     paddingHorizontal: spacing.md,

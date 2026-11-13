@@ -12,9 +12,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   Calendar,
   CalendarCheck,
+  Check,
   CheckSquare,
+  ChevronRight,
   Clock,
-  SlidersHorizontal,
   Users,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
@@ -24,59 +25,80 @@ import { Header } from '../components/common/Header';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
-import {
-  MeetingFilterModal,
-  FilterStatus,
-  FilterOrder,
-} from '../components/modals/MeetingFilterModal';
 import { useAuthStore } from '../store/useAuthStore';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { Meeting } from '../../domain/entities/types';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
+import { agendaApi } from '../../data/datasources/agendaApi';
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
   onNavigateDetail: (meetingId: string) => void;
-  onNavigateAgenda: () => void;
+  onNavigateAgenda?: () => void;
+  onNavigateRiwayat?: () => void;
+  onNavigateCreate?: () => void;
+  onNavigateReceipt?: (attendanceId: string) => void;
 }
 
-const getWibGreeting = (): string => {
-  const wibHour = new Date(Date.now() + 7 * 60 * 60 * 1000).getUTCHours();
-  if (wibHour >= 4 && wibHour <= 10) return 'Selamat Pagi,';
-  if (wibHour >= 11 && wibHour <= 14) return 'Selamat Siang,';
-  if (wibHour >= 15 && wibHour <= 17) return 'Selamat Sore,';
-  return 'Selamat Malam,';
-};
+interface DashboardAttendanceMeta {
+  hasAttended: boolean;
+  attendanceId?: string;
+}
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigatePresensi,
   onNavigateDetail,
   onNavigateAgenda,
+  onNavigateRiwayat,
+  onNavigateCreate,
+  onNavigateReceipt,
 }) => {
   const { user } = useAuthStore();
+  const canManageMeetings = user?.role === 'administrator' || user?.role === 'admin';
   const {
     dashboardMeetings: meetings,
-    activeMeeting,
     dashboardStats,
     isLoading,
     error,
-    filterTab,
-    setFilterTab,
     fetchDashboard,
   } = useMeetingStore();
 
-  const [activeFilterOrder, setActiveFilterOrder] = useState<FilterOrder>('all');
-  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Meeting | null>(null);
+  const [attendanceMetaByAgenda, setAttendanceMetaByAgenda] = useState<
+    Record<string, DashboardAttendanceMeta>
+  >({});
+
+  const loadDashboardWithMeta = useCallback(async () => {
+    await fetchDashboard();
+    try {
+      const response = await agendaApi.dashboard();
+      const map: Record<string, DashboardAttendanceMeta> = {};
+      const activeAgendas = (response.data as any)?.active_agendas ?? [];
+      for (const item of activeAgendas) {
+        if (!item?.id) continue;
+        const agendaKey = String(item.id);
+        const attendanceId =
+          item.my_attendance?.id !== undefined && item.my_attendance?.id !== null
+            ? String(item.my_attendance.id)
+            : undefined;
+        map[agendaKey] = {
+          hasAttended: Boolean(item.has_attended || attendanceId),
+          attendanceId,
+        };
+      }
+      setAttendanceMetaByAgenda(map);
+    } catch {
+      // Tetap gunakan data dari store jika sinkronisasi metadata tambahan gagal
+    }
+  }, [fetchDashboard]);
 
   useFocusEffect(
     useCallback(() => {
-      void fetchDashboard();
-    }, [fetchDashboard])
+      void loadDashboardWithMeta();
+    }, [loadDashboardWithMeta])
   );
 
-  const greetingText = getWibGreeting();
   const ongoingCount = dashboardStats?.ongoing_agendas;
   const upcomingCount = dashboardStats?.upcoming_agendas;
   const agendaCount = dashboardStats?.total_agendas;
@@ -88,7 +110,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         ? {
             key: 'total-users',
             label: 'Total Pengguna',
-            value: dashboardStats?.total_users === undefined ? '—' : String(dashboardStats.total_users),
+            value:
+              dashboardStats?.total_users === undefined
+                ? '—'
+                : String(dashboardStats.total_users),
+            unit: undefined as string | undefined,
             Icon: Users,
             isHighlight: false,
           }
@@ -96,7 +122,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         ? {
             key: 'unit-users',
             label: 'Pegawai di Unit',
-            value: dashboardStats?.total_users === undefined ? '—' : String(dashboardStats.total_users),
+            value:
+              dashboardStats?.total_users === undefined
+                ? '—'
+                : String(dashboardStats.total_users),
+            unit: undefined as string | undefined,
             Icon: Users,
             isHighlight: false,
           }
@@ -104,6 +134,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             key: 'my-attendances',
             label: 'Riwayat Kehadiran',
             value: attendanceCount === undefined ? '—' : String(attendanceCount),
+            unit: attendanceCount === undefined ? undefined : 'Kali',
             Icon: CheckSquare,
             isHighlight: false,
           };
@@ -113,6 +144,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         key: 'total-agendas',
         label: 'Agenda Rapat',
         value: agendaCount === undefined ? '—' : String(agendaCount),
+        unit: undefined as string | undefined,
         Icon: Calendar,
         isHighlight: false,
       },
@@ -120,13 +152,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         key: 'ongoing-agendas',
         label: 'Sedang Berlangsung',
         value: ongoingCount === undefined ? '—' : String(ongoingCount),
+        unit: undefined as string | undefined,
         Icon: Clock,
         isHighlight: (ongoingCount ?? 0) > 0,
       },
       {
         key: 'upcoming-agendas',
-        label: 'Terjadwal',
+        label: 'Terjadwal Mendatang',
         value: upcomingCount === undefined ? '—' : String(upcomingCount),
+        unit: undefined as string | undefined,
         Icon: CalendarCheck,
         isHighlight: false,
       },
@@ -140,38 +174,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     dashboardStats?.total_users,
     attendanceCount,
   ]);
-
-  const filteredMeetings = useMemo(
-    () =>
-      meetings
-        .filter((m) => {
-          if (filterTab === 'ongoing') return m.status === 'ongoing';
-          if (filterTab === 'upcoming') return m.status === 'upcoming';
-          if (filterTab === 'completed') return m.status === 'completed';
-          return true;
-        })
-        .filter((m) => {
-          if (activeFilterOrder === 'priority') {
-            return (
-              m.type === 'hybrid' ||
-              m.title.toLowerCase().includes('pleno') ||
-              m.title.toLowerCase().includes('koordinasi')
-            );
-          }
-          return true;
-        }),
-    [meetings, filterTab, activeFilterOrder]
-  );
-
-  const categoryTabs: { id: FilterStatus; label: string; count: number | string }[] = useMemo(
-    () => [
-      { id: 'all', label: 'Semua', count: agendaCount ?? '—' },
-      { id: 'ongoing', label: 'Berlangsung', count: ongoingCount ?? '—' },
-      { id: 'upcoming', label: 'Mendatang', count: upcomingCount ?? '—' },
-      { id: 'completed', label: 'Selesai', count: dashboardStats?.completed_agendas ?? '—' },
-    ],
-    [agendaCount, ongoingCount, upcomingCount, dashboardStats?.completed_agendas]
-  );
 
   const handlePdfView = useCallback((meeting: Meeting) => {
     if (meeting.invitationPdfUrl) {
@@ -206,17 +208,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         refreshControl={
           <RefreshControl
             refreshing={isLoading && meetings.length > 0}
-            onRefresh={fetchDashboard}
+            onRefresh={loadDashboardWithMeta}
             colors={[colors.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile Greeting Section */}
-        <View style={styles.greetingSection}>
-          <Text style={styles.greetingSub}>{greetingText}</Text>
-          <Text style={styles.greetingName}>{user?.name ?? 'ASN'}</Text>
-          <Text style={styles.greetingRole}>{user?.jabatan ?? 'SIPERAPAT'}</Text>
+        {/* Title Section (Web SSOT dashboard.blade.php:4-5) */}
+        <View style={styles.titleSection}>
+          <Text style={styles.mainTitle}>Dashboard Utama</Text>
+          <Text style={styles.mainSubtitle}>
+            Ringkasan Aktivitas dan Agenda Rapat Kedinasan
+          </Text>
         </View>
 
         {/* 2x2 Gov-Tech Stat Cards */}
@@ -226,7 +229,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             return (
               <View key={stat.key} style={styles.statCard}>
                 <View style={styles.statTopRow}>
-                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <View style={styles.statValueRow}>
+                    <Text style={styles.statValue}>{stat.value}</Text>
+                    {stat.unit ? (
+                      <Text style={styles.statUnit}>{stat.unit}</Text>
+                    ) : null}
+                  </View>
                   <View
                     style={[
                       styles.statIconBox,
@@ -248,151 +256,147 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           })}
         </View>
 
-        {/* Meeting Section Title with Enterprise Filter Button */}
+        {/* Active Agendas Header Row (Web SSOT dashboard.blade.php:76-92) */}
         <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionTitleWrap}>
-            <Text style={styles.sectionTitle}>Daftar Rapat Dinas</Text>
-            <Text style={styles.sectionSub}>Wilayah Kerja LLDIKTI Wilayah X</Text>
+          <View style={styles.sectionTitleRow}>
+            <Calendar size={18} strokeWidth={2} color={colors.onSurface} />
+            <Text style={styles.sectionTitle}>Agenda Rapat Terkini</Text>
           </View>
-          <Pressable
-            onPress={() => setIsFilterModalVisible(true)}
-            style={({ pressed }) => [
-              styles.filterButton,
-              activeFilterOrder === 'priority' && styles.filterButtonHighlighted,
-              pressed && styles.filterButtonPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Filter agenda rapat"
-          >
-            <SlidersHorizontal
-              size={15}
-              strokeWidth={2}
-              color={
-                activeFilterOrder === 'priority'
-                  ? colors.primary
-                  : colors.onSurfaceVariant
-              }
-            />
-            <Text
-              style={[
-                styles.filterButtonText,
-                activeFilterOrder === 'priority' && styles.filterButtonTextHighlighted,
+
+          {(canManageMeetings && onNavigateAgenda) || (!canManageMeetings && onNavigateRiwayat) ? (
+            <Pressable
+              onPress={canManageMeetings ? onNavigateAgenda : onNavigateRiwayat}
+              style={({ pressed }) => [
+                styles.sectionCtaBtn,
+                pressed && styles.secondaryBtnPressed,
               ]}
+              accessibilityRole="button"
+              accessibilityLabel={
+                canManageMeetings ? 'Semua Agenda' : 'Lihat Riwayat Presensi Saya'
+              }
             >
-              Filter
-            </Text>
-            {activeFilterOrder === 'priority' ? (
-              <View style={styles.filterActiveDot} />
-            ) : null}
-          </Pressable>
+              <Text style={styles.sectionCtaText}>
+                {canManageMeetings ? 'Semua Agenda' : 'Lihat Riwayat Presensi Saya'}
+              </Text>
+              {canManageMeetings ? (
+                <ChevronRight size={14} strokeWidth={2} color={colors.primary} />
+              ) : null}
+            </Pressable>
+          ) : null}
         </View>
 
-        {/* Category Filter Pills with Cohesive Badge Counters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScroll}
-        >
-          {categoryTabs.map((tab) => {
-            const isActive = filterTab === tab.id;
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => setFilterTab(tab.id)}
-                style={({ pressed }) => [
-                  styles.filterPill,
-                  isActive ? styles.filterPillActive : styles.filterPillInactive,
-                  pressed && styles.filterPillPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Kategori ${tab.label}`}
-              >
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    isActive && styles.filterPillTextActive,
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-                <View
-                  style={[
-                    styles.badgeCount,
-                    isActive ? styles.badgeCountActive : styles.badgeCountInactive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.badgeCountText,
-                      isActive && styles.badgeCountTextActive,
+        {error ? <ErrorState message={error} onRetry={loadDashboardWithMeta} /> : null}
+
+        {/* Active Agendas List */}
+        {meetings.length > 0 ? (
+          <View style={styles.meetingList}>
+            {meetings.map((meeting) => {
+              const isOngoing = meeting.status === 'ongoing';
+              const meta = attendanceMetaByAgenda[meeting.id];
+              const hasAttended = Boolean(meta?.hasAttended);
+
+              const footerRight = isOngoing ? (
+                hasAttended ? (
+                  <View style={styles.footerStatusGroup}>
+                    <View style={styles.attendedPill}>
+                      <Check size={13} strokeWidth={2.5} color={colors.onSuccessContainer} />
+                      <Text style={styles.attendedPillText}>Sudah Hadir</Text>
+                    </View>
+                    {meta?.attendanceId && onNavigateReceipt ? (
+                      <Pressable
+                        onPress={() => onNavigateReceipt(meta.attendanceId!)}
+                        style={({ pressed }) => [
+                          styles.receiptLinkBtn,
+                          pressed && styles.secondaryBtnPressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Lihat bukti presensi ${meeting.title}`}
+                      >
+                        <Text style={styles.receiptLinkText}>Bukti</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => onNavigatePresensi(meeting.id)}
+                    style={({ pressed }) => [
+                      styles.presensiNowBtn,
+                      pressed && styles.presensiNowBtnPressed,
                     ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Presensi sekarang untuk ${meeting.title}`}
                   >
-                    {tab.count}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                    <CheckSquare size={14} strokeWidth={2} color={colors.onPrimary} />
+                    <Text style={styles.presensiNowText}>Presensi Sekarang</Text>
+                  </Pressable>
+                )
+              ) : (
+                <Text style={styles.presensiClosedText}>Presensi belum dibuka</Text>
+              );
 
-        {/* Active Highlight Card when ongoing tab is active and meeting exists */}
-        {filterTab === 'ongoing' && activeMeeting ? (
-          <MeetingCard
-            meeting={activeMeeting}
-            isActive
-            onPressAction={() => onNavigatePresensi(activeMeeting.id)}
-          />
-        ) : null}
-
-        {error ? <ErrorState message={error} onRetry={fetchDashboard} /> : null}
-
-        {/* List of Meetings according to Filter */}
-        {filteredMeetings.length > 0 ? (
-          filteredMeetings
-            .filter((m) =>
-              filterTab === 'ongoing' && activeMeeting
-                ? m.id !== activeMeeting.id
-                : true
-            )
-            .map((meeting) => (
-              <MeetingCard
-                key={meeting.id}
-                meeting={meeting}
-                onPressDetail={() => onNavigateDetail(meeting.id)}
-                onPressPdf={() => handlePdfView(meeting)}
-                onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
-              />
-            ))
+              return (
+                <MeetingCard
+                  key={meeting.id}
+                  meeting={meeting}
+                  showAttendance={canManageMeetings}
+                  onPressDetail={() => onNavigateDetail(meeting.id)}
+                  onPressPdf={() => handlePdfView(meeting)}
+                  onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
+                  footerRight={footerRight}
+                />
+              );
+            })}
+          </View>
         ) : (
-          <EmptyState
-            title="Tidak Ada Agenda Rapat"
-            description="Tidak ada jadwal pertemuan kedinasan yang sesuai dengan filter yang dipilih."
-            actionLabel="Lihat Semua Agenda"
-            onAction={onNavigateAgenda}
-          />
+          <View style={styles.emptyWrap}>
+            <EmptyState
+              icon="calendar"
+              title="Tidak Ada Agenda Rapat Aktif"
+              description="Saat ini tidak ada sesi rapat yang sedang berlangsung atau agenda terjadwal dalam waktu dekat."
+              style={styles.emptyStateBox}
+            />
+            {canManageMeetings ? (
+              <View style={styles.emptyActionsRow}>
+                {onNavigateAgenda ? (
+                  <Pressable
+                    onPress={onNavigateAgenda}
+                    style={({ pressed }) => [
+                      styles.emptyArchiveBtn,
+                      pressed && styles.secondaryBtnPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Lihat Semua Arsip Agenda"
+                  >
+                    <Text style={styles.emptyArchiveBtnText}>Lihat Semua Arsip Agenda</Text>
+                  </Pressable>
+                ) : null}
+                {onNavigateCreate ? (
+                  <Pressable
+                    onPress={onNavigateCreate}
+                    style={({ pressed }) => [
+                      styles.emptyCreateBtn,
+                      pressed && styles.emptyCreateBtnPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Buat Agenda Baru"
+                  >
+                    <Text style={styles.emptyCreateBtnText}>+ Buat Agenda Baru</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
         )}
       </ScrollView>
 
-      {/* Enterprise Filter Bottom Sheet Modal */}
-      <MeetingFilterModal
-        visible={isFilterModalVisible}
-        onClose={() => setIsFilterModalVisible(false)}
-        currentStatus={filterTab}
-        currentOrder={activeFilterOrder}
-        onApply={(status, order) => {
-          setFilterTab(status);
-          setActiveFilterOrder(order);
-        }}
-        onReset={() => {
-          setFilterTab('all');
-          setActiveFilterOrder('all');
-        }}
-      />
       <SuratEdaranViewerModal
         visible={selectedDocument !== null}
         onClose={() => setSelectedDocument(null)}
         documentUrl={selectedDocument?.invitationPdfUrl}
-        fileName={`Surat-Edaran_${selectedDocument?.code || 'Agenda'}.${selectedDocument?.suratEdaran?.extension || (selectedDocument?.suratEdaran?.is_image ? 'jpg' : 'pdf')}`}
+        fileName={`Surat-Edaran_${selectedDocument?.code || 'Agenda'}.${
+          selectedDocument?.suratEdaran?.extension ||
+          (selectedDocument?.suratEdaran?.is_image ? 'jpg' : 'pdf')
+        }`}
         meetingTitle={selectedDocument?.title}
         meetingCode={selectedDocument?.code}
         meetingDate={`${selectedDocument?.date || ''} ${selectedDocument?.startTime || ''}`.trim()}
@@ -411,26 +415,20 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     paddingBottom: spacing.xl * 2,
   },
-  greetingSection: {
-    marginBottom: spacing.sm + 4,
+  titleSection: {
+    marginBottom: spacing.md,
     paddingTop: spacing.xs,
   },
-  greetingSub: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    fontSize: 13,
-  },
-  greetingName: {
+  mainTitle: {
     ...typography.headlineMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
+    fontFamily: fontFamilies.sansExtraBold,
     fontSize: 20,
-    marginTop: 2,
+    color: colors.primaryDarkest,
   },
-  greetingRole: {
-    ...typography.labelSm,
+  mainSubtitle: {
+    ...typography.bodySm,
+    fontSize: 13,
     color: colors.textMuted,
-    fontSize: 11,
     marginTop: 2,
   },
   bentoGrid: {
@@ -455,12 +453,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
+  statValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
   statValue: {
     ...typography.headlineMd,
     fontFamily: fontFamilies.monoBold,
     fontSize: 22,
     lineHeight: 26,
     color: colors.primary,
+  },
+  statUnit: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11,
+    color: colors.textMuted,
   },
   statIconBox: {
     width: 34,
@@ -486,124 +495,164 @@ const styles = StyleSheet.create({
   },
   sectionHeaderRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.sm + 4,
     gap: spacing.sm,
   },
-  sectionTitleWrap: {
-    flex: 1,
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexShrink: 1,
   },
   sectionTitle: {
     ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
+    fontFamily: fontFamilies.sansExtraBold,
+    color: colors.primaryDarkest,
     fontSize: 16,
   },
-  sectionSub: {
-    ...typography.labelSm,
-    color: colors.textMuted,
-    fontSize: 11,
-  },
-  filterButton: {
+  sectionCtaBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 14,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
     backgroundColor: colors.surfaceCard,
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
-  filterButtonHighlighted: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceSoft,
-  },
-  filterButtonPressed: {
-    backgroundColor: colors.surfaceSoft,
-  },
-  filterButtonText: {
+  sectionCtaText: {
     ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 12,
-    color: colors.onSurfaceVariant,
-  },
-  filterButtonTextHighlighted: {
     color: colors.primary,
-    fontFamily: fontFamilies.sansBold,
   },
-  filterActiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-    marginLeft: 2,
+  secondaryBtnPressed: {
+    backgroundColor: colors.surfaceSoft,
   },
-  filterScroll: {
+  meetingList: {
+    gap: spacing.md,
+  },
+  footerStatusGroup: {
     flexDirection: 'row',
-    gap: spacing.xs + 2,
-    marginBottom: spacing.md,
-    paddingVertical: 2,
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
-  filterPill: {
+  attendedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: rounded.md,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  attendedPillText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.onSuccessContainer,
+  },
+  receiptLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+    minWidth: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  receiptLinkText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  presensiNowBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 14,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-    overflow: 'hidden',
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
+    backgroundColor: colors.success,
   },
-  filterPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  presensiNowBtnPressed: {
+    backgroundColor: colors.onSuccessContainer,
   },
-  filterPillInactive: {
-    backgroundColor: colors.surfaceCard,
-    borderColor: colors.borderSubtle,
-  },
-  filterPillPressed: {
-    opacity: 0.85,
-  },
-  filterPillText: {
+  presensiNowText: {
     ...typography.labelMd,
-    fontFamily: fontFamilies.sansMedium,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-  },
-  filterPillTextActive: {
-    color: colors.onPrimary,
     fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.onPrimary,
   },
-  badgeCount: {
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
-    borderRadius: 10,
+  presensiClosedText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    fontStyle: 'italic',
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  emptyWrap: {
+    gap: spacing.sm,
+  },
+  emptyStateBox: {
+    marginBottom: 0,
+  },
+  emptyActionsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    paddingTop: spacing.xs,
+  },
+  emptyArchiveBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
-  badgeCountActive: {
+  emptyArchiveBtnText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  emptyCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primary,
+  },
+  emptyCreateBtnPressed: {
     backgroundColor: colors.primaryContainer,
   },
-  badgeCountInactive: {
-    backgroundColor: colors.surfaceSoft,
-  },
-  badgeCountText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.monoBold,
-    fontSize: 10,
-    lineHeight: 12,
-    color: colors.onSurfaceVariant,
-  },
-  badgeCountTextActive: {
+  emptyCreateBtnText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
     color: colors.onPrimary,
   },
 });

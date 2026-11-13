@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   FileText,
   Hash,
+  Info,
   PauseCircle,
   PlusCircle,
   X,
@@ -102,7 +103,7 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
     <View style={styles.container}>
       <Header
         title="Tambah Unit Kerja"
-        subtitle="Registrasi Struktur Unit Kerja Baru LLDIKTI X"
+        subtitle="Daftarkan struktur organisasi / Pokja baru di lingkungan LLDIKTI"
         showBack={Boolean(onBack)}
         onBack={handleBack}
       />
@@ -156,34 +157,10 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
             </View>
 
             <View style={styles.formFields}>
-              {/* KODE UNIT */}
-              <Input
-                label="Kode Singkat Unit Kerja *"
-                placeholder="Contoh: TU, AKAD, SDPT, HKTL"
-                value={kodeUnit}
-                onChangeText={(text) => {
-                  setKodeUnit(text.toUpperCase());
-                  if (error) clearError();
-                }}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                spellCheck={false}
-                maxLength={20}
-                isMono
-                helperText="Digunakan sebagai kode referensi cepat pada sistem dan agenda rapat"
-                leftIcon={
-                  <Hash
-                    size={18}
-                    color={colors.onSurfaceVariant}
-                    strokeWidth={2}
-                  />
-                }
-              />
-
               {/* NAMA UNIT KERJA */}
               <Input
-                label="Nama Unit Kerja Resmi *"
-                placeholder="Contoh: Subbag Tata Usaha & BMN"
+                label="Nama Unit Kerja *"
+                placeholder="Contoh: Pokja Transformasi Pendidikan Tinggi"
                 value={namaUnit}
                 onChangeText={(text) => {
                   setNamaUnit(text);
@@ -201,10 +178,34 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
                 }
               />
 
+              {/* KODE UNIT */}
+              <Input
+                label="Kode Singkatan Unit *"
+                placeholder="Contoh: POKJA-TPT"
+                value={kodeUnit}
+                onChangeText={(text) => {
+                  setKodeUnit(text.toUpperCase());
+                  if (error) clearError();
+                }}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                spellCheck={false}
+                maxLength={20}
+                isMono
+                helperText="Harus unik, huruf kapital alfanumerik atau tanda hubung."
+                leftIcon={
+                  <Hash
+                    size={18}
+                    color={colors.onSurfaceVariant}
+                    strokeWidth={2}
+                  />
+                }
+              />
+
               {/* DESKRIPSI UNIT (OPSIONAL) */}
               <Input
-                label="Deskripsi / Tugas Pokok (Opsional)"
-                placeholder="Tuliskan tugas & fungsi pokok unit kerja..."
+                label="Deskripsi Tugas & Fungsi"
+                placeholder="Uraian singkat peran dan tanggung jawab unit kerja..."
                 value={deskripsi}
                 onChangeText={setDeskripsi}
                 multiline
@@ -222,7 +223,7 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
 
               {/* STATUS KEAKTIFAN OPERASIONAL */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>Status Operasional Unit</Text>
+                <Text style={styles.fieldLabel}>Unit berstatus aktif</Text>
                 <View style={styles.statusPillsRow}>
                   <Pressable
                     onPress={() => setIsActive(true)}
@@ -297,6 +298,36 @@ export const AddUnitScreen: React.FC<AddUnitScreenProps> = ({
                 />
               }
             />
+          </View>
+
+          {/* PANDUAN PENAMAAN & SCOPING */}
+          <View style={styles.guideDarkCard}>
+            <View style={styles.guideHeader}>
+              <Info size={18} color={colors.onPrimaryContainer} strokeWidth={2} />
+              <Text style={styles.guideDarkTitle}>Standar Penamaan Unit</Text>
+            </View>
+            <View style={styles.guideList}>
+              <Text style={styles.guideDarkItem}>
+                • <Text style={styles.guideDarkStrong}>Nama Unit:</Text> Gunakan nomenklatur resmi
+                Pokja / Sub-bagian (misal: Pokja Kelembagaan & Kerjasama).
+              </Text>
+              <Text style={styles.guideDarkItem}>
+                • <Text style={styles.guideDarkStrong}>Kode Unit:</Text> Format ringkas 3-10 huruf
+                kapital alfanumerik (misal: POKJA-KLB, AKADEMIK, KEUANGAN).
+              </Text>
+              <Text style={styles.guideDarkItem}>
+                • <Text style={styles.guideDarkStrong}>Status Aktif:</Text> Unit aktif akan otomatis
+                muncul pada target scoping rapat dan pilihan registrasi pegawai.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.guideLightCard}>
+            <Text style={styles.guideLightTitle}>Integrasi Scoping Presensi</Text>
+            <Text style={styles.guideLightBody}>
+              Setiap agenda rapat kedinasan dapat dikhususkan hanya untuk unit tertentu atau
+              mencakup seluruh unit LLDIKTI Wilayah X.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -465,5 +496,54 @@ const styles = StyleSheet.create({
   },
   actionContainer: {
     marginTop: spacing.xs,
+  },
+  guideDarkCard: {
+    backgroundColor: colors.primaryDarkest,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  guideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  guideDarkTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  guideList: {
+    gap: spacing.xs + 2,
+  },
+  guideDarkItem: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.onPrimaryContainer,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  guideDarkStrong: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  guideLightCard: {
+    ...cardSurface,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  guideLightTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  guideLightBody: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

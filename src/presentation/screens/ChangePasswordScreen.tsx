@@ -122,8 +122,8 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
   return (
     <View style={styles.container}>
       <Header
-        title="Ubah Kata Sandi"
-        subtitle="Keamanan Akun Kedinasan LLDIKTI X"
+        title="Perbarui Kata Sandi Akun"
+        subtitle="Pastikan menggunakan kombinasi kata sandi yang kuat dan aman"
         showBack
         onBack={handleBack}
       />
@@ -169,7 +169,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
             <View style={styles.inputWrapper}>
               <Input
                 label="Kata Sandi Saat Ini *"
-                placeholder="Masukkan kata sandi saat ini"
+                placeholder="Masukkan kata sandi yang sedang digunakan..."
                 secureTextEntry={!showCurrent}
                 value={currentPassword}
                 onChangeText={(val) => {
@@ -210,7 +210,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
             <View style={styles.inputWrapper}>
               <Input
                 label="Kata Sandi Baru *"
-                placeholder="Buat kata sandi baru"
+                placeholder="Minimal 8 karakter kombinasi..."
                 secureTextEntry={!showNew}
                 value={newPassword}
                 onChangeText={(val) => {
@@ -251,7 +251,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
             <View style={styles.inputWrapper}>
               <Input
                 label="Konfirmasi Kata Sandi Baru *"
-                placeholder="Ulangi kata sandi baru"
+                placeholder="Ulangi kata sandi baru..."
                 secureTextEntry={!showConfirm}
                 value={confirmPassword}
                 onChangeText={(val) => {
@@ -343,7 +343,7 @@ export const ChangePasswordScreen: React.FC<ChangePasswordScreenProps> = ({
             {/* TOMBOL AKSI */}
             <View style={styles.actionsRow}>
               <Button
-                title={isLoading ? 'Menyimpan...' : 'Simpan Kata Sandi'}
+                title={isLoading ? 'Menyimpan...' : 'Perbarui Kata Sandi'}
                 onPress={() => void handleSubmit()}
                 disabled={!isFormValid || isLoading}
                 isLoading={isLoading}

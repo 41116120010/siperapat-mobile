@@ -18,16 +18,35 @@ import {
   Info,
   PauseCircle,
   Save,
+  Users,
   X,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
+import { ApiUserDto } from '../../data/datasources/apiTypes';
+import { userApi } from '../../data/datasources/userApi';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { FeedbackModal } from '../components/modals/FeedbackModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
+
+function formatIndonesianDateLabel(iso?: string | null): string {
+  if (!iso) return '-';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '-';
+  try {
+    return new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    }).format(parsed);
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
 
 interface EditUnitScreenProps {
   unitId: number | string;
@@ -50,7 +69,12 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
   const [namaUnit, setNamaUnit] = useState('');
   const [deskripsi, setDeskripsi] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [serverIsActive, setServerIsActive] = useState<boolean | null>(null);
   const [usersCount, setUsersCount] = useState<number | null>(null);
+  const [agendasCount, setAgendasCount] = useState<number | null>(null);
+  const [createdAt, setCreatedAt] = useState<string | null>(null);
+  const [unitUsers, setUnitUsers] = useState<ApiUserDto[]>([]);
+  const [unitUsersTotal, setUnitUsersTotal] = useState<number>(0);
 
   // Success Feedback Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -65,16 +89,38 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
     let isMounted = true;
     const loadUnit = async () => {
       setIsInitializing(true);
-      const unit = await fetchUnitById(unitId);
-      if (unit && isMounted) {
-        setKodeUnit(unit.kode_unit ?? '');
-        setNamaUnit(unit.nama_unit ?? '');
-        setDeskripsi(unit.deskripsi ?? '');
-        setIsActive(Boolean(unit.is_active));
-        setUsersCount(
-          typeof unit.users_count === 'number' ? unit.users_count : null
-        );
+      const [unitRes, usersRes] = await Promise.allSettled([
+        userApi.unit(unitId),
+        userApi.users(1, { unitId, perPage: 25 }),
+      ]);
+
+      let unitRecord =
+        unitRes.status === 'fulfilled' ? unitRes.value.data : null;
+      if (!unitRecord) {
+        unitRecord = await fetchUnitById(unitId);
       }
+
+      if (unitRecord && isMounted) {
+        setKodeUnit(unitRecord.kode_unit ?? '');
+        setNamaUnit(unitRecord.nama_unit ?? '');
+        setDeskripsi(unitRecord.deskripsi ?? '');
+        const activeFlag = Boolean(unitRecord.is_active);
+        setIsActive(activeFlag);
+        setServerIsActive(activeFlag);
+        setUsersCount(
+          typeof unitRecord.users_count === 'number' ? unitRecord.users_count : null
+        );
+        setAgendasCount(
+          typeof unitRecord.agendas_count === 'number' ? unitRecord.agendas_count : null
+        );
+        setCreatedAt('created_at' in unitRecord ? (unitRecord.created_at ?? null) : null);
+      }
+
+      if (usersRes.status === 'fulfilled' && isMounted) {
+        setUnitUsers(usersRes.value.data ?? []);
+        setUnitUsersTotal(usersRes.value.meta?.total ?? usersRes.value.data?.length ?? 0);
+      }
+
       if (isMounted) {
         setIsInitializing(false);
       }
@@ -152,7 +198,11 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
     <View style={styles.container}>
       <Header
         title="Edit Unit Kerja"
-        subtitle="Pembaruan Data & Struktur Unit Kerja"
+        subtitle={
+          namaUnit
+            ? `Perbarui data organisasi untuk ${namaUnit}`
+            : 'Pembaruan Data & Struktur Unit Kerja'
+        }
         showBack={Boolean(onBack)}
         onBack={handleBack}
       />
@@ -225,34 +275,10 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
             </View>
 
             <View style={styles.formFields}>
-              {/* KODE UNIT */}
-              <Input
-                label="Kode Singkat Unit Kerja *"
-                placeholder="Contoh: TU, AKAD, SDPT, HKTL"
-                value={kodeUnit}
-                onChangeText={(text) => {
-                  setKodeUnit(text.toUpperCase());
-                  if (error) clearError();
-                }}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                spellCheck={false}
-                maxLength={20}
-                isMono
-                helperText="Digunakan sebagai kode referensi cepat pada sistem dan agenda rapat"
-                leftIcon={
-                  <Hash
-                    size={18}
-                    color={colors.onSurfaceVariant}
-                    strokeWidth={2}
-                  />
-                }
-              />
-
               {/* NAMA UNIT KERJA */}
               <Input
-                label="Nama Unit Kerja Resmi *"
-                placeholder="Contoh: Subbag Tata Usaha & BMN"
+                label="Nama Unit Kerja *"
+                placeholder="Contoh: Pokja Transformasi Pendidikan Tinggi"
                 value={namaUnit}
                 onChangeText={(text) => {
                   setNamaUnit(text);
@@ -270,10 +296,34 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
                 }
               />
 
+              {/* KODE UNIT */}
+              <Input
+                label="Kode Singkatan Unit *"
+                placeholder="Contoh: POKJA-TPT"
+                value={kodeUnit}
+                onChangeText={(text) => {
+                  setKodeUnit(text.toUpperCase());
+                  if (error) clearError();
+                }}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                spellCheck={false}
+                maxLength={20}
+                isMono
+                helperText="Harus unik, huruf kapital alfanumerik atau tanda hubung."
+                leftIcon={
+                  <Hash
+                    size={18}
+                    color={colors.onSurfaceVariant}
+                    strokeWidth={2}
+                  />
+                }
+              />
+
               {/* DESKRIPSI UNIT (OPSIONAL) */}
               <Input
-                label="Deskripsi / Tugas Pokok (Opsional)"
-                placeholder="Tuliskan tugas & fungsi pokok unit kerja..."
+                label="Deskripsi Tugas & Fungsi"
+                placeholder="Uraian singkat peran dan tanggung jawab unit kerja..."
                 value={deskripsi}
                 onChangeText={setDeskripsi}
                 multiline
@@ -291,7 +341,7 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
 
               {/* STATUS KEAKTIFAN OPERASIONAL */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>Status Operasional Unit</Text>
+                <Text style={styles.fieldLabel}>Unit berstatus aktif</Text>
                 <View style={styles.statusPillsRow}>
                   <Pressable
                     onPress={() => setIsActive(true)}
@@ -351,7 +401,7 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
           {/* SUBMIT BUTTON */}
           <View style={styles.actionContainer}>
             <Button
-              title="Simpan Perubahan"
+              title="Perbarui Unit Kerja"
               onPress={handleSubmit}
               variant="primary"
               fullWidth
@@ -366,6 +416,100 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
                 />
               }
             />
+          </View>
+
+          {/* RINGKASAN UNIT TERDAFTAR */}
+          <View style={styles.summaryDarkCard}>
+            <View style={styles.summaryHeader}>
+              <Info size={18} color={colors.onPrimaryContainer} strokeWidth={2} />
+              <Text style={styles.summaryDarkTitle}>Ringkasan Unit Terdaftar</Text>
+            </View>
+            <View style={styles.summaryRows}>
+              <Text style={styles.summaryDarkItem}>
+                Total Pegawai Terhubung:{' '}
+                <Text style={styles.summaryDarkStrong}>
+                  {usersCount ?? unitUsersTotal} orang
+                </Text>
+              </Text>
+              <Text style={styles.summaryDarkItem}>
+                Agenda Rapat Terlibat:{' '}
+                <Text style={styles.summaryDarkStrong}>
+                  {agendasCount ?? 0} agenda
+                </Text>
+              </Text>
+              <Text style={styles.summaryDarkItem}>
+                Status Saat Ini:{' '}
+                <Text
+                  style={
+                    (serverIsActive ?? isActive)
+                      ? styles.summaryStatusActive
+                      : styles.summaryStatusInactive
+                  }
+                >
+                  {(serverIsActive ?? isActive) ? 'Aktif Beroperasi' : 'Non-Aktif'}
+                </Text>
+              </Text>
+              <View style={styles.summaryFooterDivider}>
+                <Text style={styles.summaryCreatedAt}>
+                  Dibuat pada: {formatIndonesianDateLabel(createdAt)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* PEGAWAI DI UNIT INI */}
+          <View style={styles.card}>
+            <View style={styles.unitUsersHeader}>
+              <Users size={16} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.unitUsersTitle}>
+                Pegawai di Unit Ini ({usersCount ?? unitUsersTotal})
+              </Text>
+            </View>
+            {unitUsers.length === 0 ? (
+              <Text style={styles.unitUsersEmpty}>
+                Belum ada pegawai terhubung pada unit ini.
+              </Text>
+            ) : (
+              <View style={styles.unitUsersList}>
+                {unitUsers.map((member, index) => (
+                  <View
+                    key={member.id}
+                    style={[
+                      styles.unitUserRow,
+                      index > 0 && styles.unitUserRowBorder,
+                    ]}
+                  >
+                    <View style={styles.unitUserInfo}>
+                      <Text style={styles.unitUserName} numberOfLines={1}>
+                        {member.name}
+                      </Text>
+                      <Text style={styles.unitUserNip} numberOfLines={1}>
+                        NIP: {member.nip || '-'}
+                      </Text>
+                    </View>
+                    <View style={styles.unitUserRoleBadge}>
+                      <Text style={styles.unitUserRoleText}>
+                        {member.role?.label || member.role?.value || 'Pegawai'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+                {unitUsersTotal > unitUsers.length ? (
+                  <Text style={styles.unitUsersMoreHint}>
+                    Menampilkan {unitUsers.length} dari {unitUsersTotal} pegawai pada unit ini.
+                  </Text>
+                ) : null}
+              </View>
+            )}
+          </View>
+
+          {/* PERUBAHAN KODE UNIT */}
+          <View style={styles.noticeCard}>
+            <Text style={styles.noticeTitle}>Perubahan Kode Unit</Text>
+            <Text style={styles.noticeBody}>
+              Perubahan kode unit akan otomatis diperbarui pada seluruh riwayat agenda dan laporan
+              berita acara rapat terkait.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -579,5 +723,146 @@ const styles = StyleSheet.create({
   },
   actionContainer: {
     marginTop: spacing.xs,
+  },
+  summaryDarkCard: {
+    backgroundColor: colors.primaryDarkest,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  summaryDarkTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  summaryRows: {
+    gap: 6,
+  },
+  summaryDarkItem: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.onPrimaryContainer,
+    fontSize: 12,
+  },
+  summaryDarkStrong: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  summaryStatusActive: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.successLight,
+  },
+  summaryStatusInactive: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.warningLight,
+  },
+  summaryFooterDivider: {
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.primaryContainer,
+  },
+  summaryCreatedAt: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
+    fontSize: 11,
+  },
+  unitUsersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    paddingBottom: spacing.xs + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+  },
+  unitUsersTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  unitUsersEmpty: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+  },
+  unitUsersList: {
+    gap: 0,
+  },
+  unitUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs + 4,
+  },
+  unitUserRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  unitUserInfo: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  unitUserName: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+    fontSize: 12.5,
+  },
+  unitUserNip: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
+    color: colors.textMuted,
+    fontSize: 10.5,
+  },
+  unitUserRoleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  unitUserRoleText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    color: colors.onSurface,
+    fontSize: 10,
+  },
+  unitUsersMoreHint: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  noticeCard: {
+    ...cardSurface,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  noticeTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  noticeBody: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

@@ -8,7 +8,8 @@ import {
   Share,
   Pressable,
 } from 'react-native';
-import { CheckCircle2, Share2 } from 'lucide-react-native';
+import { CheckCircle2, Clock, Share2 } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { MIN_TOUCH_TARGET, spacing, rounded } from '../../core/theme/tokens';
@@ -33,6 +34,7 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
   onDone,
   onViewAgendaDetail,
 }) => {
+  const navigation = useNavigation<any>();
   const { lastReceipt, fetchReceipt } = useAttendanceStore();
   const [receipt, setReceipt] = useState<Attendance | null>(
     lastReceipt?.id === attendanceId ? lastReceipt : null
@@ -88,8 +90,8 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
   return (
     <View style={styles.container}>
       <Header
-        title="Tanda Terima Presensi"
-        subtitle={receipt?.meetingTitle ?? 'Bukti Kehadiran Resmi Kedinasan'}
+        title="Tanda Terima Presensi Sah"
+        subtitle="Bukti digital perekaman kehadiran rapat kedinasan LLDIKTI"
         showBack
         onBack={onBack}
         rightAction={
@@ -126,6 +128,14 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
 
             {/* Bottom Actions */}
             <View style={styles.actionSection}>
+              <Button
+                title="Lihat Riwayat Presensi Saya"
+                variant="outline"
+                onPress={() => navigation.navigate('MainTabs', { screen: 'Riwayat' })}
+                icon={<Clock size={18} color={colors.primary} strokeWidth={2} />}
+                fullWidth
+                style={styles.actionButton}
+              />
               <Button
                 title="Bagikan Tanda Terima"
                 variant="outline"

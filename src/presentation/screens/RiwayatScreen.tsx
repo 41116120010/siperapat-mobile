@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,53 +8,129 @@ import {
   TextInput,
   Pressable,
   RefreshControl,
+  Image,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
-  Calendar,
   Check,
-  ChevronDown,
-  Clock,
-  MapPin,
-  QrCode,
+  PenTool,
   RefreshCw,
   Search,
+  User,
+  X,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
+import { resolveAttendanceMediaUrl } from '../../core/utils/mediaUrl';
+import { Attendance } from '../../domain/entities/types';
+import { authTokenStore } from '../../data/datasources/authTokenStore';
 import { Header } from '../components/common/Header';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
-import {
-  DateFilterModal,
-  HistoryPeriod,
-  HistoryMeetingType,
-} from '../components/modals/DateFilterModal';
+import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { useAttendanceStore } from '../store/useAttendanceStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
 
 interface RiwayatScreenProps {
   onSelectReceipt: (id: string) => void;
 }
 
-interface HistoryItem {
+const ITEMS_PER_PAGE = 10;
+
+interface HistoryMediaThumbProps {
+  attendanceId: string;
+  kind: 'selfie' | 'signature';
+  rawUrl?: string | null;
+  verificationToken?: string;
+}
+
+const HistoryMediaThumb: React.FC<HistoryMediaThumbProps> = ({
+  attendanceId,
+  kind,
+  rawUrl,
+  verificationToken,
+}) => {
+  const [localUri, setLocalUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolved = resolveAttendanceMediaUrl(rawUrl, attendanceId, kind);
+    if (!resolved) {
+      setLocalUri(null);
+      return;
+    }
+    if (resolved.startsWith('data:image/') || resolved.startsWith('file://')) {
+      setLocalUri(resolved);
+      return;
+    }
+
+    const loadCached = async () => {
+      try {
+        const cacheDir = FileSystem.cacheDirectory || '';
+        const safeId = attendanceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const safeToken = (verificationToken || 'SIP').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const ext = kind === 'selfie' ? 'jpg' : 'png';
+        const dest = `${cacheDir}hist_${kind}_${safeId}_${safeToken}.${ext}`;
+        const info = await FileSystem.getInfoAsync(dest);
+        if (info.exists && info.size && info.size > 0) {
+          if (!cancelled) setLocalUri(dest);
+          return;
+        }
+        const token = await authTokenStore.get();
+        if (!token) return;
+        const result = await FileSystem.downloadAsync(resolved, dest, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!cancelled && result.status === 200) {
+          setLocalUri(result.uri);
+        }
+      } catch {
+        // Fallback placeholder rendered silently
+      }
+    };
+
+    void loadCached();
+    return () => {
+      cancelled = true;
+    };
+  }, [attendanceId, kind, rawUrl, verificationToken]);
+
+  if (localUri) {
+    return (
+      <Image
+        source={{ uri: localUri }}
+        style={kind === 'selfie' ? styles.thumbImageCover : styles.thumbImageContain}
+        resizeMode={kind === 'selfie' ? 'cover' : 'contain'}
+      />
+    );
+  }
+
+  return kind === 'selfie' ? (
+    <User size={15} color={colors.textMuted} strokeWidth={2} />
+  ) : (
+    <PenTool size={15} color={colors.textMuted} strokeWidth={2} />
+  );
+};
+
+interface HistoryRowItem {
   id: string;
-  code: string;
   title: string;
-  statusText: string;
-  time: string;
-  schedule: string;
+  timeWib: string;
+  scheduleDate: string;
+  scheduleTime: string;
   room: string;
-  verificationMethod: string;
   meetingId: string;
   meetingType?: 'hybrid' | 'offline' | 'online';
+  attendance: Attendance;
 }
 
 function formatAttendanceTimeWIB(timestamp?: string | null): string {
-  if (!timestamp) return 'Waktu tidak tersedia';
+  if (!timestamp) return '-';
   const d = new Date(timestamp);
-  if (Number.isNaN(d.getTime())) return 'Waktu tidak tersedia';
+  if (Number.isNaN(d.getTime())) return '-';
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yyyy = d.getFullYear();
@@ -64,72 +140,118 @@ function formatAttendanceTimeWIB(timestamp?: string | null): string {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss} WIB`;
 }
 
+function splitScheduleParts(schedule?: string | null): { date: string; time: string } {
+  if (!schedule || !schedule.trim()) {
+    return { date: 'Sesuai jadwal agenda', time: 'WIB s.d. Selesai' };
+  }
+  const clean = schedule.trim();
+  const pipeParts = clean.split(/\s*\|\s*|\s*•\s*/);
+  if (pipeParts.length >= 2) {
+    return {
+      date: pipeParts[0].trim(),
+      time: pipeParts.slice(1).join(' ').trim(),
+    };
+  }
+  const timeMatch = clean.match(/^(.*?)[,\s]+(\d{1,2}[:.]\d{2}.*)$/);
+  if (timeMatch) {
+    return {
+      date: timeMatch[1].trim(),
+      time: timeMatch[2].trim(),
+    };
+  }
+  return { date: clean, time: '' };
+}
+
 export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt }) => {
+  const navigation = useNavigation<any>();
+  const authUser = useAuthStore((state) => state.user);
+  const detailRoute = authUser?.role === 'staff' ? 'AgendaDetail' : 'Monitoring';
   const {
     offlineQueueCount,
     syncOfflineQueue,
     attendances,
     fetchHistory,
     historyPage,
-    historySummary,
     isLoading,
     error,
   } = useAttendanceStore();
-  const [search, setSearch] = useState('');
-  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>('all');
-  const [selectedType, setSelectedType] = useState<HistoryMeetingType>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [evidenceModalState, setEvidenceModalState] = useState<{
+    attendance: Attendance;
+    tab: 'selfie' | 'signature';
+  } | null>(null);
   const scrollViewRef = useRef<ScrollViewInstance | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       void syncOfflineQueue();
-      const timer = setTimeout(() => {
-        void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType });
-      }, 150);
-      return () => clearTimeout(timer);
-    }, [syncOfflineQueue, fetchHistory, search, selectedPeriod, selectedType])
+      void fetchHistory(1, false, {
+        search: appliedSearch,
+        period: 'all',
+        tipeRapat: 'all',
+      });
+    }, [syncOfflineQueue, fetchHistory, appliedSearch])
   );
 
-  const handlePageChange = (page: number) => {
-    if (!historyPage || page < 1 || page > historyPage.lastPage || page === historyPage.currentPage || isLoading) return;
-    triggerPageTransition(400);
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-    void fetchHistory(page, false, { search, period: selectedPeriod, tipeRapat: selectedType });
+  const handleSubmitSearch = () => {
+    const trimmed = searchInput.trim();
+    if (trimmed === appliedSearch) {
+      void fetchHistory(1, false, {
+        search: trimmed,
+        period: 'all',
+        tipeRapat: 'all',
+      });
+      return;
+    }
+    setAppliedSearch(trimmed);
   };
 
-  const historyData: HistoryItem[] = attendances.map((item) => {
-    return {
-      id: item.id,
-      code: `Agenda #${item.agendaId ?? item.meetingId}`,
-      title: item.meetingTitle,
-      statusText: item.validationStatusLabel || 'Tercatat',
-      time: formatAttendanceTimeWIB(item.timestamp),
-      schedule: item.meetingSchedule || 'Sesuai jadwal agenda',
-      room: item.meetingLocation || 'Detail agenda tersedia pada receipt',
-      verificationMethod: item.verificationMethod || 'Swafoto & TTD Digital',
-      meetingType: item.meetingType,
-      meetingId: item.meetingId,
-    };
-  });
-
-  // Search, period, and meeting type are applied by the API.
-  const filteredHistory = historyData;
-
-  const getPeriodButtonLabel = (period: HistoryPeriod): string => {
-    switch (period) {
-      case '2026-10':
-        return 'Okt 2026';
-      case '2026-09':
-        return 'Sep 2026';
-      case '2026-08':
-        return 'Agu 2026';
-      default:
-        return 'Semua Periode';
+  const handleResetSearch = () => {
+    setSearchInput('');
+    if (appliedSearch !== '') {
+      setAppliedSearch('');
+    } else {
+      void fetchHistory(1, false, { search: '', period: 'all', tipeRapat: 'all' });
     }
   };
 
-  const isFilterActive = selectedPeriod !== 'all' || selectedType !== 'all';
+  const handlePageChange = (page: number) => {
+    if (
+      !historyPage ||
+      page < 1 ||
+      page > historyPage.lastPage ||
+      page === historyPage.currentPage ||
+      isLoading
+    ) {
+      return;
+    }
+    triggerPageTransition(400);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    void fetchHistory(page, false, {
+      search: appliedSearch,
+      period: 'all',
+      tipeRapat: 'all',
+    });
+  };
+
+  const rows: HistoryRowItem[] = attendances.map((item) => {
+    const scheduleParts = splitScheduleParts(item.meetingSchedule);
+    return {
+      id: item.id,
+      title: item.meetingTitle,
+      timeWib: formatAttendanceTimeWIB(item.timestamp),
+      scheduleDate: scheduleParts.date,
+      scheduleTime: scheduleParts.time,
+      room: item.meetingLocation || 'Daring',
+      meetingType: item.meetingType,
+      meetingId: item.meetingId,
+      attendance: item,
+    };
+  });
+
+  const currentPage = historyPage?.currentPage ?? 1;
+  const hasSearchFilter = searchInput.trim().length > 0 || appliedSearch.length > 0;
 
   return (
     <View style={styles.container}>
@@ -143,20 +265,24 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
           <RefreshControl
             refreshing={isLoading}
             onRefresh={() =>
-              void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType })
+              void fetchHistory(1, false, {
+                search: appliedSearch,
+                period: 'all',
+                tipeRapat: 'all',
+              })
             }
           />
         }
       >
-        {/* Title Section */}
+        {/* Title Section (Web SSOT attendances/history.blade.php:4-5) */}
         <View style={styles.titleSection}>
-          <Text style={styles.mainTitle}>Riwayat Presensi</Text>
+          <Text style={styles.mainTitle}>Riwayat Kehadiran Rapat</Text>
           <Text style={styles.mainSubtitle}>
             Daftar seluruh kehadiran rapat kedinasan yang pernah Anda ikuti
           </Text>
         </View>
 
-        {/* Offline Queue Sync Banner if offline items exist */}
+        {/* Offline Queue Sync Banner only when local queue exists */}
         {offlineQueueCount > 0 ? (
           <View style={styles.syncBanner}>
             <RefreshCw size={18} color={colors.warning} strokeWidth={2} />
@@ -174,196 +300,311 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
           </View>
         ) : null}
 
-        {/* SUMMARY OVERVIEW BENTO CARDS */}
-        <View style={styles.bentoGrid}>
-          <View style={styles.bentoCard}>
-            <Text style={styles.bentoLabel}>Total Presensi</Text>
-            <Text style={styles.bentoValue}>{historySummary?.total_attended ?? '—'}</Text>
-            <Text style={styles.bentoSub}>
-              {historySummary?.period_label ?? 'Periode dari API'}
-            </Text>
-          </View>
+        {/* Action Bar & Search (Web SSOT attendances/history.blade.php:10-30) */}
+        <View style={styles.searchCard}>
+          <View style={styles.searchFormRow}>
+            <View style={styles.searchBox}>
+              <Search size={16} color={colors.textMuted} strokeWidth={2} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Cari judul rapat atau lokasi..."
+                placeholderTextColor={colors.textMuted}
+                value={searchInput}
+                onChangeText={setSearchInput}
+                returnKeyType="search"
+                onSubmitEditing={handleSubmitSearch}
+              />
+              {searchInput.length > 0 ? (
+                <Pressable
+                  onPress={handleResetSearch}
+                  style={styles.searchClearBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Bersihkan pencarian"
+                >
+                  <X size={16} color={colors.textMuted} strokeWidth={2} />
+                </Pressable>
+              ) : null}
+            </View>
 
-          <View style={styles.bentoCard}>
-            <Text style={styles.bentoLabel}>Tingkat Kehadiran</Text>
-            <Text style={[styles.bentoValue, styles.bentoValueSuccess]}>
-              {historySummary?.attendance_rate_label ?? '—'}
-            </Text>
-            <Text style={styles.bentoSub}>
-              {historySummary?.period_label ?? 'Ringkasan dari API'}
-            </Text>
-          </View>
+            <View style={styles.searchActionsRow}>
+              <Pressable
+                onPress={handleSubmitSearch}
+                style={({ pressed }) => [
+                  styles.searchActionBtn,
+                  pressed && styles.btnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Cari riwayat kehadiran"
+              >
+                <Text style={styles.searchActionBtnText}>Cari</Text>
+              </Pressable>
 
-          <View style={styles.bentoCard}>
-            <Text style={styles.bentoLabel}>Periode Aktif</Text>
-            <Text style={styles.bentoValue} numberOfLines={1}>
-              {selectedPeriod === 'all' ? 'Semua' : getPeriodButtonLabel(selectedPeriod)}
-            </Text>
-            <Text style={styles.bentoSub}>
-              {selectedPeriod === '2026-10' ? 'Bulan Berjalan' : 'Filter Aktif'}
-            </Text>
+              {hasSearchFilter ? (
+                <Pressable
+                  onPress={handleResetSearch}
+                  style={({ pressed }) => [
+                    styles.searchActionBtn,
+                    pressed && styles.btnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset pencarian"
+                >
+                  <Text style={styles.searchActionBtnText}>Reset</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         </View>
 
-        {/* SEARCH & ENTERPRISE FILTER CONTROL BAR */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchBox}>
-            <Search size={18} color={colors.textMuted} strokeWidth={2} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Cari judul rapat atau lokasi..."
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
-
-          {/* Interactive Date Filter Button */}
-          <Pressable
-            onPress={() => setIsFilterModalVisible(true)}
-            style={({ pressed }) => [
-              styles.calendarFilterBtn,
-              isFilterActive && styles.calendarFilterBtnActive,
-              pressed && styles.calendarFilterBtnPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Filter periode tanggal riwayat"
-          >
-            <Calendar
-              size={16}
-              color={isFilterActive ? colors.primary : colors.textSecondary}
-              strokeWidth={2}
-            />
-            <Text
-              style={[
-                styles.calendarFilterText,
-                isFilterActive && styles.calendarFilterTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {getPeriodButtonLabel(selectedPeriod)}
-            </Text>
-            <ChevronDown
-              size={16}
-              color={isFilterActive ? colors.primary : colors.textSecondary}
-              strokeWidth={2}
-            />
-            {isFilterActive ? <View style={styles.filterActiveDot} /> : null}
-          </Pressable>
-        </View>
-
-        {/* LIST HEADER */}
-        <View style={styles.listHeaderRow}>
-          <Text style={styles.listHeaderTitle}>
-            DAFTAR KEHADIRAN RAPAT KEDINASAN
-          </Text>
-          <Text style={styles.listHeaderSub}>
-            Menampilkan {filteredHistory.length} dari {historyPage?.total ?? 0}
-          </Text>
-        </View>
-
-        {/* ATTENDANCE HISTORY LIST CARDS OR EMPTY STATE */}
-        {error && historyData.length === 0 ? (
+        {/* Attendance History Table Panel (Web SSOT attendances/history.blade.php:33-134) */}
+        {error && rows.length === 0 ? (
           <EmptyState
             icon="cloud-off"
             title="Riwayat tidak dapat dimuat"
             description={error}
             actionLabel="Coba Lagi"
             onAction={() =>
-              void fetchHistory(1, false, { search, period: selectedPeriod, tipeRapat: selectedType })
+              void fetchHistory(1, false, {
+                search: appliedSearch,
+                period: 'all',
+                tipeRapat: 'all',
+              })
             }
           />
-        ) : filteredHistory.length > 0 ? (
-          <View style={styles.cardsContainer}>
-            {filteredHistory.map((item) => (
-              <View key={item.id} style={styles.historyCard}>
-                <View style={styles.cardTop}>
-                  <View style={styles.statusRow}>
-                    <View style={styles.timeBadge}>
-                      <Check size={12} color={colors.onSuccessContainer} strokeWidth={2.5} />
-                      <Text style={styles.timeBadgeText}>{item.time}</Text>
+        ) : (
+          <View style={styles.tablePanel}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+              <View style={styles.tableWrapper}>
+                {/* Table Header */}
+                <View style={styles.tableHeaderRow}>
+                  <View style={[styles.cellNo, styles.headerCell]}>
+                    <Text style={[styles.thText, styles.textCenter]}>No</Text>
+                  </View>
+                  <View style={[styles.cellAgenda, styles.headerCell]}>
+                    <Text style={styles.thText}>Agenda Rapat</Text>
+                  </View>
+                  <View style={[styles.cellSchedule, styles.headerCell]}>
+                    <Text style={styles.thText}>Jadwal Pelaksanaan</Text>
+                  </View>
+                  <View style={[styles.cellTime, styles.headerCell]}>
+                    <Text style={styles.thText}>Waktu Presensi</Text>
+                  </View>
+                  <View style={[styles.cellMedia, styles.headerCell]}>
+                    <Text style={[styles.thText, styles.textCenter]}>
+                      Verifikasi Media
+                    </Text>
+                  </View>
+                  <View style={[styles.cellAction, styles.headerCell]}>
+                    <Text style={[styles.thText, styles.textRight]}>Aksi</Text>
+                  </View>
+                </View>
+
+                {/* Table Rows */}
+                {rows.map((item, index) => {
+                  const rowNo = (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.tableBodyRow,
+                        index === rows.length - 1 && styles.tableBodyRowLast,
+                      ]}
+                    >
+                      {/* No */}
+                      <View style={[styles.cellNo, styles.bodyCell]}>
+                        <Text style={styles.noText}>{rowNo}</Text>
+                      </View>
+
+                      {/* Agenda Rapat */}
+                      <View style={[styles.cellAgenda, styles.bodyCell]}>
+                        <Pressable
+                          onPress={() => {
+                            triggerPageTransition();
+                            navigation.navigate(detailRoute, { meetingId: item.meetingId });
+                          }}
+                          style={({ pressed }) => [
+                            styles.agendaTitleBtn,
+                            pressed && styles.btnPressed,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Buka detail agenda ${item.title}`}
+                        >
+                          <Text style={styles.agendaTitleText} numberOfLines={2}>
+                            {item.title}
+                          </Text>
+                        </Pressable>
+                        <View style={styles.agendaSubRow}>
+                          {item.meetingType ? (
+                            <Text style={styles.agendaTypeText}>
+                              {item.meetingType.toUpperCase()}
+                            </Text>
+                          ) : null}
+                          {item.meetingType ? (
+                            <Text style={styles.agendaDotText}>•</Text>
+                          ) : null}
+                          <Text style={styles.agendaRoomText} numberOfLines={1}>
+                            {item.room}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Jadwal Pelaksanaan */}
+                      <View style={[styles.cellSchedule, styles.bodyCell]}>
+                        <Text style={styles.scheduleDateText} numberOfLines={2}>
+                          {item.scheduleDate}
+                        </Text>
+                        {item.scheduleTime ? (
+                          <Text style={styles.scheduleTimeText} numberOfLines={1}>
+                            {item.scheduleTime}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      {/* Waktu Presensi */}
+                      <View style={[styles.cellTime, styles.bodyCell]}>
+                        <View style={styles.timeBadge}>
+                          <Check
+                            size={12}
+                            color={colors.onSuccessContainer}
+                            strokeWidth={2.5}
+                          />
+                          <Text style={styles.timeBadgeText}>{item.timeWib}</Text>
+                        </View>
+                      </View>
+
+                      {/* Verifikasi Media */}
+                      <View style={[styles.cellMedia, styles.bodyCellCenter]}>
+                        <View style={styles.mediaThumbsRow}>
+                          <Pressable
+                            onPress={() =>
+                              setEvidenceModalState({
+                                attendance: item.attendance,
+                                tab: 'selfie',
+                              })
+                            }
+                            style={({ pressed }) => [
+                              styles.mediaThumbTouch,
+                              pressed && styles.btnPressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Verifikasi Foto Selfie Anda"
+                          >
+                            <View style={styles.mediaThumbBox}>
+                              <HistoryMediaThumb
+                                attendanceId={item.id}
+                                kind="selfie"
+                                rawUrl={
+                                  item.attendance.selfieUrl ?? item.attendance.selfieUri
+                                }
+                                verificationToken={item.attendance.verificationToken}
+                              />
+                            </View>
+                          </Pressable>
+
+                          <Pressable
+                            onPress={() =>
+                              setEvidenceModalState({
+                                attendance: item.attendance,
+                                tab: 'signature',
+                              })
+                            }
+                            style={({ pressed }) => [
+                              styles.mediaThumbTouch,
+                              pressed && styles.btnPressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Klik untuk memperbesar Tanda Tangan"
+                          >
+                            <View style={styles.mediaThumbBox}>
+                              <HistoryMediaThumb
+                                attendanceId={item.id}
+                                kind="signature"
+                                rawUrl={
+                                  item.attendance.signatureUrl ??
+                                  item.attendance.signatureSvg
+                                }
+                                verificationToken={item.attendance.verificationToken}
+                              />
+                            </View>
+                          </Pressable>
+                        </View>
+                      </View>
+
+                      {/* Aksi */}
+                      <View style={[styles.cellAction, styles.bodyCellRight]}>
+                        <Pressable
+                          onPress={() => onSelectReceipt(item.id)}
+                          style={({ pressed }) => [
+                            styles.receiptBtn,
+                            pressed && styles.btnPressed,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel="Buka tanda terima presensi"
+                        >
+                          <Text style={styles.receiptBtnText}>Bukti Sah</Text>
+                        </Pressable>
+                      </View>
                     </View>
-                    <Text style={styles.codeText}>{item.code}</Text>
-                  </View>
-                  <Text style={styles.meetingTitle}>{item.title}</Text>
-                </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
 
-                {/* Room and schedule info */}
-                <View style={styles.metaBox}>
-                  <View style={styles.metaRow}>
-                    <Clock size={15} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.metaText} numberOfLines={1}>
-                      {item.schedule}
-                    </Text>
-                  </View>
-                  <View style={styles.metaRow}>
-                    <MapPin size={15} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.metaText} numberOfLines={1}>
-                      {item.meetingType ? `${item.meetingType.toUpperCase()} • ${item.room}` : item.room}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Bottom verify & receipt action */}
-                <View style={styles.cardBottom}>
-                  <Text style={styles.verifyMethodText} numberOfLines={1}>
-                    {item.verificationMethod}
-                  </Text>
+            {/* Empty State inside Table Panel */}
+            {rows.length === 0 ? (
+              <View style={styles.tableEmptyWrap}>
+                <Text style={styles.tableEmptyText}>
+                  Belum ada catatan kehadiran rapat yang ditemukan.
+                </Text>
+                {hasSearchFilter ? (
                   <Pressable
-                    onPress={() => onSelectReceipt(item.id)}
+                    onPress={handleResetSearch}
                     style={({ pressed }) => [
-                      styles.receiptBtn,
+                      styles.searchActionBtn,
                       pressed && styles.btnPressed,
                     ]}
                     accessibilityRole="button"
-                    accessibilityLabel="Buka tanda terima presensi"
+                    accessibilityLabel="Reset Pencarian"
                   >
-                    <QrCode size={16} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.receiptBtnText}>Bukti Sah</Text>
+                    <Text style={styles.searchActionBtnText}>Reset Pencarian</Text>
                   </Pressable>
-                </View>
+                ) : null}
               </View>
-            ))}
+            ) : null}
+
+            {/* Pagination inside Panel Footer */}
             {historyPage && historyPage.total > 0 ? (
-              <PaginationBar
-                currentPage={historyPage.currentPage}
-                lastPage={historyPage.lastPage}
-                total={historyPage.total}
-                label="Riwayat Presensi"
-                isLoading={isLoading}
-                onPageChange={handlePageChange}
-              />
+              <View style={styles.paginationFooter}>
+                <PaginationBar
+                  currentPage={historyPage.currentPage}
+                  lastPage={historyPage.lastPage}
+                  total={historyPage.total}
+                  label="Riwayat Presensi"
+                  isLoading={isLoading}
+                  onPageChange={handlePageChange}
+                />
+              </View>
             ) : null}
           </View>
-        ) : (
-          <EmptyState
-            icon="event-busy"
-            title="Tidak Ada Riwayat Presensi"
-            description="Tidak ada catatan kehadiran yang sesuai dengan periode atau kata kunci pencarian yang dipilih."
-            actionLabel="Atur Ulang Filter"
-            onAction={() => {
-              setSelectedPeriod('all');
-              setSelectedType('all');
-              setSearch('');
-            }}
-          />
         )}
       </ScrollView>
 
-      {/* Enterprise Date Filter Modal */}
-      <DateFilterModal
-        visible={isFilterModalVisible}
-        onClose={() => setIsFilterModalVisible(false)}
-        currentPeriod={selectedPeriod}
-        currentType={selectedType}
-        onApply={(period, type) => {
-          setSelectedPeriod(period);
-          setSelectedType(type);
-        }}
-        onReset={() => {
-          setSelectedPeriod('all');
-          setSelectedType('all');
-        }}
+      <EvidenceViewerModal
+        visible={Boolean(evidenceModalState)}
+        onClose={() => setEvidenceModalState(null)}
+        initialTab={evidenceModalState?.tab ?? 'selfie'}
+        attendanceId={evidenceModalState?.attendance.id}
+        selfieUrl={evidenceModalState?.attendance.selfieUrl}
+        selfieUri={evidenceModalState?.attendance.selfieUri}
+        signatureUrl={evidenceModalState?.attendance.signatureUrl}
+        signatureSvg={evidenceModalState?.attendance.signatureSvg}
+        participantName={evidenceModalState?.attendance.asnName}
+        participantNip={evidenceModalState?.attendance.asnNip}
+        meetingTitle={evidenceModalState?.attendance.meetingTitle}
+        verificationToken={evidenceModalState?.attendance.verificationToken}
+        signedAt={evidenceModalState?.attendance.timestamp}
+        ipAddress={evidenceModalState?.attendance.ipAddress}
+        deviceInfo={evidenceModalState?.attendance.deviceInfo}
       />
     </View>
   );
@@ -377,7 +618,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.md,
     paddingBottom: spacing.xl * 2,
-    gap: spacing.sm + 2,
+    gap: spacing.md,
   },
   titleSection: {
     marginTop: 2,
@@ -421,46 +662,19 @@ const styles = StyleSheet.create({
     color: colors.onWarningContainer,
     textDecorationLine: 'underline',
   },
-  bentoGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  bentoCard: {
+  searchCard: {
     ...cardSurface,
-    flex: 1,
-    padding: spacing.sm + 2,
-    justifyContent: 'space-between',
-    minHeight: 74,
-    overflow: 'hidden',
+    padding: spacing.md,
   },
-  bentoLabel: {
-    ...typography.labelSm,
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  bentoValue: {
-    ...typography.headlineMd,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 18,
-    color: colors.primaryDarkest,
-    marginTop: 2,
-  },
-  bentoValueSuccess: {
-    color: colors.success,
-  },
-  bentoSub: {
-    ...typography.labelSm,
-    fontSize: 10,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  searchRow: {
+  searchFormRow: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   searchBox: {
     flex: 1,
+    minWidth: 200,
     minHeight: MIN_TOUCH_TARGET,
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceCard,
@@ -468,7 +682,8 @@ const styles = StyleSheet.create({
     borderColor: colors.borderStrong,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm + 4,
+    paddingLeft: spacing.sm + 4,
+    paddingRight: 2,
     gap: 8,
     overflow: 'hidden',
   },
@@ -480,88 +695,175 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     minHeight: MIN_TOUCH_TARGET,
   },
-  calendarFilterBtn: {
+  searchClearBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
+  },
+  searchActionBtn: {
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 12,
-    backgroundColor: colors.surfaceCard,
-    borderRadius: rounded.full,
+    paddingHorizontal: 16,
+    borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchActionBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.primaryDarkest,
+  },
+  tablePanel: {
+    ...cardSurface,
     overflow: 'hidden',
   },
-  calendarFilterBtnActive: {
-    borderColor: colors.primary,
+  tableWrapper: {
+    minWidth: 815,
+  },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surfaceSoft,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
   },
-  calendarFilterBtnPressed: {
-    backgroundColor: colors.surfaceSoft,
+  headerCell: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
-  calendarFilterText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  calendarFilterTextActive: {
+  thText: {
+    ...typography.labelSm,
     fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.primaryDarkest,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  textCenter: {
+    textAlign: 'center',
+  },
+  textRight: {
+    textAlign: 'right',
+  },
+  tableBodyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceCard,
+  },
+  tableBodyRowLast: {
+    borderBottomWidth: 0,
+  },
+  bodyCell: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  bodyCellCenter: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bodyCellRight: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  cellNo: {
+    width: 48,
+  },
+  cellAgenda: {
+    width: 220,
+  },
+  cellSchedule: {
+    width: 155,
+  },
+  cellTime: {
+    width: 170,
+  },
+  cellMedia: {
+    width: 112,
+  },
+  cellAction: {
+    width: 110,
+  },
+  noText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 12,
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  agendaTitleBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+  },
+  agendaTitleText: {
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 13.5,
+    color: colors.primaryDarkest,
+    lineHeight: 18,
+  },
+  agendaSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  agendaTypeText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 11,
     color: colors.primary,
   },
-  filterActiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-    marginLeft: 2,
+  agendaDotText: {
+    ...typography.labelMono,
+    fontSize: 11,
+    color: colors.textMuted,
   },
-  listHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
+  agendaRoomText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
+    fontSize: 11,
+    color: colors.textSecondary,
+    flex: 1,
   },
-  listHeaderTitle: {
-    ...typography.labelSm,
+  scheduleDateText: {
+    ...typography.bodySm,
     fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.primaryDarkest,
+  },
+  scheduleTimeText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
     fontSize: 11,
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-  },
-  listHeaderSub: {
-    ...typography.labelSm,
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  cardsContainer: {
-    gap: 10,
-  },
-  historyCard: {
-    ...cardSurface,
-    padding: spacing.md,
-    gap: 8,
-    overflow: 'hidden',
-  },
-  cardTop: {
-    gap: 6,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    flexWrap: 'wrap',
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   timeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 5,
     backgroundColor: colors.successContainer,
     borderWidth: 1,
     borderColor: colors.successBorder,
     borderRadius: rounded.md,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: 8,
     paddingVertical: 4,
   },
   timeBadgeText: {
@@ -570,74 +872,73 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.onSuccessContainer,
   },
-  codeText: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoMedium,
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  meetingTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 14.5,
-    color: colors.primaryDarkest,
-    lineHeight: 20,
-  },
-  metaBox: {
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    padding: spacing.sm,
-    gap: 4,
-    overflow: 'hidden',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaText: {
-    ...typography.bodySm,
-    fontSize: 11.5,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  cardBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    paddingTop: 8,
-    gap: spacing.sm,
-  },
-  verifyMethodText: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.textMuted,
-    flex: 1,
-  },
-  receiptBtn: {
+  mediaThumbsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
+  },
+  mediaThumbTouch: {
+    minWidth: MIN_TOUCH_TARGET,
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mediaThumbBox: {
+    width: 34,
+    height: 34,
+    borderRadius: rounded.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbImageCover: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbImageContain: {
+    width: '90%',
+    height: '90%',
+  },
+  receiptBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
     borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: colors.borderStrong,
-    backgroundColor: colors.surfaceCard,
-    overflow: 'hidden',
-  },
-  btnPressed: {
     backgroundColor: colors.surfaceSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   receiptBtnText: {
-    ...typography.labelMd,
+    ...typography.labelSm,
     fontFamily: fontFamilies.sansBold,
     fontSize: 12,
-    color: colors.primary,
+    color: colors.primaryDarkest,
+  },
+  tableEmptyWrap: {
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  tableEmptyText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  paginationFooter: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  btnPressed: {
+    opacity: 0.85,
   },
 });

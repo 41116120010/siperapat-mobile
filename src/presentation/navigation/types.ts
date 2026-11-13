@@ -20,8 +20,8 @@ export type RootStackParamList = {
 };
 
 export type MainTabParamList = {
-  Beranda: undefined;
-  Agenda: undefined;
+  Dashboard: undefined;
   Riwayat: undefined;
+  Agenda: undefined;
   Profil: undefined;
 };

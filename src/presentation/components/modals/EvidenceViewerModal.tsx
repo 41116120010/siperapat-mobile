@@ -51,6 +51,39 @@ export interface EvidenceViewerModalProps {
   signedAt?: string;
   ipAddress?: string;
   deviceInfo?: string;
+  deviceLabel?: string;
+}
+
+function deriveDeviceLabel(userAgent?: string | null): string {
+  const ua = (userAgent ?? '').trim();
+  if (!ua) return 'Perangkat Tidak Terdeteksi';
+  const platform = ua.includes('Android')
+    ? 'Android'
+    : ua.includes('iPhone')
+    ? 'iPhone (iOS)'
+    : ua.includes('iPad')
+    ? 'iPad (iPadOS)'
+    : ua.includes('Macintosh') || ua.includes('Mac OS')
+    ? 'macOS'
+    : ua.includes('Windows')
+    ? 'Windows'
+    : ua.includes('Linux')
+    ? 'Linux'
+    : 'Perangkat Terdaftar';
+  const browser = ua.includes('Edg')
+    ? 'Microsoft Edge'
+    : ua.includes('Chrome')
+    ? 'Google Chrome'
+    : ua.includes('Safari') && !ua.includes('Chrome')
+    ? 'Safari'
+    : ua.includes('Firefox')
+    ? 'Mozilla Firefox'
+    : ua.includes('Opera') || ua.includes('OPR')
+    ? 'Opera'
+    : ua.includes('Expo') || ua.includes('okhttp') || ua.includes('Dalvik') || ua.includes('CFNetwork')
+    ? 'Aplikasi Mobile'
+    : 'Peramban Web';
+  return `${browser} (${platform})`;
 }
 
 export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
@@ -69,6 +102,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
   signedAt,
   ipAddress,
   deviceInfo,
+  deviceLabel,
 }) => {
   const [activeTab, setActiveTab] = useState<'selfie' | 'signature'>(initialTab);
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
@@ -409,6 +443,20 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
                     <Text style={styles.metaValueMono}>{ipAddress}</Text>
                   </View>
                 ) : null}
+
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Label Perangkat</Text>
+                  <Text style={styles.metaValue}>
+                    {deviceLabel || deriveDeviceLabel(deviceInfo)}
+                  </Text>
+                </View>
+
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Perangkat (User-Agent)</Text>
+                  <Text style={styles.metaValueMono} selectable>
+                    {deviceInfo?.trim() || 'Tidak terdeteksi'}
+                  </Text>
+                </View>
 
                 <View style={[styles.metaRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.metaLabel}>Metode Otentikasi</Text>

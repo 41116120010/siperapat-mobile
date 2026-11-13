@@ -14,13 +14,16 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import {
   AlertCircle,
+  Camera,
   Check,
   CreditCard,
   ExternalLink,
   Eye,
   EyeOff,
+  FileText,
   Lock,
   LogIn,
+  ShieldCheck,
   User,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -110,6 +113,43 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <Text style={styles.welcomeSubtitle}>
               Pencatatan Kehadiran & Notulensi Rapat Terintegrasi
             </Text>
+
+            {/* 3 Pilar Ringkas Nilai Sistem (login.blade.php:30-60) */}
+            <View style={styles.pillarsList}>
+              <View style={styles.pillarRow}>
+                <View style={styles.pillarIconBox}>
+                  <ShieldCheck size={14} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+                <View style={styles.pillarTextWrap}>
+                  <Text style={styles.pillarTitle}>Autentikasi Multi-Identifier</Text>
+                  <Text style={styles.pillarDesc} numberOfLines={1}>
+                    NIP 18 Digit atau Username resmi terdaftar
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.pillarRow}>
+                <View style={styles.pillarIconBox}>
+                  <Camera size={14} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+                <View style={styles.pillarTextWrap}>
+                  <Text style={styles.pillarTitle}>Presensi Sah & Terverifikasi</Text>
+                  <Text style={styles.pillarDesc} numberOfLines={1}>
+                    Selfie wajah, tanda tangan digital, & stempel waktu
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.pillarRow}>
+                <View style={styles.pillarIconBox}>
+                  <FileText size={14} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+                <View style={styles.pillarTextWrap}>
+                  <Text style={styles.pillarTitle}>Rekapitulasi Berita Acara Otomatis</Text>
+                  <Text style={styles.pillarDesc} numberOfLines={1}>
+                    Ekspor daftar hadir & notulensi format PDF & Word
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
         </ImageBackground>
 
@@ -465,5 +505,43 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: spacing.md,
     lineHeight: 16,
+  },
+  pillarsList: {
+    gap: spacing.xs + 2,
+    paddingTop: spacing.xs,
+  },
+  pillarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+  },
+  pillarIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillarTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  pillarTitle: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.onPrimary,
+  },
+  pillarDesc: {
+    ...typography.labelSm,
+    fontSize: 10,
+    color: colors.borderStrong,
   },
 });

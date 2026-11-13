@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,10 +15,17 @@ import {
   Award,
   Briefcase,
   Building2,
+  Calendar,
   CheckCircle2,
   ChevronsUpDown,
+  Clock,
   Contact,
+  Eye,
+  EyeOff,
   Fingerprint,
+  History,
+  Info,
+  KeyRound,
   Lock,
   Mail,
   Network,
@@ -37,10 +44,12 @@ import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/them
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
-import { AgendaOptionModal } from '../components/modals/AgendaOptionModal';
+import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { FeedbackModal } from '../components/modals/FeedbackModal';
-import { OFFICIAL_UNITS, PANGKAT_GOLONGAN_OPTIONS } from '../constants/employeeOptions';
+import { PANGKAT_GOLONGAN_OPTIONS } from '../constants/employeeOptions';
 import { useEmployeeStore } from '../store/useEmployeeStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { cleanNIP, validateNIP } from '../../core/utils/nipValidator';
 
 interface EditEmployeeScreenProps {
   employeeId: string;
@@ -48,17 +57,36 @@ interface EditEmployeeScreenProps {
   onSuccess?: () => void;
 }
 
+function formatIndonesianDate(iso?: string | null): string {
+  if (!iso) return '-';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '-';
+  return parsed.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
   employeeId,
   onBack,
   onSuccess,
 }) => {
+  const authUser = useAuthStore((state) => state.user);
+  const isAdministrator = authUser?.role === 'administrator';
+  const isEditingSelf = authUser != null && String(authUser.id) === String(employeeId);
+
   const {
     fetchEmployeeById,
+    fetchAllUnits,
     updateEmployee,
     selectedEmployee,
+    selectedUserDetail,
+    allUnits,
     isLoading,
     error,
+    validationErrors,
     clearError,
   } = useEmployeeStore();
 
@@ -69,12 +97,14 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
   const [nip, setNip] = useState('');
   const [jabatan, setJabatan] = useState('');
   const [pangkatGolongan, setPangkatGolongan] = useState('');
-  const [unit, setUnit] = useState('');
+  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
   const [role, setRole] = useState<'Administrator' | 'Admin Unit' | 'Staff'>('Staff');
   const [status, setStatus] = useState<'Aktif' | 'Nonaktif'>('Aktif');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Modals
   const [activeModal, setActiveModal] = useState<'none' | 'unit' | 'pangkat'>('none');
@@ -87,39 +117,106 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
     status: string;
   } | null>(null);
 
-  // Load employee data on mount
+  // Load employee data & units on mount
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
       setIsInitializing(true);
-      const emp = await fetchEmployeeById(employeeId);
+      const [emp] = await Promise.all([
+        fetchEmployeeById(employeeId),
+        fetchAllUnits({ activeOnly: true }),
+      ]);
       if (emp && isMounted) {
         setName(emp.name);
-        setNip(emp.nip);
-        setJabatan(emp.jabatan || 'Pranata Komputer');
+        setNip(cleanNIP(emp.nip || ''));
+        setJabatan(emp.jabatan || '');
         setPangkatGolongan(emp.pangkatGolongan || 'Penata Tingkat I (III/d)');
-        setUnit(emp.unit);
+        setSelectedUnitId(emp.unitId ?? null);
         setRole(emp.role);
         setStatus(emp.status);
         setUsername(emp.username);
-        setEmail(emp.email || `${emp.nip}@lldikti10.kemdikbud.go.id`);
-        setPhone(emp.phone || '');
+        setEmail(emp.email || '');
+        setPhone(emp.phone && emp.phone !== '-' ? emp.phone : '');
+        setPassword('');
       }
       if (isMounted) {
         setIsInitializing(false);
       }
     };
-    load();
+    void load();
     return () => {
       isMounted = false;
     };
-  }, [employeeId, fetchEmployeeById]);
+  }, [employeeId, fetchEmployeeById, fetchAllUnits]);
+
+  const unitModalOptions = useMemo<AgendaOption[]>(() => {
+    const items: AgendaOption[] = [];
+    if (isAdministrator) {
+      items.push({
+        id: '',
+        title: '-- Tingkat Lembaga (Tanpa Unit) --',
+        subtitle: 'Pengguna tingkat lembaga tanpa penugasan unit kerja spesifik',
+        icon: Building2,
+      });
+    }
+    const seenIds = new Set<number>();
+    allUnits.forEach((u) => {
+      seenIds.add(u.id);
+      items.push({
+        id: String(u.id),
+        title: `${u.kode_unit} — ${u.nama_unit}`,
+        subtitle: u.deskripsi ?? undefined,
+        icon: Building2,
+      });
+    });
+    const currentUnit = selectedUserDetail?.unit;
+    if (currentUnit && !seenIds.has(currentUnit.id)) {
+      items.push({
+        id: String(currentUnit.id),
+        title: `${currentUnit.kode_unit} — ${currentUnit.nama_unit}`,
+        subtitle: currentUnit.is_active ? currentUnit.deskripsi ?? undefined : 'Unit saat ini (nonaktif)',
+        icon: Building2,
+      });
+    }
+    return items;
+  }, [allUnits, isAdministrator, selectedUserDetail?.unit]);
+
+  const selectedUnitRecord = useMemo(() => {
+    if (selectedUnitId == null) return null;
+    return (
+      allUnits.find((u) => u.id === selectedUnitId) ??
+      (selectedUserDetail?.unit?.id === selectedUnitId ? selectedUserDetail.unit : null)
+    );
+  }, [allUnits, selectedUnitId, selectedUserDetail?.unit]);
+
+  const displayUnitLabel = useMemo(() => {
+    if (selectedUnitId == null) {
+      return '-- Tingkat Lembaga (Tanpa Unit) --';
+    }
+    if (selectedUnitRecord) {
+      return `${selectedUnitRecord.kode_unit} — ${selectedUnitRecord.nama_unit}`;
+    }
+    if (selectedEmployee?.unit) {
+      return selectedEmployee.unit;
+    }
+    return `Unit #${selectedUnitId}`;
+  }, [selectedUnitId, selectedUnitRecord, selectedEmployee?.unit]);
+
+  const nipValidation = validateNIP(nip);
+  const isNipComplete = nip.length === 18;
+  const isPasswordRuleOk =
+    password === '' ||
+    (password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password));
+  const cleanUsernameVal = username.replace(/^@+/, '').trim();
 
   const isFormValid =
     name.trim().length >= 3 &&
-    jabatan.trim().length >= 3 &&
-    unit.length > 0 &&
-    pangkatGolongan.length > 0;
+    isNipComplete &&
+    nipValidation.isValid &&
+    cleanUsernameVal.length > 0 &&
+    email.trim().includes('@') &&
+    isPasswordRuleOk &&
+    (isAdministrator || selectedUnitId != null);
 
   const handleSubmit = async () => {
     if (!isFormValid || isLoading) return;
@@ -129,23 +226,30 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
       ? username.trim()
       : `@${username.trim()}`;
 
+    const effectiveUnitId = isAdministrator
+      ? selectedUnitId
+      : (selectedEmployee?.unitId ?? authUser?.unitId ?? null);
+
     const result = await updateEmployee(employeeId, {
       name: name.trim(),
+      nip,
       jabatan: jabatan.trim(),
       pangkatGolongan,
-      unit,
-      role,
-      status,
+      unit: selectedUnitRecord?.nama_unit ?? '',
+      unitId: effectiveUnitId,
+      role: isEditingSelf ? (selectedEmployee?.role ?? role) : role,
+      status: isEditingSelf ? (selectedEmployee?.status ?? status) : status,
       username: finalUsername || selectedEmployee?.username || '@asn',
       email: email.trim(),
-      phone: phone.trim() || '-',
+      phone: phone.trim(),
+      password: password || undefined,
     });
 
     if (result) {
       setUpdatedSummary({
         name: result.name,
         nip: result.nip,
-        unit: result.unit,
+        unit: result.unit || 'Tingkat Lembaga (Tanpa Unit)',
         role: result.role,
         status: result.status,
       });
@@ -245,7 +349,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
             </View>
           ) : null}
 
-          {/* READONLY IDENTITY CONTEXT BANNER */}
+          {/* IDENTITY & ATTENDANCE SUMMARY CARD */}
           <View style={styles.contextCard}>
             <View style={styles.contextTopRow}>
               <View style={styles.contextAvatar}>
@@ -259,8 +363,10 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 </Text>
                 <View style={styles.contextBadgeRow}>
                   <View style={styles.lockBadge}>
-                    <Lock size={11} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.lockBadgeText}>NIP Terkunci Resmi</Text>
+                    <Fingerprint size={11} color={colors.primary} strokeWidth={2} />
+                    <Text style={styles.lockBadgeText}>
+                      NIP {selectedEmployee?.nip || '-'}
+                    </Text>
                   </View>
                   <View
                     style={[
@@ -284,6 +390,34 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 </View>
               </View>
             </View>
+
+            <View style={styles.contextStatsRow}>
+              <View style={styles.contextStatItem}>
+                <View style={styles.contextStatHeader}>
+                  <CheckCircle2 size={13} color={colors.success} strokeWidth={2} />
+                  <Text style={styles.contextStatLabel}>Total Hadir Rapat</Text>
+                </View>
+                <Text style={styles.contextStatValue}>
+                  {selectedUserDetail?.attendance_stats?.total_attended ?? 0} Rapat
+                </Text>
+                <Text style={styles.contextStatHint}>
+                  Tingkat hadir {selectedUserDetail?.attendance_stats?.attendance_rate_label ?? '0%'}
+                </Text>
+              </View>
+              <View style={styles.contextStatDivider} />
+              <View style={styles.contextStatItem}>
+                <View style={styles.contextStatHeader}>
+                  <Calendar size={13} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.contextStatLabel}>Terdaftar Sejak</Text>
+                </View>
+                <Text style={styles.contextStatValue}>
+                  {formatIndonesianDate(selectedUserDetail?.created_at)}
+                </Text>
+                <Text style={styles.contextStatHint}>
+                  {selectedUserDetail?.attendance_stats?.period_label || 'Data kedinasan'}
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* BAGIAN 1: IDENTITAS APARATUR */}
@@ -304,6 +438,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 placeholder="Nama aparatur..."
                 value={name}
                 onChangeText={setName}
+                error={validationErrors?.name?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
                   <User size={18} color={colors.outline} strokeWidth={2} />
@@ -311,37 +446,67 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
               />
             </View>
 
-            {/* NIP (READONLY / LOCKED) */}
+            {/* NIP 18 Digit (Editable) */}
             <View style={styles.fieldGroup}>
               <View style={styles.labelRow}>
-                <Text style={styles.label}>NIP 18 Digit Resmi</Text>
-                <View style={styles.lockedIndicator}>
-                  <Lock size={12} color={colors.outline} strokeWidth={2} />
-                  <Text style={styles.lockedIndicatorText}>Permanen</Text>
-                </View>
+                <Text style={styles.label}>
+                  NIP 18 Digit Resmi <Text style={styles.required}>*</Text>
+                </Text>
+                <Text style={styles.nipCounter}>{nip.length}/18 digit</Text>
               </View>
               <Input
+                placeholder="19XXXXXXXXXXXXXXNN"
                 value={nip}
-                editable={false}
+                onChangeText={(val) => setNip(cleanNIP(val))}
+                keyboardType="numeric"
+                maxLength={18}
                 isMono
+                error={validationErrors?.nip?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
-                style={styles.readonlyInput}
                 leftIcon={
                   <Fingerprint size={18} color={colors.outline} strokeWidth={2} />
                 }
-                helperText="NIP aparatur sipil negara bersifat unik dan terkunci demi integritas riwayat presensi."
               />
+              {nip.length > 0 && (
+                <View
+                  style={[
+                    styles.nipValidationPill,
+                    isNipComplete && nipValidation.isValid
+                      ? styles.nipValidationSuccess
+                      : styles.nipValidationPending,
+                  ]}
+                >
+                  {isNipComplete && nipValidation.isValid ? (
+                    <CheckCircle2 size={14} color={colors.success} strokeWidth={2} />
+                  ) : (
+                    <Info size={14} color={colors.onSurfaceVariant} strokeWidth={2} />
+                  )}
+                  <Text
+                    style={[
+                      styles.nipValidationText,
+                      isNipComplete && nipValidation.isValid
+                        ? styles.nipValidationTextSuccess
+                        : styles.nipValidationTextPending,
+                    ]}
+                  >
+                    {isNipComplete
+                      ? nipValidation.isValid
+                        ? `Valid: Lahir ${nipValidation.birthYear} · Jenis Kelamin: ${nipValidation.gender}`
+                        : 'Format 18 digit tidak sesuai ketentuan BKN'
+                      : `Kurang ${18 - nip.length} digit lagi untuk validasi resmi`}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Jabatan Kedinasan */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>
-                Jabatan Kedinasan / Fungsional <Text style={styles.required}>*</Text>
-              </Text>
+              <Text style={styles.label}>Jabatan Kedinasan / Fungsional</Text>
               <Input
                 placeholder="Jabatan kedinasan..."
                 value={jabatan}
                 onChangeText={setJabatan}
+                error={validationErrors?.jabatan?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
                   <Briefcase size={18} color={colors.outline} strokeWidth={2} />
@@ -389,28 +554,49 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
             {/* Unit Kerja / Pokja Selector */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Unit Kerja / Tim Kerja <Text style={styles.required}>*</Text>
+                Unit Kerja / Tim Kerja{' '}
+                {!isAdministrator ? <Text style={styles.required}>*</Text> : null}
               </Text>
-              <Pressable
-                onPress={() => setActiveModal('unit')}
-                style={({ pressed }) => [
-                  styles.selectorTrigger,
-                  pressed && styles.pressedState,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Pilih Unit Kerja"
-              >
-                <View style={styles.selectorLeft}>
-                  <Building2 size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.selectorValue} numberOfLines={1}>
-                    {unit}
-                  </Text>
+              {isAdministrator ? (
+                <Pressable
+                  onPress={() => setActiveModal('unit')}
+                  style={({ pressed }) => [
+                    styles.selectorTrigger,
+                    pressed && styles.pressedState,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pilih Unit Kerja"
+                >
+                  <View style={styles.selectorLeft}>
+                    <Building2 size={18} color={colors.primary} strokeWidth={2} />
+                    <Text style={styles.selectorValue} numberOfLines={1}>
+                      {displayUnitLabel}
+                    </Text>
+                  </View>
+                  <View style={styles.selectorRight}>
+                    <Text style={styles.selectorActionText}>Ubah</Text>
+                    <ChevronsUpDown size={18} color={colors.outline} strokeWidth={2} />
+                  </View>
+                </Pressable>
+              ) : (
+                <View style={styles.readonlyTrigger}>
+                  <View style={styles.selectorLeft}>
+                    <Building2 size={18} color={colors.outline} strokeWidth={2} />
+                    <Text style={styles.readonlyText} numberOfLines={1}>
+                      {displayUnitLabel}
+                    </Text>
+                  </View>
+                  <Lock size={15} color={colors.outline} strokeWidth={2} />
                 </View>
-                <View style={styles.selectorRight}>
-                  <Text style={styles.selectorActionText}>Ubah</Text>
-                  <ChevronsUpDown size={18} color={colors.outline} strokeWidth={2} />
-                </View>
-              </Pressable>
+              )}
+              <Text style={styles.fieldHintText}>
+                {isAdministrator
+                  ? 'Pilih unit kerja atau biarkan Tingkat Lembaga (Tanpa Unit).'
+                  : 'Admin Unit tidak dapat memindahkan pegawai ke unit kerja lain.'}
+              </Text>
+              {validationErrors?.unit_id?.[0] ? (
+                <Text style={styles.fieldErrorText}>{validationErrors.unit_id[0]}</Text>
+              ) : null}
             </View>
 
             {/* Peran Sistem */}
@@ -419,7 +605,10 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 Peran Akses Sistem SIPERAPAT <Text style={styles.required}>*</Text>
               </Text>
               <View style={styles.roleGrid}>
-                {(['Staff', 'Admin Unit', 'Administrator'] as const).map((r) => {
+                {(isAdministrator
+                  ? (['Staff', 'Admin Unit', 'Administrator'] as const)
+                  : (['Staff', 'Admin Unit'] as const)
+                ).map((r) => {
                   const isSelected = role === r;
                   const RoleIcon =
                     r === 'Administrator'
@@ -430,13 +619,19 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                   return (
                     <Pressable
                       key={r}
-                      onPress={() => setRole(r)}
+                      onPress={() => {
+                        if (!isEditingSelf) {
+                          setRole(r);
+                        }
+                      }}
+                      disabled={isEditingSelf}
                       style={[
                         styles.roleCard,
                         isSelected && styles.roleCardActive,
+                        isEditingSelf && styles.disabledControl,
                       ]}
                       accessibilityRole="radio"
-                      accessibilityState={{ selected: isSelected }}
+                      accessibilityState={{ selected: isSelected, disabled: isEditingSelf }}
                     >
                       <View style={styles.roleCardHeader}>
                         <RoleIcon
@@ -470,6 +665,11 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                   );
                 })}
               </View>
+              {isEditingSelf ? (
+                <Text style={styles.fieldHintText}>
+                  Anda tidak dapat mengubah peran akun Anda sendiri.
+                </Text>
+              ) : null}
             </View>
 
             {/* Status Akun */}
@@ -477,12 +677,17 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
               <Text style={styles.label}>Status Akun Kedinasan</Text>
               <View style={styles.segmentedControl}>
                 <Pressable
-                  onPress={() => setStatus('Aktif')}
+                  onPress={() => {
+                    if (!isEditingSelf) setStatus('Aktif');
+                  }}
+                  disabled={isEditingSelf}
                   style={[
                     styles.segmentedBtn,
                     status === 'Aktif' && styles.segmentedBtnActive,
+                    isEditingSelf && styles.disabledControl,
                   ]}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: isEditingSelf }}
                 >
                   <CheckCircle2
                     size={15}
@@ -500,12 +705,17 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 </Pressable>
 
                 <Pressable
-                  onPress={() => setStatus('Nonaktif')}
+                  onPress={() => {
+                    if (!isEditingSelf) setStatus('Nonaktif');
+                  }}
+                  disabled={isEditingSelf}
                   style={[
                     styles.segmentedBtn,
                     status === 'Nonaktif' && styles.segmentedBtnActive,
+                    isEditingSelf && styles.disabledControl,
                   ]}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: isEditingSelf }}
                 >
                   <PauseCircle
                     size={15}
@@ -522,6 +732,11 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                   </Text>
                 </Pressable>
               </View>
+              {isEditingSelf ? (
+                <Text style={styles.fieldHintText}>
+                  Anda tidak dapat menonaktifkan akun Anda sendiri.
+                </Text>
+              ) : null}
             </View>
           </View>
 
@@ -536,12 +751,15 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
 
             {/* Username */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Username Aplikasi</Text>
+              <Text style={styles.label}>
+                Username Aplikasi <Text style={styles.required}>*</Text>
+              </Text>
               <Input
                 placeholder="@username"
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
+                error={validationErrors?.username?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
                   <AtSign size={18} color={colors.outline} strokeWidth={2} />
@@ -551,13 +769,16 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
 
             {/* Email Kedinasan */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email Kedinasan Resmi</Text>
+              <Text style={styles.label}>
+                Email Kedinasan Resmi <Text style={styles.required}>*</Text>
+              </Text>
               <Input
                 placeholder="nama@lldikti10.kemdikbud.go.id"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                error={validationErrors?.email?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
                   <Mail size={18} color={colors.outline} strokeWidth={2} />
@@ -573,11 +794,142 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
+                error={validationErrors?.no_hp?.[0] ?? null}
                 containerStyle={styles.inputContainerReset}
                 leftIcon={
                   <Phone size={18} color={colors.outline} strokeWidth={2} />
                 }
               />
+            </View>
+
+            {/* Kata Sandi Baru (Opsional) */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Kata Sandi Baru</Text>
+              <Input
+                placeholder="Kosongkan jika tidak ingin mengubah kata sandi"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                error={validationErrors?.password?.[0] ?? null}
+                containerStyle={styles.inputContainerReset}
+                leftIcon={
+                  <KeyRound size={18} color={colors.outline} strokeWidth={2} />
+                }
+                rightAction={
+                  <Pressable
+                    onPress={() => setShowPassword((prev) => !prev)}
+                    style={styles.passwordToggleBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} color={colors.onSurfaceVariant} strokeWidth={2} />
+                    ) : (
+                      <Eye size={18} color={colors.onSurfaceVariant} strokeWidth={2} />
+                    )}
+                  </Pressable>
+                }
+              />
+              {password.length > 0 ? (
+                <View
+                  style={[
+                    styles.nipValidationPill,
+                    isPasswordRuleOk ? styles.nipValidationSuccess : styles.nipValidationPending,
+                  ]}
+                >
+                  {isPasswordRuleOk ? (
+                    <CheckCircle2 size={14} color={colors.success} strokeWidth={2} />
+                  ) : (
+                    <Info size={14} color={colors.onSurfaceVariant} strokeWidth={2} />
+                  )}
+                  <Text
+                    style={[
+                      styles.nipValidationText,
+                      isPasswordRuleOk
+                        ? styles.nipValidationTextSuccess
+                        : styles.nipValidationTextPending,
+                    ]}
+                  >
+                    {isPasswordRuleOk
+                      ? 'Format kata sandi baru memenuhi syarat keamanan'
+                      : 'Harus minimal 8 karakter serta mengandung huruf dan angka'}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.fieldHintText}>
+                  Kosongkan jika tidak diubah. Jika diisi, minimal 8 karakter (huruf dan angka).
+                </Text>
+              )}
+            </View>
+          </View>
+
+          {/* BAGIAN 4: RIWAYAT PRESENSI & KEAMANAN AUDIT LOG */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIconWrap}>
+                <History size={16} color={colors.primary} strokeWidth={2} />
+              </View>
+              <Text style={styles.sectionTitle}>
+                Riwayat Presensi ({selectedUserDetail?.attendance_stats?.total_attended ?? 0})
+              </Text>
+            </View>
+
+            <View style={styles.auditMetricsGrid}>
+              <View style={styles.auditMetricTile}>
+                <Text style={styles.auditMetricLabel}>Agenda Diikuti</Text>
+                <Text style={styles.auditMetricValue}>
+                  {selectedUserDetail?.attendance_stats?.total_attended ?? 0} /{' '}
+                  {selectedUserDetail?.attendance_stats?.total_agendas ?? 0}
+                </Text>
+              </View>
+              <View style={styles.auditMetricTile}>
+                <Text style={styles.auditMetricLabel}>Tepat Waktu</Text>
+                <Text style={styles.auditMetricValue}>
+                  {selectedUserDetail?.attendance_stats?.on_time_count ?? 0} (
+                  {selectedUserDetail?.attendance_stats?.on_time_rate_label ?? '0%'})
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.auditNoteBox}>
+              <Info size={14} color={colors.onSurfaceVariant} strokeWidth={2} />
+              <Text style={styles.auditNoteText}>
+                Ringkasan dihitung dari data resmi server (
+                {selectedUserDetail?.attendance_stats?.period_label || 'seluruh periode'}).
+                Rincian per-rapat tersedia pada modul Laporan & Riwayat.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIconWrap}>
+                <Clock size={16} color={colors.primary} strokeWidth={2} />
+              </View>
+              <Text style={styles.sectionTitle}>Keamanan & Audit Log</Text>
+            </View>
+
+            <View style={styles.auditRow}>
+              <Text style={styles.auditRowLabel}>Perubahan Kata Sandi Terakhir</Text>
+              <Text style={styles.auditRowValue}>
+                {selectedUserDetail?.security?.last_password_changed_label || 'Belum pernah dicatat'}
+              </Text>
+            </View>
+            <View style={styles.auditRow}>
+              <Text style={styles.auditRowLabel}>Login API Terakhir</Text>
+              <Text style={styles.auditRowValue}>
+                {selectedUserDetail?.security?.last_api_login_label || 'Belum pernah login API'}
+              </Text>
+            </View>
+            <View style={styles.auditRow}>
+              <Text style={styles.auditRowLabel}>Pembaruan Profil Terakhir</Text>
+              <Text style={styles.auditRowValue}>
+                {formatIndonesianDate(selectedUserDetail?.updated_at)}
+              </Text>
             </View>
           </View>
 
@@ -617,11 +969,13 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
         visible={activeModal === 'unit'}
         onClose={() => setActiveModal('none')}
         title="Pilih Unit Kerja / Pokja"
-        subtitle="Daftar 11 unit kerja kedinasan LLDIKTI Wilayah X"
-        options={OFFICIAL_UNITS}
-        selectedId={unit}
+        subtitle="Daftar unit kerja aktif atau Tingkat Lembaga (Tanpa Unit)"
+        options={unitModalOptions}
+        selectedId={selectedUnitId == null ? '' : String(selectedUnitId)}
+        searchable
+        searchPlaceholder="Cari nama atau kode unit..."
         onSelect={(opt) => {
-          setUnit(opt.id);
+          setSelectedUnitId(opt.id === '' ? null : Number(opt.id));
           setActiveModal('none');
         }}
       />
@@ -991,5 +1345,181 @@ const styles = StyleSheet.create({
   actionSection: {
     gap: spacing.sm,
     marginTop: spacing.xs,
+  },
+  contextStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: spacing.sm + 2,
+    paddingTop: spacing.sm + 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    gap: spacing.sm,
+  },
+  contextStatItem: {
+    flex: 1,
+    gap: 2,
+  },
+  contextStatDivider: {
+    width: 1,
+    backgroundColor: colors.borderSubtle,
+  },
+  contextStatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  contextStatLabel: {
+    ...typography.labelSm,
+    fontSize: 10.5,
+    color: colors.onSurfaceVariant,
+  },
+  contextStatValue: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+    fontSize: 13.5,
+  },
+  contextStatHint: {
+    ...typography.bodySm,
+    fontSize: 10.5,
+    color: colors.textMuted,
+  },
+  nipCounter: {
+    ...typography.labelMono,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+  },
+  nipValidationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: rounded.sm,
+    marginTop: 4,
+  },
+  nipValidationSuccess: {
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  nipValidationPending: {
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  nipValidationText: {
+    ...typography.bodySm,
+    fontSize: 11,
+    flex: 1,
+  },
+  nipValidationTextSuccess: {
+    color: colors.onSuccessContainer,
+    fontFamily: fontFamilies.sansSemiBold,
+  },
+  nipValidationTextPending: {
+    color: colors.onSurfaceVariant,
+  },
+  readonlyTrigger: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  readonlyText: {
+    ...typography.bodyMd,
+    fontSize: 12.5,
+    color: colors.onSurfaceVariant,
+    flex: 1,
+  },
+  disabledControl: {
+    opacity: 0.65,
+  },
+  passwordToggleBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -spacing.xs,
+  },
+  fieldHintText: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    marginTop: 2,
+  },
+  fieldErrorText: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.error,
+    marginTop: 2,
+  },
+  auditMetricsGrid: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  auditMetricTile: {
+    flex: 1,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: rounded.md,
+    padding: spacing.sm,
+    gap: 2,
+  },
+  auditMetricLabel: {
+    ...typography.labelSm,
+    fontSize: 10.5,
+    color: colors.onSurfaceVariant,
+  },
+  auditMetricValue: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+    fontSize: 13,
+  },
+  auditNoteBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: rounded.sm,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  auditNoteText: {
+    ...typography.bodySm,
+    fontSize: 11,
+    color: colors.onSurfaceVariant,
+    flex: 1,
+  },
+  auditRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    gap: spacing.sm,
+  },
+  auditRowLabel: {
+    ...typography.bodySm,
+    fontSize: 11.5,
+    color: colors.onSurfaceVariant,
+    flex: 1,
+  },
+  auditRowValue: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11.5,
+    color: colors.onSurface,
+    textAlign: 'right',
   },
 });

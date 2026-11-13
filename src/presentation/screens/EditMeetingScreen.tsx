@@ -10,11 +10,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import {
   ArrowLeft,
   BarChart3,
   Building,
   Calendar,
+  Check,
   CheckCircle2,
   CheckSquare,
   ChevronDown,
@@ -23,12 +26,14 @@ import {
   CircleDot,
   Clock,
   DoorOpen,
+  Download,
   Eye,
   FilePenLine,
   FileText,
   GraduationCap,
   Image as ImageIcon,
   Landmark,
+  Lock,
   LucideIcon,
   Network,
   NotebookPen,
@@ -37,6 +42,7 @@ import {
   Radio,
   RefreshCw,
   Scale,
+  Search,
   Square,
   Tag,
   Upload,
@@ -49,7 +55,8 @@ import {
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
-import { resolveFileMimeType, UploadFileRef } from '../../data/datasources/agendaApi';
+import { agendaApi, resolveFileMimeType, UploadFileRef } from '../../data/datasources/agendaApi';
+import { ApiAgendaDto } from '../../data/datasources/apiTypes';
 import { toIsoDateTime } from '../../data/mappers/apiMappers';
 import { Meeting, MeetingType } from '../../domain/entities/types';
 import { Header } from '../components/common/Header';
@@ -67,8 +74,33 @@ import {
   STATUS_OPTIONS,
   VENUE_OPTIONS,
 } from '../constants/meetingOptions';
+import { useAuthStore } from '../store/useAuthStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { useMeetingStore } from '../store/useMeetingStore';
+
+type AgendaStatusValue = 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
+
+const DEFAULT_ALLOWED_TRANSITIONS: Record<AgendaStatusValue, AgendaStatusValue[]> = {
+  draft: ['scheduled', 'cancelled'],
+  scheduled: ['ongoing', 'draft', 'cancelled'],
+  ongoing: ['completed', 'scheduled'],
+  completed: [],
+  cancelled: ['draft'],
+};
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Respons dokumen tidak dapat dibaca.'));
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const comma = result.indexOf(',');
+      if (comma < 0) reject(new Error('Format dokumen tidak valid.'));
+      else resolve(result.slice(comma + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
 
 interface EditMeetingScreenProps {
   meetingId: string;
@@ -118,12 +150,18 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   onSuccess,
 }) => {
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((s) => s.user);
+  const isAdministrator = user?.role === 'administrator';
   const {
-    getMeetingById,
+    getMeetingDetailWithDto,
     updateMeeting,
     isLoading,
     formOptions,
     fetchAgendaFormOptions,
+    userCandidates,
+    isUserCandidatesLoading,
+    userCandidatesError,
+    fetchUserCandidates,
   } = useMeetingStore();
 
   const [isInitializing, setIsInitializing] = useState(true);
@@ -133,9 +171,10 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   const [title, setTitle] = useState('');
   const [classification, setClassification] = useState('koordinasi');
   const [customClassification, setCustomClassification] = useState('');
-  const [status, setStatus] = useState<
-    'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'draft'
-  >('scheduled');
+  const [status, setStatus] = useState<AgendaStatusValue>('scheduled');
+  const [initialServerStatus, setInitialServerStatus] = useState<AgendaStatusValue>('scheduled');
+  const [allowedTransitions, setAllowedTransitions] = useState<AgendaStatusValue[]>([]);
+  const [attendancesCount, setAttendancesCount] = useState(0);
   const [formatType, setFormatType] = useState<MeetingType>('hybrid');
 
   const [leaderName, setLeaderName] = useState('');
@@ -156,13 +195,25 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   const [customVenue, setCustomVenue] = useState('');
 
   const [zoomUrl, setZoomUrl] = useState('');
-  const [scopeUniversal, setScopeUniversal] = useState(true);
+  const [targetType, setTargetType] = useState<'all_units' | 'selected_units' | 'selected_users'>(
+    'all_units'
+  );
   const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
 
+  const [suratEdaranType, setSuratEdaranType] = useState<'upload' | 'digital'>('upload');
   const [existingAttachmentUrl, setExistingAttachmentUrl] = useState<string | null>(null);
-  const [existingAttachmentMeta, setExistingAttachmentMeta] = useState<
-    Meeting['suratEdaran'] | null
-  >(null);
+  const [existingAttachmentMeta, setExistingAttachmentMeta] = useState<{
+    type?: 'upload' | 'digital';
+    is_digital?: boolean;
+    url: string | null;
+    stream_url?: string | null;
+    extension?: string | null;
+    is_pdf?: boolean;
+    is_image?: boolean;
+  } | null>(null);
+  const [isDownloadingEdaran, setIsDownloadingEdaran] = useState(false);
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
   const [viewerModalConfig, setViewerModalConfig] = useState<{
     visible: boolean;
@@ -187,7 +238,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     setInitError(null);
     try {
       void fetchAgendaFormOptions();
-      const agenda = await getMeetingById(meetingId);
+      const { meeting: agenda, raw } = await getMeetingDetailWithDto(meetingId);
       if (agenda) {
         setMeetingCode(agenda.code);
         setTitle(agenda.title);
@@ -206,9 +257,15 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         }
 
         setFormatType(agenda.type);
-        const mappedStatus =
-          agenda.rawStatus || (agenda.status === 'upcoming' ? 'scheduled' : agenda.status);
-        setStatus(mappedStatus as typeof status);
+        const mappedStatus = (raw.status?.value ||
+          agenda.rawStatus ||
+          (agenda.status === 'upcoming' ? 'scheduled' : agenda.status)) as AgendaStatusValue;
+        setStatus(mappedStatus);
+        setInitialServerStatus(mappedStatus);
+        setAllowedTransitions(
+          raw.allowed_transitions ?? DEFAULT_ALLOWED_TRANSITIONS[mappedStatus] ?? []
+        );
+        setAttendancesCount(raw.attendances_count ?? raw.total_attended ?? agenda.totalAttended ?? 0);
 
         if (agenda.date) {
           setDateIso(agenda.date);
@@ -244,10 +301,39 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         setLeaderRole('Pimpinan Rapat');
         setNotulisName(agenda.notulis || '');
         setNotulisId(agenda.notulisId ? String(agenda.notulisId) : '');
-        setScopeUniversal(agenda.isAllUnits ?? true);
-        setSelectedUnits(agenda.unitIds || []);
+
+        const resolvedTargetType =
+          raw.target_type ??
+          agenda.targetType ??
+          (agenda.isAllUnits ? 'all_units' : 'selected_units');
+        setTargetType(
+          !isAdministrator && resolvedTargetType === 'all_units'
+            ? 'selected_units'
+            : resolvedTargetType
+        );
+        setSelectedUnits(
+          agenda.unitIds && agenda.unitIds.length > 0
+            ? agenda.unitIds
+            : !isAdministrator && user?.unitId
+              ? [user.unitId]
+              : []
+        );
+        setSelectedUserIds(
+          (agenda.invitedUsers ?? [])
+            .map((u) => Number(u.id))
+            .filter((id) => Number.isFinite(id))
+        );
+        if (resolvedTargetType === 'selected_users') {
+          void fetchUserCandidates();
+        }
+
         setExistingAttachmentUrl(agenda.invitationPdfUrl || null);
-        setExistingAttachmentMeta(agenda.suratEdaran || null);
+        setExistingAttachmentMeta(raw.surat_edaran ?? agenda.suratEdaran ?? null);
+        setSuratEdaranType(
+          raw.surat_edaran?.is_digital || raw.surat_edaran?.type === 'digital'
+            ? 'digital'
+            : 'upload'
+        );
       }
     } catch (err: unknown) {
       setInitError(err instanceof Error ? err.message : 'Gagal memuat data agenda rapat.');
@@ -259,6 +345,34 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   useEffect(() => {
     void loadMeetingData();
   }, [meetingId]);
+
+  useEffect(() => {
+    if (targetType === 'selected_users' && userCandidates.length === 0 && !isUserCandidatesLoading) {
+      void fetchUserCandidates();
+    }
+  }, [targetType, userCandidates.length, isUserCandidatesLoading, fetchUserCandidates]);
+
+  const filteredCandidates = useMemo(() => {
+    const q = userSearchQuery.trim().toLowerCase();
+    if (!q) return userCandidates;
+    return userCandidates.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.nip ?? '').toLowerCase().includes(q) ||
+        (c.unit ?? '').toLowerCase().includes(q)
+    );
+  }, [userCandidates, userSearchQuery]);
+
+  const selectableStatusOptions = useMemo(() => {
+    const allowedSet = new Set<AgendaStatusValue>([
+      initialServerStatus,
+      ...allowedTransitions,
+    ]);
+    if (initialServerStatus === 'ongoing' && attendancesCount > 0) {
+      allowedSet.add('scheduled');
+    }
+    return STATUS_OPTIONS.filter((opt) => allowedSet.has(opt.id));
+  }, [initialServerStatus, allowedTransitions, attendancesCount]);
 
   const selectedClassification = useMemo(() => {
     if (classification === 'custom' && customClassification.trim()) {
@@ -278,8 +392,17 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   const ClassificationIcon = getClassificationIcon(selectedClassification.icon);
 
   const toggleUnit = (unitId: number) => {
+    if (!isAdministrator) return;
     setSelectedUnits((prev) =>
       prev.includes(unitId) ? prev.filter((id) => id !== unitId) : [...prev, unitId],
+    );
+  };
+
+  const toggleUserCandidate = (candidateId: number) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(candidateId)
+        ? prev.filter((id) => id !== candidateId)
+        : [...prev, candidateId],
     );
   };
 
@@ -316,6 +439,50 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         name: `Surat-Edaran_${meetingCode || 'Agenda'}.${ext}`,
         mime: isImg ? 'image/jpeg' : 'application/pdf',
       });
+    }
+  };
+
+  const handleDownloadExistingEdaran = async () => {
+    const downloadUrl = existingAttachmentMeta?.stream_url || existingAttachmentUrl;
+    if (!downloadUrl || isDownloadingEdaran) return;
+
+    setIsDownloadingEdaran(true);
+    try {
+      const res = await agendaApi.downloadSuratEdaran(downloadUrl);
+      const base64 = await blobToBase64(res.blob);
+      const isImg = existingAttachmentMeta?.is_image ?? false;
+      const ext = existingAttachmentMeta?.extension || (isImg ? 'jpg' : 'pdf');
+      const safeCode = (meetingCode || `agenda-${meetingId}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileName = res.filename || `Surat-Edaran_${safeCode}.${ext}`;
+      const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+      if (!baseDir) {
+        throw new Error('Direktori penyimpanan lokal tidak tersedia.');
+      }
+      const localUri = `${baseDir}${fileName}`;
+      await FileSystem.writeAsStringAsync(localUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(localUri, {
+          mimeType: res.contentType || (isImg ? 'image/jpeg' : 'application/pdf'),
+          dialogTitle: `Unduh ${fileName}`,
+          UTI: isImg ? 'public.image' : 'com.adobe.pdf',
+        });
+      } else {
+        useFeedbackStore.getState().showToast({
+          type: 'success',
+          message: `Surat edaran disimpan di ${localUri}.`,
+        });
+      }
+    } catch (err: unknown) {
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Gagal mengunduh berkas surat edaran.',
+      });
+    } finally {
+      setIsDownloadingEdaran(false);
     }
   };
 
@@ -360,10 +527,34 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
       });
       return;
     }
-    if (!scopeUniversal && selectedUnits.length === 0) {
+    if (status === 'scheduled' && initialServerStatus === 'ongoing' && attendancesCount > 0) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Agenda yang sudah memiliki presensi masuk tidak dapat dikembalikan ke Terjadwal.',
+      });
+      return;
+    }
+
+    const effectiveTargetType =
+      !isAdministrator && targetType === 'all_units' ? 'selected_units' : targetType;
+    const effectiveUnitIds =
+      effectiveTargetType === 'selected_units'
+        ? !isAdministrator && user?.unitId
+          ? [user.unitId]
+          : selectedUnits
+        : [];
+
+    if (effectiveTargetType === 'selected_units' && effectiveUnitIds.length === 0) {
       useFeedbackStore.getState().showToast({
         type: 'warning',
         message: 'Pilih minimal satu unit kerja untuk agenda terbatas.',
+      });
+      return;
+    }
+    if (effectiveTargetType === 'selected_users' && selectedUserIds.length === 0) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Pilih minimal satu ASN yang diundang pada sasaran pegawai tertentu.',
       });
       return;
     }
@@ -382,10 +573,13 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         waktu_selesai: endTime.trim() ? toIsoDateTime(dateIso, endTime) : null,
         pimpinan_id: leaderId ? Number(leaderId) : null,
         notulis_id: notulisId ? Number(notulisId) : null,
-        is_all_units: scopeUniversal,
-        unit_ids: scopeUniversal ? [] : selectedUnits,
+        target_type: effectiveTargetType,
+        is_all_units: effectiveTargetType === 'all_units',
+        unit_ids: effectiveUnitIds,
+        user_ids: effectiveTargetType === 'selected_users' ? selectedUserIds : [],
+        surat_edaran_type: suratEdaranType,
       },
-      attachedFile ?? undefined,
+      suratEdaranType === 'upload' ? (attachedFile ?? undefined) : undefined,
     );
 
     if (updated) {
@@ -537,8 +731,8 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     return (
       <View style={styles.container}>
         <Header
-          title="Ubah Agenda Rapat"
-          subtitle="Administrasi & Presensi LLDIKTI X"
+          title="Edit Agenda Rapat"
+          subtitle="Memuat informasi agenda rapat..."
           showBack
           onBack={onBack}
         />
@@ -557,8 +751,8 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     return (
       <View style={styles.container}>
         <Header
-          title="Ubah Agenda Rapat"
-          subtitle="Administrasi & Presensi LLDIKTI X"
+          title="Edit Agenda Rapat"
+          subtitle="Perbarui informasi agenda rapat"
           showBack
           onBack={onBack}
         />
@@ -570,8 +764,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   return (
     <View style={styles.container}>
       <Header
-        title="Ubah Agenda Rapat"
-        subtitle={meetingCode ? `Kode: ${meetingCode}` : 'Administrasi & Presensi LLDIKTI X'}
+        title="Edit Agenda Rapat"
+        subtitle={
+          meetingCode
+            ? `Kode: ${meetingCode} • Perbarui informasi agenda`
+            : 'Perbarui informasi agenda rapat'
+        }
         showBack
         onBack={onBack}
       />
@@ -581,12 +779,27 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* SECTION 1: Status & Informasi Rapat */}
+        {initialServerStatus === 'ongoing' ? (
+          <View style={styles.ongoingBanner}>
+            <Radio size={18} color={colors.warningLight} strokeWidth={2} />
+            <View style={styles.ongoingBannerContent}>
+              <Text style={styles.ongoingBannerTitle}>
+                Rapat Sedang Berlangsung ({attendancesCount} Presensi Masuk)
+              </Text>
+              <Text style={styles.ongoingBannerText}>
+                Perubahan waktu, lokasi, atau sasaran peserta perlu memperhatikan presensi yang
+                sudah tercatat. Status tidak dapat dikembalikan ke Terjadwal setelah presensi masuk.
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* SECTION 1: Informasi Utama Rapat */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleWrap}>
               <FileText size={18} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.sectionTitle}>Status & Informasi Agenda</Text>
+              <Text style={styles.sectionTitle}>1. Informasi Utama Pertemuan</Text>
             </View>
             <View style={styles.codePill}>
               <Text style={styles.codePillText}>{meetingCode}</Text>
@@ -595,7 +808,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
-              Perihal / Judul Agenda Rapat <Text style={styles.required}>*</Text>
+              Judul / Perihal Pertemuan Rapat <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               style={styles.textInput}
@@ -608,51 +821,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
-              Status Penyelenggaraan Rapat <Text style={styles.required}>*</Text>
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.statusScroll}
-            >
-              {STATUS_OPTIONS.map((opt) => {
-                const isSelected = status === opt.id;
-                const meta = getStatusMeta(opt.id);
-                const StatusIcon = meta.icon;
-                return (
-                  <Pressable
-                    key={opt.id}
-                    onPress={() => setStatus(opt.id)}
-                    style={({ pressed }) => [
-                      styles.statusPill,
-                      isSelected && styles.statusPillActive,
-                      pressed && styles.pressedState,
-                    ]}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}
-                  >
-                    <StatusIcon
-                      size={15}
-                      color={isSelected ? colors.onPrimary : meta.tint}
-                      strokeWidth={2}
-                    />
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        isSelected && styles.statusPillTextActive,
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>
-              Klasifikasi / Jenis Rapat <Text style={styles.required}>*</Text>
+              Jenis Pertemuan <Text style={styles.required}>*</Text>
             </Text>
             <Pressable
               onPress={() => setActiveModal('classification')}
@@ -677,7 +846,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
-              Format Penyelenggaraan Rapat <Text style={styles.required}>*</Text>
+              Format Pelaksanaan <Text style={styles.required}>*</Text>
             </Text>
             <View style={styles.formatSegmentedGrid}>
               <Pressable
@@ -733,9 +902,314 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                     formatType === 'hybrid' && styles.formatBtnTextActive,
                   ]}
                 >
-                  Hybrid
+                  Hibrida
                 </Text>
               </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>
+              Waktu Pelaksanaan <Text style={styles.required}>*</Text>
+            </Text>
+            <Pressable
+              onPress={() => setActiveModal('date')}
+              style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
+            >
+              <View style={styles.selectorLeft}>
+                <Calendar size={18} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.selectorValue}>{date}</Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
+            </Pressable>
+          </View>
+
+          <View style={styles.timeRow}>
+            <View style={styles.timeCol}>
+              <Text style={styles.label}>
+                Mulai (WIB) <Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={styles.timeInput}
+                value={startTime}
+                onChangeText={setStartTime}
+                placeholder="09:00"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+            <View style={styles.timeCol}>
+              <Text style={styles.label}>Selesai (WIB)</Text>
+              <TextInput
+                style={styles.timeInput}
+                value={endTime}
+                onChangeText={setEndTime}
+                placeholder="12:00"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+          </View>
+
+          {formatType !== 'online' ? (
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>
+                Lokasi / Nama Ruang Rapat <Text style={styles.required}>*</Text>
+              </Text>
+              <Pressable
+                onPress={() => setActiveModal('venue')}
+                style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
+              >
+                <View style={styles.selectorLeft}>
+                  <DoorOpen size={18} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.selectorValue} numberOfLines={1}>
+                    {venue}
+                  </Text>
+                </View>
+                <View style={styles.selectorRight}>
+                  {venueId === 'custom' ? (
+                    <View style={styles.selectorBadge}>
+                      <Text style={styles.selectorBadgeText}>Kustom</Text>
+                    </View>
+                  ) : null}
+                  <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
+                </View>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {formatType !== 'offline' ? (
+            <View style={styles.virtualMeetingBox}>
+              <View style={styles.virtualHeader}>
+                <Video size={16} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.virtualTitle}>Tautan Daring (Zoom / GMeet)</Text>
+              </View>
+              <TextInput
+                style={styles.textInput}
+                value={zoomUrl}
+                onChangeText={setZoomUrl}
+                placeholder="https://zoom.us/j/... atau meet.google.com/..."
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+              />
+            </View>
+          ) : null}
+        </View>
+
+        {/* SECTION 2: Sasaran Peserta & Unit Kerja */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleWrap}>
+              <Users size={18} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.sectionTitle}>2. Sasaran Peserta & Unit Kerja</Text>
+            </View>
+          </View>
+
+          {isAdministrator ? (
+            <Pressable
+              onPress={() => setTargetType('all_units')}
+              style={[styles.radioCard, targetType === 'all_units' && styles.radioCardActive]}
+            >
+              {targetType === 'all_units' ? (
+                <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+              ) : (
+                <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+              )}
+              <View style={styles.radioTextWrap}>
+                <Text style={styles.radioTitle}>Seluruh Unit Kerja (Pleno / Universal)</Text>
+                <Text style={styles.radioSub}>
+                  Semua pegawai ASN pada seluruh unit kerja berhak dan tercatat dalam daftar
+                  kehadiran.
+                </Text>
+              </View>
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={() => setTargetType('selected_units')}
+            style={[
+              styles.radioCard,
+              targetType === 'selected_units' && styles.radioCardActive,
+            ]}
+          >
+            {targetType === 'selected_units' ? (
+              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+            ) : (
+              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+            )}
+            <View style={styles.radioTextWrap}>
+              <Text style={styles.radioTitle}>
+                {isAdministrator ? 'Unit Kerja Tertentu' : 'Internal Unit Kerja'}
+              </Text>
+              <Text style={styles.radioSub}>
+                {isAdministrator
+                  ? 'Pilih bagian atau kelompok kerja yang diundang secara spesifik.'
+                  : `Terbatas pada unit kerja Anda (${user?.unitKerja || 'Unit Anda'}).`}
+              </Text>
+            </View>
+          </Pressable>
+
+          {targetType === 'selected_units' ? (
+            isAdministrator ? (
+              <View style={styles.unitSelectSection}>
+                <Text style={styles.unitSelectHeader}>Pilih Unit Kerja yang Diundang:</Text>
+                <View style={styles.unitChipsWrap}>
+                  {(formOptions?.units ?? []).map((unit) => {
+                    const isChecked = selectedUnits.includes(unit.id);
+                    return (
+                      <Pressable
+                        key={unit.id}
+                        onPress={() => toggleUnit(unit.id)}
+                        style={[styles.unitChip, isChecked && styles.unitChipSelected]}
+                      >
+                        {isChecked ? (
+                          <CheckSquare size={16} color={colors.onPrimary} strokeWidth={2} />
+                        ) : (
+                          <Square size={16} color={colors.textMuted} strokeWidth={2} />
+                        )}
+                        <Text
+                          style={[
+                            styles.unitChipText,
+                            isChecked && styles.unitChipTextSelected,
+                          ]}
+                        >
+                          {unit.nama_unit}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.lockedScopeNotice}>
+                <Lock size={15} color={colors.infoText} strokeWidth={2} />
+                <Text style={styles.lockedScopeText}>
+                  Sasaran dikunci otomatis untuk unit kerja Anda: {user?.unitKerja || 'Unit Aktif'}
+                </Text>
+              </View>
+            )
+          ) : null}
+
+          <Pressable
+            onPress={() => setTargetType('selected_users')}
+            style={[styles.radioCard, targetType === 'selected_users' && styles.radioCardActive]}
+          >
+            {targetType === 'selected_users' ? (
+              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+            ) : (
+              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+            )}
+            <View style={styles.radioTextWrap}>
+              <Text style={styles.radioTitle}>ASN / Pegawai Tertentu</Text>
+              <Text style={styles.radioSub}>
+                Undang pegawai ASN tertentu lintas bagian sesuai kebutuhan rapat.
+              </Text>
+            </View>
+          </Pressable>
+
+          {targetType === 'selected_users' ? (
+            <View style={styles.candidateSection}>
+              <View style={styles.candidateSearchRow}>
+                <Search size={16} color={colors.textMuted} strokeWidth={2} />
+                <TextInput
+                  style={styles.candidateSearchInput}
+                  value={userSearchQuery}
+                  onChangeText={setUserSearchQuery}
+                  placeholder="Cari nama, NIP, atau unit kerja ASN..."
+                  placeholderTextColor={colors.textMuted}
+                />
+              </View>
+
+              <View style={styles.candidateToolbar}>
+                <Text style={styles.candidateCountText}>
+                  {selectedUserIds.length} ASN dipilih
+                </Text>
+                <View style={styles.candidateBulkActions}>
+                  <Pressable
+                    onPress={() =>
+                      setSelectedUserIds(filteredCandidates.map((c) => Number(c.id)))
+                    }
+                    style={styles.candidateBulkBtn}
+                  >
+                    <Text style={styles.candidateBulkText}>Pilih Semua</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setSelectedUserIds([])}
+                    style={styles.candidateBulkBtn}
+                  >
+                    <Text style={styles.candidateBulkTextMuted}>Hapus Semua</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {selectedUserIds.length === 0 ? (
+                <Text style={styles.candidateHintText}>
+                  Pastikan daftar ASN yang diundang telah dipilih sebelum menyimpan perubahan.
+                </Text>
+              ) : null}
+
+              {isUserCandidatesLoading ? (
+                <View style={styles.candidateStateBox}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.candidateStateText}>Memuat daftar pegawai ASN...</Text>
+                </View>
+              ) : userCandidatesError ? (
+                <View style={styles.candidateStateBox}>
+                  <Text style={styles.candidateErrorText}>{userCandidatesError}</Text>
+                  <Pressable
+                    onPress={() => void fetchUserCandidates()}
+                    style={styles.candidateRetryBtn}
+                  >
+                    <Text style={styles.candidateRetryText}>Muat Ulang</Text>
+                  </Pressable>
+                </View>
+              ) : filteredCandidates.length === 0 ? (
+                <Text style={styles.candidateStateText}>
+                  Tidak ada pegawai ASN yang cocok dengan pencarian.
+                </Text>
+              ) : (
+                <View style={styles.candidateList}>
+                  {filteredCandidates.map((candidate) => {
+                    const candidateId = Number(candidate.id);
+                    const isChecked = selectedUserIds.includes(candidateId);
+                    return (
+                      <Pressable
+                        key={candidate.id}
+                        onPress={() => toggleUserCandidate(candidateId)}
+                        style={[
+                          styles.candidateRow,
+                          isChecked && styles.candidateRowSelected,
+                        ]}
+                      >
+                        <View style={styles.candidateInfo}>
+                          <Text style={styles.candidateName}>{candidate.name}</Text>
+                          <Text style={styles.candidateMeta} numberOfLines={1}>
+                            {candidate.nip || '-'} • {candidate.unit || 'LLDIKTI X'}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.candidateCheckBox,
+                            isChecked && styles.candidateCheckBoxSelected,
+                          ]}
+                        >
+                          {isChecked ? (
+                            <Check size={14} color={colors.onPrimary} strokeWidth={2} />
+                          ) : null}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          ) : null}
+        </View>
+
+        {/* SECTION 3: Penugasan Pimpinan & Notulis Rapat */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleWrap}>
+              <NotebookPen size={18} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.sectionTitle}>3. Penugasan Pimpinan & Notulis Rapat</Text>
             </View>
           </View>
 
@@ -790,184 +1264,58 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
           </View>
         </View>
 
-        {/* SECTION 2: Waktu & Tempat */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleWrap}>
-              <Clock size={18} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.sectionTitle}>Waktu & Tempat Pelaksanaan</Text>
-            </View>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>
-              Tanggal Rapat <Text style={styles.required}>*</Text>
-            </Text>
-            <Pressable
-              onPress={() => setActiveModal('date')}
-              style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
-            >
-              <View style={styles.selectorLeft}>
-                <Calendar size={18} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.selectorValue}>{date}</Text>
-              </View>
-              <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
-            </Pressable>
-          </View>
-
-          <View style={styles.timeRow}>
-            <View style={styles.timeCol}>
-              <Text style={styles.label}>
-                Mulai (WIB) <Text style={styles.required}>*</Text>
-              </Text>
-              <TextInput
-                style={styles.timeInput}
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="09:00"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.timeCol}>
-              <Text style={styles.label}>Selesai (WIB)</Text>
-              <TextInput
-                style={styles.timeInput}
-                value={endTime}
-                onChangeText={setEndTime}
-                placeholder="12:00"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-          </View>
-
-          {formatType !== 'online' ? (
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>
-                Ruang Rapat / Lokasi <Text style={styles.required}>*</Text>
-              </Text>
-              <Pressable
-                onPress={() => setActiveModal('venue')}
-                style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
-              >
-                <View style={styles.selectorLeft}>
-                  <DoorOpen size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.selectorValue} numberOfLines={1}>
-                    {venue}
-                  </Text>
-                </View>
-                <View style={styles.selectorRight}>
-                  {venueId === 'custom' ? (
-                    <View style={styles.selectorBadge}>
-                      <Text style={styles.selectorBadgeText}>Kustom</Text>
-                    </View>
-                  ) : null}
-                  <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
-                </View>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {formatType !== 'offline' ? (
-            <View style={styles.virtualMeetingBox}>
-              <View style={styles.virtualHeader}>
-                <Video size={16} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.virtualTitle}>Tautan Pertemuan Virtual</Text>
-              </View>
-              <TextInput
-                style={styles.textInput}
-                value={zoomUrl}
-                onChangeText={setZoomUrl}
-                placeholder="https://lldikti10.kemdikbud.go.id/zoom/..."
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="none"
-              />
-            </View>
-          ) : null}
-        </View>
-
-        {/* SECTION 3: Sasaran Peserta & Unit Kerja */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleWrap}>
-              <Users size={18} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.sectionTitle}>Sasaran Peserta & Unit Kerja</Text>
-            </View>
-          </View>
-
-          <Pressable
-            onPress={() => setScopeUniversal(true)}
-            style={[styles.radioCard, scopeUniversal && styles.radioCardActive]}
-          >
-            {scopeUniversal ? (
-              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
-            ) : (
-              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
-            )}
-            <View style={styles.radioTextWrap}>
-              <Text style={styles.radioTitle}>Seluruh Pegawai LLDIKTI X</Text>
-              <Text style={styles.radioSub}>
-                Semua pegawai ASN pada 11 unit kerja berhak dan tercatat dalam daftar kehadiran.
-              </Text>
-            </View>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setScopeUniversal(false)}
-            style={[styles.radioCard, !scopeUniversal && styles.radioCardActive]}
-          >
-            {!scopeUniversal ? (
-              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
-            ) : (
-              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
-            )}
-            <View style={styles.radioTextWrap}>
-              <Text style={styles.radioTitle}>Unit Kerja Tertentu</Text>
-              <Text style={styles.radioSub}>
-                Pilih bagian atau kelompok kerja yang diundang secara spesifik.
-              </Text>
-            </View>
-          </Pressable>
-
-          {!scopeUniversal ? (
-            <View style={styles.unitSelectSection}>
-              <Text style={styles.unitSelectHeader}>Pilih Unit Kerja yang Diundang:</Text>
-              <View style={styles.unitChipsWrap}>
-                {(formOptions?.units ?? []).map((unit) => {
-                  const isChecked = selectedUnits.includes(unit.id);
-                  return (
-                    <Pressable
-                      key={unit.id}
-                      onPress={() => toggleUnit(unit.id)}
-                      style={[styles.unitChip, isChecked && styles.unitChipSelected]}
-                    >
-                      {isChecked ? (
-                        <CheckSquare size={16} color={colors.onPrimary} strokeWidth={2} />
-                      ) : (
-                        <Square size={16} color={colors.textMuted} strokeWidth={2} />
-                      )}
-                      <Text
-                        style={[
-                          styles.unitChipText,
-                          isChecked && styles.unitChipTextSelected,
-                        ]}
-                      >
-                        {unit.nama_unit}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
-        </View>
-
-        {/* SECTION 4: Berkas Surat Undangan / Nota Dinas */}
+        {/* SECTION 4: Surat Undangan / Edaran Resmi */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleWrap}>
               <Paperclip size={18} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.sectionTitle}>Dokumen Surat Undangan / Nota Dinas</Text>
+              <Text style={styles.sectionTitle}>4. Surat Undangan / Edaran Resmi</Text>
             </View>
+          </View>
+
+          <View style={styles.edaranSegmented}>
+            <Pressable
+              onPress={() => setSuratEdaranType('upload')}
+              style={[
+                styles.edaranSegmentBtn,
+                suratEdaranType === 'upload' && styles.edaranSegmentBtnActive,
+              ]}
+            >
+              <Upload
+                size={15}
+                color={suratEdaranType === 'upload' ? colors.onPrimary : colors.textSecondary}
+                strokeWidth={2}
+              />
+              <Text
+                style={[
+                  styles.edaranSegmentText,
+                  suratEdaranType === 'upload' && styles.edaranSegmentTextActive,
+                ]}
+              >
+                Unggah Berkas Fisik
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSuratEdaranType('digital')}
+              style={[
+                styles.edaranSegmentBtn,
+                suratEdaranType === 'digital' && styles.edaranSegmentBtnActive,
+              ]}
+            >
+              <FilePenLine
+                size={15}
+                color={suratEdaranType === 'digital' ? colors.onPrimary : colors.textSecondary}
+                strokeWidth={2}
+              />
+              <Text
+                style={[
+                  styles.edaranSegmentText,
+                  suratEdaranType === 'digital' && styles.edaranSegmentTextActive,
+                ]}
+              >
+                Buat Surat Digital Langsung
+              </Text>
+            </Pressable>
           </View>
 
           {existingAttachmentUrl && !attachedFile ? (
@@ -993,83 +1341,183 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                     {existingAttachmentMeta?.extension ||
                       (existingAttachmentMeta?.is_image ? 'jpg' : 'pdf')}
                   </Text>
-                  <Text style={styles.attachedMeta}>Berkas Surat Resmi Terlampir di Server</Text>
-                </View>
-              </View>
-              <Pressable
-                onPress={handlePreviewExistingEdaran}
-                style={styles.attachedActionBtn}
-                accessibilityLabel="Pratinjau berkas saat ini"
-              >
-                <Eye size={18} color={colors.primary} strokeWidth={2} />
-              </Pressable>
-            </View>
-          ) : null}
-
-          <Pressable
-            onPress={handleUploadFile}
-            style={({ pressed }) => [styles.dropzone, pressed && styles.pressedState]}
-          >
-            <View style={styles.dropzoneIconWrap}>
-              <Upload size={20} color={colors.primary} strokeWidth={2} />
-            </View>
-            <View style={styles.dropzoneTextWrap}>
-              <Text style={styles.dropzoneTitle}>
-                {existingAttachmentUrl
-                  ? 'Unggah Berkas Baru Pengganti'
-                  : 'Unggah Surat Undangan / Nota Dinas'}
-              </Text>
-              <Text style={styles.dropzoneSub}>
-                Format PDF atau gambar bertanda tangan digital (Maksimal 5 MB)
-              </Text>
-            </View>
-          </Pressable>
-
-          {attachedFile ? (
-            <View style={styles.attachedCard}>
-              <View style={styles.attachedLeft}>
-                <View
-                  style={[
-                    styles.attachedIconBox,
-                    attachedFile.type.startsWith('image/')
-                      ? styles.attachedBadgeImage
-                      : styles.attachedBadgePdf,
-                  ]}
-                >
-                  {attachedFile.type.startsWith('image/') ? (
-                    <ImageIcon size={18} color={colors.primary} strokeWidth={2} />
-                  ) : (
-                    <FileText size={18} color={colors.error} strokeWidth={2} />
-                  )}
-                </View>
-                <View style={styles.attachedInfo}>
-                  <Text style={styles.attachedName} numberOfLines={1}>
-                    {attachedFile.name} (Berkas Baru)
-                  </Text>
                   <Text style={styles.attachedMeta}>
-                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB •{' '}
-                    {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
+                    {existingAttachmentMeta?.is_digital
+                      ? 'Surat Edaran Digital Tersimpan di Server'
+                      : 'Berkas Surat Resmi Terlampir di Server'}
                   </Text>
                 </View>
               </View>
               <View style={styles.attachedActions}>
                 <Pressable
-                  onPress={handlePreviewAttachedFile}
+                  onPress={handlePreviewExistingEdaran}
                   style={styles.attachedActionBtn}
-                  accessibilityLabel="Pratinjau lampiran baru"
+                  accessibilityLabel="Pratinjau berkas saat ini"
                 >
                   <Eye size={18} color={colors.primary} strokeWidth={2} />
                 </Pressable>
                 <Pressable
-                  onPress={() => setAttachedFile(null)}
-                  style={styles.attachedActionBtn}
-                  accessibilityLabel="Hapus lampiran baru"
+                  onPress={() => void handleDownloadExistingEdaran()}
+                  disabled={isDownloadingEdaran}
+                  style={styles.attachedDownloadBtn}
+                  accessibilityLabel="Unduh surat edaran saat ini"
                 >
-                  <X size={18} color={colors.error} strokeWidth={2} />
+                  {isDownloadingEdaran ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <>
+                      <Download size={15} color={colors.primary} strokeWidth={2} />
+                      <Text style={styles.attachedDownloadText}>Unduh</Text>
+                    </>
+                  )}
                 </Pressable>
               </View>
             </View>
           ) : null}
+
+          {suratEdaranType === 'upload' ? (
+            <>
+              <Pressable
+                onPress={handleUploadFile}
+                style={({ pressed }) => [styles.dropzone, pressed && styles.pressedState]}
+              >
+                <View style={styles.dropzoneIconWrap}>
+                  <Upload size={20} color={colors.primary} strokeWidth={2} />
+                </View>
+                <View style={styles.dropzoneTextWrap}>
+                  <Text style={styles.dropzoneTitle}>
+                    {existingAttachmentUrl
+                      ? 'Unggah Berkas Baru Pengganti'
+                      : 'Unggah Surat Undangan / Nota Dinas'}
+                  </Text>
+                  <Text style={styles.dropzoneSub}>
+                    Format PDF atau gambar bertanda tangan digital (Maksimal 5 MB)
+                  </Text>
+                </View>
+              </Pressable>
+
+              {attachedFile ? (
+                <View style={styles.attachedCard}>
+                  <View style={styles.attachedLeft}>
+                    <View
+                      style={[
+                        styles.attachedIconBox,
+                        attachedFile.type.startsWith('image/')
+                          ? styles.attachedBadgeImage
+                          : styles.attachedBadgePdf,
+                      ]}
+                    >
+                      {attachedFile.type.startsWith('image/') ? (
+                        <ImageIcon size={18} color={colors.primary} strokeWidth={2} />
+                      ) : (
+                        <FileText size={18} color={colors.error} strokeWidth={2} />
+                      )}
+                    </View>
+                    <View style={styles.attachedInfo}>
+                      <Text style={styles.attachedName} numberOfLines={1}>
+                        {attachedFile.name} (Berkas Baru)
+                      </Text>
+                      <Text style={styles.attachedMeta}>
+                        {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB •{' '}
+                        {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.attachedActions}>
+                    <Pressable
+                      onPress={handlePreviewAttachedFile}
+                      style={styles.attachedActionBtn}
+                      accessibilityLabel="Pratinjau lampiran baru"
+                    >
+                      <Eye size={18} color={colors.primary} strokeWidth={2} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setAttachedFile(null)}
+                      style={styles.attachedActionBtn}
+                      accessibilityLabel="Hapus lampiran baru"
+                    >
+                      <X size={18} color={colors.error} strokeWidth={2} />
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <View style={styles.digitalNoticeCard}>
+              <FilePenLine size={18} color={colors.infoText} strokeWidth={2} />
+              <Text style={styles.digitalNoticeText}>
+                Mode surat digital aktif. Dokumen surat edaran resmi disusun dan diterbitkan
+                menggunakan templat digital terpadu tanpa unggahan PDF manual.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* SECTION 5: Status Siklus Agenda (berdekatan dengan Simpan Perubahan) */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleWrap}>
+              <Clock size={18} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.sectionTitle}>Status Siklus Agenda</Text>
+            </View>
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>
+              Status Penyelenggaraan Rapat <Text style={styles.required}>*</Text>
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.statusScroll}
+            >
+              {selectableStatusOptions.map((opt) => {
+                const isSelected = status === opt.id;
+                const isLocked =
+                  opt.id === 'scheduled' &&
+                  initialServerStatus === 'ongoing' &&
+                  attendancesCount > 0;
+                const meta = getStatusMeta(opt.id);
+                const StatusIcon = isLocked ? Lock : meta.icon;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    disabled={isLocked}
+                    onPress={() => setStatus(opt.id)}
+                    style={({ pressed }) => [
+                      styles.statusPill,
+                      isSelected && styles.statusPillActive,
+                      isLocked && styles.statusPillLocked,
+                      pressed && !isLocked && styles.pressedState,
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected, disabled: isLocked }}
+                  >
+                    <StatusIcon
+                      size={15}
+                      color={
+                        isLocked
+                          ? colors.textMuted
+                          : isSelected
+                            ? colors.onPrimary
+                            : meta.tint
+                      }
+                      strokeWidth={2}
+                    />
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        isSelected && styles.statusPillTextActive,
+                        isLocked && styles.statusPillTextLocked,
+                      ]}
+                    >
+                      {isLocked ? `${opt.label} (Terkunci: Presensi Masuk)` : opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
         </View>
       </ScrollView>
 
@@ -1617,4 +2065,237 @@ const styles = StyleSheet.create({
     color: colors.onPrimary,
   },
   buttonPressed: { opacity: 0.82 },
+
+  ongoingBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+    backgroundColor: colors.warningContainer,
+  },
+  ongoingBannerContent: { flex: 1, gap: 3 },
+  ongoingBannerTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onWarningContainer,
+  },
+  ongoingBannerText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.onWarningContainer,
+  },
+  statusPillLocked: {
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceSoft,
+    opacity: 0.72,
+  },
+  statusPillTextLocked: { color: colors.textMuted },
+
+  lockedScopeNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    padding: spacing.sm + 2,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    backgroundColor: colors.infoBg,
+  },
+  lockedScopeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.infoText,
+    flex: 1,
+  },
+  candidateSection: { gap: spacing.xs + 2 },
+  candidateSearchRow: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: rounded.md,
+    paddingHorizontal: spacing.sm + 2,
+    backgroundColor: colors.surfaceCard,
+  },
+  candidateSearchInput: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    color: colors.onSurface,
+  },
+  candidateToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  candidateCountText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textSecondary,
+  },
+  candidateBulkActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
+  candidateBulkBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs + 2,
+  },
+  candidateBulkText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
+  },
+  candidateBulkTextMuted: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textMuted,
+  },
+  candidateHintText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
+  },
+  candidateStateBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    paddingVertical: spacing.sm,
+  },
+  candidateStateText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
+  },
+  candidateErrorText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.error,
+    flex: 1,
+  },
+  candidateRetryBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    borderRadius: rounded.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceSoft,
+  },
+  candidateRetryText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
+  },
+  candidateList: { gap: spacing.xs + 2 },
+  candidateRow: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 4,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceCard,
+  },
+  candidateRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceSoft,
+  },
+  candidateInfo: { flex: 1, minWidth: 0, gap: 2 },
+  candidateName: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
+  },
+  candidateMeta: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
+  },
+  candidateCheckBox: {
+    width: 22,
+    height: 22,
+    borderRadius: rounded.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceCard,
+  },
+  candidateCheckBoxSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+
+  edaranSegmented: { flexDirection: 'row', gap: spacing.xs + 2 },
+  edaranSegmentBtn: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.xs + 4,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+  },
+  edaranSegmentBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  edaranSegmentText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textSecondary,
+    flexShrink: 1,
+  },
+  edaranSegmentTextActive: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  attachedDownloadBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    minWidth: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+  },
+  attachedDownloadText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
+  },
+  digitalNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.sm + 4,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    backgroundColor: colors.infoBg,
+  },
+  digitalNoticeText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.infoText,
+    flex: 1,
+  },
 });

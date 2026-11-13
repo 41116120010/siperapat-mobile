@@ -15,6 +15,7 @@ import {
   CreditCard,
   FileSpreadsheet,
   History,
+  Info,
   Lock,
   LogOut,
   Mail,
@@ -28,6 +29,8 @@ import {
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
+import { formatTanggalIndonesia } from '../../core/utils/dateFormatter';
+import { authApi } from '../../data/datasources/authApi';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
@@ -61,6 +64,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [emailInput, setEmailInput] = useState(user?.email ?? '');
   const [phoneInput, setPhoneInput] = useState(user?.phone ?? '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [registeredAt, setRegisteredAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isEditingProfile) {
@@ -72,9 +76,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   useFocusEffect(
     useCallback(() => {
-      if (user?.id) void refreshProfile();
+      if (!user?.id) return;
+      void refreshProfile();
+      void authApi
+        .me()
+        .then((res) => {
+          const createdAt = (res.data as { created_at?: string | null })?.created_at ?? null;
+          setRegisteredAt(createdAt);
+        })
+        .catch(() => {});
     }, [refreshProfile, user?.id])
   );
+
+  const initials = (user?.name ?? 'AS').trim().slice(0, 2).toUpperCase() || 'AS';
+  const roleDisplayLabel =
+    user?.role === 'administrator'
+      ? 'Administrator'
+      : user?.role === 'admin'
+      ? 'Admin Unit'
+      : 'Pegawai Unit';
 
   const handleStartEditProfile = () => {
     setNameInput(user?.name ?? '');
@@ -195,27 +215,42 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       >
         {/* SUBTITLE & IDENTITAS RESMI */}
         <View style={styles.titleSection}>
-          <Text style={styles.mainTitle}>Profil ASN</Text>
+          <Text style={styles.mainTitle}>Pengaturan Profil Akun</Text>
           <Text style={styles.mainSubtitle}>
-            Informasi kepegawaian dan akun kedinasan LLDIKTI Wilayah X
+            Kelola informasi identitas diri, kontak, dan keamanan kata sandi akun Anda
           </Text>
         </View>
 
         {/* KARTU PROFIL PEGAWAI RESMI ASN */}
         <View style={styles.heroCard}>
           <View style={styles.profileTopRow}>
-            <View style={styles.avatarWrap}>
-              <User size={32} strokeWidth={2} color={colors.primary} />
+            <View style={styles.avatarInitialBox}>
+              <Text style={styles.avatarInitialText}>{initials}</Text>
             </View>
 
             <View style={styles.profileMetaInfo}>
               <Text style={styles.profileName}>{user?.name ?? 'Nama pengguna'}</Text>
               <Text style={styles.profileRoleTitle}>
-                {user?.jabatan ?? 'Jabatan tidak tersedia'}
+                {user?.jabatan ?? roleDisplayLabel}
               </Text>
               <Text style={styles.profileMetaSub} numberOfLines={2}>
                 {[user?.pangkatGolongan, user?.unitKerja].filter(Boolean).join(' • ') ||
                   'Informasi unit belum tersedia'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.accountStatusGrid}>
+            <View style={styles.accountStatusRow}>
+              <Text style={styles.accountStatusLabel}>Status Akun:</Text>
+              <View style={styles.accountActivePill}>
+                <Text style={styles.accountActiveText}>Aktif</Text>
+              </View>
+            </View>
+            <View style={styles.accountStatusRow}>
+              <Text style={styles.accountStatusLabel}>Terdaftar Sejak:</Text>
+              <Text style={styles.accountStatusValue}>
+                {registeredAt ? formatTanggalIndonesia(registeredAt) : '—'}
               </Text>
             </View>
           </View>
@@ -276,7 +311,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.editFormWrap}>
               <Input
                 label="Nama Lengkap *"
-                placeholder="Masukkan nama lengkap beserta gelar"
+                placeholder="Masukkan nama lengkap beserta gelar..."
                 value={nameInput}
                 onChangeText={setNameInput}
                 editable={!isSavingProfile}
@@ -284,8 +319,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               />
 
               <Input
-                label="Email Kedinasan *"
-                placeholder="nama@lldikti10.kemdikbud.go.id"
+                label="Alamat Email *"
+                placeholder="nama@lldikti.kemdikbud.go.id"
                 value={emailInput}
                 onChangeText={setEmailInput}
                 keyboardType="email-address"
@@ -296,8 +331,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               />
 
               <Input
-                label="No. WhatsApp / HP"
-                placeholder="Contoh: 081234567890"
+                label="Nomor Telepon / WhatsApp"
+                placeholder="081234567890"
                 value={phoneInput}
                 onChangeText={setPhoneInput}
                 keyboardType="phone-pad"
@@ -318,9 +353,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     fullWidth
                   />
                 </View>
-                <View style={styles.editActionHalf}>
+                <View style={styles.editActionSave}>
                   <Button
-                    title={isSavingProfile ? 'Menyimpan...' : 'Simpan'}
+                    title={isSavingProfile ? 'Menyimpan...' : 'Simpan Perubahan Data Diri'}
                     variant="primary"
                     onPress={() => void handleSaveProfile()}
                     isLoading={isSavingProfile}
@@ -344,7 +379,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </View>
 
               <View style={styles.fieldItem}>
-                <Text style={styles.fieldLabel}>Email Kedinasan</Text>
+                <Text style={styles.fieldLabel}>Alamat Email</Text>
                 <View style={styles.readonlyInputRow}>
                   <Mail size={17} strokeWidth={2} color={colors.textMuted} />
                   <Text style={styles.readonlyInputValue} numberOfLines={1}>
@@ -354,7 +389,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </View>
 
               <View style={styles.fieldItem}>
-                <Text style={styles.fieldLabel}>No. WhatsApp / HP</Text>
+                <Text style={styles.fieldLabel}>Nomor Telepon / WhatsApp</Text>
                 <View style={styles.readonlyInputRow}>
                   <Smartphone
                     size={17}
@@ -378,21 +413,27 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
           {/* READONLY SYSTEM FIELDS */}
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>NIP</Text>
+            <Text style={styles.fieldLabel}>Nomor Induk Pegawai (NIP)</Text>
             <View style={styles.readonlyInputRow}>
               <CreditCard size={17} strokeWidth={2} color={colors.textMuted} />
-              <Text style={styles.readonlyInputValueMono}>{user?.nip || '—'}</Text>
+              <Text style={styles.readonlyInputValueMono}>{user?.nip || 'Tidak tercatat'}</Text>
               <Lock size={14} strokeWidth={2} color={colors.textMuted} />
             </View>
+            <Text style={styles.fieldHelperText}>
+              Perubahan NIP hanya dapat dilakukan melalui Administrator.
+            </Text>
           </View>
 
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Username</Text>
+            <Text style={styles.fieldLabel}>Nama Pengguna (Username)</Text>
             <View style={styles.readonlyInputRow}>
               <AtSign size={17} strokeWidth={2} color={colors.textMuted} />
               <Text style={styles.readonlyInputValueMono}>{user?.username ?? '—'}</Text>
               <Lock size={14} strokeWidth={2} color={colors.textMuted} />
             </View>
+            <Text style={styles.fieldHelperText}>
+              Username ditetapkan oleh Administrator sistem.
+            </Text>
           </View>
 
           <View style={styles.fieldItem}>
@@ -400,7 +441,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={styles.readonlyInputRow}>
               <Building2 size={17} strokeWidth={2} color={colors.textMuted} />
               <Text style={styles.readonlyInputValue} numberOfLines={1}>
-                {user?.unitKerja || 'Tingkat Lembaga (Tanpa Unit Kerja)'}
+                {user?.unitKerja || 'Tingkat Lembaga (Tanpa Unit Kerja Terikat)'}
               </Text>
               <Lock size={14} strokeWidth={2} color={colors.textMuted} />
             </View>
@@ -410,14 +451,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <Text style={styles.fieldLabel}>Hak Akses</Text>
             <View style={styles.readonlyInputRow}>
               <ShieldCheck size={17} strokeWidth={2} color={colors.textMuted} />
-              <Text style={styles.readonlyInputValueBold}>
-                {user?.roleLabel ||
-                  (user?.role === 'administrator'
-                    ? 'Administrator'
-                    : user?.role === 'admin'
-                    ? 'Admin Unit'
-                    : 'Pegawai ASN')}
-              </Text>
+              <Text style={styles.readonlyInputValueBold}>{roleDisplayLabel}</Text>
             </View>
           </View>
         </View>
@@ -531,6 +565,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </Pressable>
         </View>
 
+        {/* SECTION 3.5: KETENTUAN KEAMANAN AKUN (edit.blade.php:323-333) */}
+        <View style={styles.sectionCard}>
+          <View style={styles.securityGuideHeader}>
+            <Info size={16} strokeWidth={2} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Ketentuan Keamanan Akun</Text>
+          </View>
+          <View style={styles.securityGuideList}>
+            <Text style={styles.securityGuideItem}>
+              • Gunakan kata sandi unik yang tidak digunakan pada layanan lain.
+            </Text>
+            <Text style={styles.securityGuideItem}>
+              • Kata sandi minimal terdiri dari 8 karakter dengan kombinasi huruf dan angka.
+            </Text>
+            <Text style={styles.securityGuideItem}>
+              • Setiap pembaruan profil atau kata sandi akan otomatis tercatat pada log audit sistem.
+            </Text>
+          </View>
+        </View>
+
         {/* SECTION 5: LOGOUT BUTTON */}
         <Pressable
           onPress={handleLogout}
@@ -539,13 +592,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             pressed && styles.logoutButtonPressed,
           ]}
           accessibilityRole="button"
-          accessibilityLabel="Keluar Akun"
+          accessibilityLabel="Keluar dari Sistem"
         >
           <LogOut size={18} strokeWidth={2} color={colors.error} />
-          <Text style={styles.logoutButtonText}>Keluar Akun</Text>
+          <Text style={styles.logoutButtonText}>Keluar dari Sistem</Text>
         </Pressable>
 
-        <Text style={styles.versionNote}>SIPERAPAT LLDIKTI Wilayah X • v1.0.0</Text>
+        <Text style={styles.versionNote}>SIPERAPAT LLDIKTI Wilayah X • v2.2</Text>
       </ScrollView>
     </View>
   );
@@ -875,5 +928,80 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
     marginTop: 2,
+  },
+  avatarInitialBox: {
+    width: 64,
+    height: 64,
+    borderRadius: rounded.xl,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitialText: {
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 20,
+    color: colors.onPrimary,
+  },
+  accountStatusGrid: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingTop: spacing.sm,
+    gap: 6,
+  },
+  accountStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  accountStatusLabel: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  accountStatusValue: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.onSurface,
+  },
+  accountActivePill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  accountActiveText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.onSuccessContainer,
+  },
+  editActionSave: {
+    flex: 2,
+  },
+  fieldHelperText: {
+    ...typography.labelSm,
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 3,
+  },
+  securityGuideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  securityGuideList: {
+    gap: 6,
+  },
+  securityGuideItem: {
+    ...typography.bodySm,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
 });

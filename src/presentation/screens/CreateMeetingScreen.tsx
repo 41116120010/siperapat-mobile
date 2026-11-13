@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,7 @@ import {
   Calendar,
   Check,
   CheckCircle2,
+  CheckSquare,
   ChevronDown,
   ChevronRight,
   Circle,
@@ -22,6 +24,7 @@ import {
   Clock,
   DoorOpen,
   Eye,
+  FilePenLine,
   FileText,
   GraduationCap,
   Image as ImageIcon,
@@ -33,12 +36,15 @@ import {
   RefreshCw,
   Save,
   Scale,
+  Search,
+  Square,
   Tag,
   Trash2,
   Upload,
   User,
   Users,
   Video,
+  X,
 } from 'lucide-react-native';
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
@@ -50,6 +56,7 @@ import { Header } from '../components/common/Header';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { CalendarDatePickerModal, getJakartaDateKey } from '../components/modals/CalendarDatePickerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
+import { useAuthStore } from '../store/useAuthStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { useMeetingStore } from '../store/useMeetingStore';
 
@@ -158,7 +165,19 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   onSuccess,
 }) => {
   const insets = useSafeAreaInsets();
-  const { createMeeting, isLoading, error, formOptions, fetchAgendaFormOptions } = useMeetingStore();
+  const user = useAuthStore((s) => s.user);
+  const isAdministrator = user?.role === 'administrator';
+  const {
+    createMeeting,
+    isLoading,
+    error,
+    formOptions,
+    fetchAgendaFormOptions,
+    userCandidates,
+    isUserCandidatesLoading,
+    userCandidatesError,
+    fetchUserCandidates,
+  } = useMeetingStore();
   useEffect(() => {
     void fetchAgendaFormOptions();
   }, [fetchAgendaFormOptions]);
@@ -188,12 +207,46 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [meetingIdInput] = useState('');
   const [passcode] = useState('');
 
-  const [scopeUniversal, setScopeUniversal] = useState(true);
-  const [selectedUnits, setSelectedUnits] = useState<number[]>([]);
+  const [targetType, setTargetType] = useState<'all_units' | 'selected_units' | 'selected_users'>(
+    isAdministrator ? 'all_units' : 'selected_units'
+  );
+  const [selectedUnits, setSelectedUnits] = useState<number[]>(
+    !isAdministrator && user?.unitId ? [user.unitId] : []
+  );
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [suratEdaranType, setSuratEdaranType] = useState<'upload' | 'digital'>('upload');
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
   const [isViewerModalVisible, setIsViewerModalVisible] = useState(false);
+  const [submittingStatus, setSubmittingStatus] = useState<'draft' | 'scheduled' | null>(null);
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
+
+  useEffect(() => {
+    if (!isAdministrator) {
+      setTargetType((prev) => (prev === 'all_units' ? 'selected_units' : prev));
+      if (user?.unitId) {
+        setSelectedUnits((prev) => (prev.length === 0 ? [user.unitId!] : prev));
+      }
+    }
+  }, [isAdministrator, user?.unitId]);
+
+  useEffect(() => {
+    if (targetType === 'selected_users' && userCandidates.length === 0 && !isUserCandidatesLoading) {
+      void fetchUserCandidates();
+    }
+  }, [targetType, userCandidates.length, isUserCandidatesLoading, fetchUserCandidates]);
+
+  const filteredCandidates = useMemo(() => {
+    const q = userSearchQuery.trim().toLowerCase();
+    if (!q) return userCandidates;
+    return userCandidates.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.nip ?? '').toLowerCase().includes(q) ||
+        (c.unit ?? '').toLowerCase().includes(q)
+    );
+  }, [userCandidates, userSearchQuery]);
 
   const selectedClassification = useMemo(() => {
     if (classification === 'custom' && customClassification.trim()) {
@@ -216,6 +269,12 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const toggleUnit = (unitId: number) => {
     setSelectedUnits((prev) =>
       prev.includes(unitId) ? prev.filter((id) => id !== unitId) : [...prev, unitId],
+    );
+  };
+
+  const toggleUserCandidate = (candidateId: number) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(candidateId) ? prev.filter((id) => id !== candidateId) : [...prev, candidateId],
     );
   };
 
@@ -242,14 +301,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     });
   };
 
-  const handleSaveDraft = () => {
-    useFeedbackStore.getState().showToast({
-      type: 'info',
-      message: 'Rancangan agenda rapat berhasil disimpan sebagai draf lokal.',
-    });
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = async (targetStatus: 'draft' | 'scheduled') => {
     if (!title.trim()) {
       useFeedbackStore.getState().showToast({
         type: 'warning',
@@ -275,14 +327,32 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         .showToast({ type: 'warning', message: 'Masukkan tautan rapat daring.' });
       return;
     }
-    if (!scopeUniversal && selectedUnits.length === 0) {
+    const effectiveUnitIds =
+      targetType === 'selected_units'
+        ? isAdministrator
+          ? selectedUnits
+          : selectedUnits.length > 0
+            ? selectedUnits
+            : user?.unitId
+              ? [user.unitId]
+              : []
+        : [];
+    if (targetType === 'selected_units' && effectiveUnitIds.length === 0) {
       useFeedbackStore.getState().showToast({
         type: 'warning',
         message: 'Pilih minimal satu unit kerja untuk agenda terbatas.',
       });
       return;
     }
+    if (targetType === 'selected_users' && selectedUserIds.length === 0) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Pilih minimal satu pegawai ASN yang diundang.',
+      });
+      return;
+    }
 
+    setSubmittingStatus(targetStatus);
     const created = await createMeeting(
       {
         judul_rapat: title.trim(),
@@ -294,23 +364,30 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         waktu_selesai: endTime.trim() ? toIsoDateTime(dateIso, endTime) : null,
         pimpinan_id: leaderId ? Number(leaderId) : null,
         notulis_id: notulisId ? Number(notulisId) : null,
-        is_all_units: scopeUniversal,
-        unit_ids: scopeUniversal ? [] : selectedUnits,
-        status: 'scheduled',
+        target_type: targetType,
+        is_all_units: targetType === 'all_units',
+        unit_ids: effectiveUnitIds,
+        user_ids: targetType === 'selected_users' ? selectedUserIds : [],
+        surat_edaran_type: suratEdaranType,
+        status: targetStatus,
       },
-      attachedFile ?? undefined,
+      suratEdaranType === 'upload' ? (attachedFile ?? undefined) : undefined,
     );
+    setSubmittingStatus(null);
 
     if (created) {
+      const isDraft = targetStatus === 'draft';
       useFeedbackStore.getState().showModal({
         type: 'success',
-        title: 'Agenda Rapat Berhasil Diterbitkan',
-        message: 'Agenda rapat berhasil dibuat oleh server.',
+        title: isDraft ? 'Konsep Agenda Rapat Tersimpan' : 'Agenda Rapat Berhasil Diterbitkan',
+        message: isDraft
+          ? 'Agenda rapat berhasil disimpan sebagai draf/konsep di server.'
+          : 'Agenda rapat berhasil dibuat dan diterbitkan ke server.',
         detail: {
           'Kode Rapat': created.code,
           Perihal: title,
           Format: formatType.toUpperCase(),
-          Pimpinan: leaderName,
+          Status: isDraft ? 'KONSEP / DRAF' : 'TERJADWAL',
         },
         confirmText: 'Kembali ke Agenda',
         onConfirm: onSuccess,
@@ -320,7 +397,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       useFeedbackStore.getState().showToast({
         type: 'error',
         message:
-          currentError || 'Gagal menerbitkan agenda rapat. Periksa kembali isian formulir.',
+          currentError || 'Gagal menyimpan agenda rapat. Periksa kembali isian formulir.',
       });
     }
   };
@@ -455,7 +532,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     <View style={styles.container}>
       <Header
         title="Buat Agenda Rapat Baru"
-        subtitle="Administrasi & Presensi LLDIKTI Wilayah X"
+        subtitle="Jadwalkan pertemuan kedinasan, tentukan sasaran unit kerja, dan lampirkan surat edaran"
         showBack
         onBack={onBack}
       />
@@ -465,15 +542,15 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* SECTION 1: Informasi Rapat */}
+        {/* SECTION 1: Informasi Utama Pertemuan */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Informasi Rapat</Text>
+            <Text style={styles.sectionTitle}>1. Informasi Utama Pertemuan</Text>
           </View>
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
-              Judul / Perihal Agenda Rapat <Text style={styles.required}>*</Text>
+              Judul / Perihal Pertemuan Rapat <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               style={styles.textArea}
@@ -481,14 +558,14 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               onChangeText={setTitle}
               multiline
               numberOfLines={3}
-              placeholder="Masukkan perihal agenda rapat dinas..."
+              placeholder="Contoh: Rapat Koordinasi Evaluasi Beban Kerja Dosen (BKD)"
               placeholderTextColor={colors.textMuted}
             />
           </View>
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
-              Klasifikasi & Jenis Rapat <Text style={styles.required}>*</Text>
+              Jenis Pertemuan <Text style={styles.required}>*</Text>
             </Text>
             <Pressable
               onPress={() => setActiveModal('classification')}
@@ -513,7 +590,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
-              Format Penyelenggaraan Rapat <Text style={styles.required}>*</Text>
+              Format Pelaksanaan <Text style={styles.required}>*</Text>
             </Text>
             <View style={styles.formatSegmentedGrid}>
               <Pressable
@@ -569,10 +646,390 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                     formatType === 'hybrid' && styles.formatBtnTextActive,
                   ]}
                 >
-                  Hybrid
+                  Hibrida
                 </Text>
               </Pressable>
             </View>
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>
+              Waktu Pelaksanaan <Text style={styles.required}>*</Text>
+            </Text>
+            <Pressable
+              onPress={() => setActiveModal('date')}
+              style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
+            >
+              <View style={styles.selectorLeft}>
+                <Calendar size={18} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.selectorValue}>{date}</Text>
+              </View>
+              <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
+            </Pressable>
+          </View>
+
+          <View style={styles.timeRow}>
+            <View style={styles.timeCol}>
+              <Text style={styles.label}>Mulai (WIB)</Text>
+              <TextInput
+                style={styles.timeInput}
+                value={startTime}
+                onChangeText={setStartTime}
+                placeholder="09:00"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+            <View style={styles.timeCol}>
+              <Text style={styles.label}>Selesai (WIB)</Text>
+              <TextInput
+                style={styles.timeInput}
+                value={endTime}
+                onChangeText={setEndTime}
+                placeholder="12:00"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+          </View>
+
+          <View style={styles.durationInline}>
+            <Clock size={15} color={colors.primary} strokeWidth={2} />
+            <Text style={styles.durationInlineText}>
+              {computeDurationLabel(startTime, endTime)}
+            </Text>
+          </View>
+
+          {formatType !== 'online' ? (
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>
+                Lokasi / Nama Ruang Rapat <Text style={styles.required}>*</Text>
+              </Text>
+              <Pressable
+                onPress={() => setActiveModal('venue')}
+                style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
+              >
+                <View style={styles.selectorLeft}>
+                  <DoorOpen size={18} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.selectorValue} numberOfLines={1}>
+                    {venue}
+                  </Text>
+                </View>
+                <View style={styles.selectorRight}>
+                  {venueId === 'custom' ? (
+                    <View style={styles.selectorBadge}>
+                      <Text style={styles.selectorBadgeText}>Kustom</Text>
+                    </View>
+                  ) : null}
+                  <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
+                </View>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {formatType !== 'offline' ? (
+            <View style={styles.virtualMeetingBox}>
+              <View style={styles.virtualHeader}>
+                <View style={styles.virtualHeaderLeft}>
+                  <Video size={16} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.virtualTitle}>Tautan Daring (Zoom / GMeet)</Text>
+                </View>
+                <View style={styles.virtualBadge}>
+                  <Text style={styles.virtualBadgeText}>Video Conference</Text>
+                </View>
+              </View>
+
+              <TextInput
+                style={styles.virtualInput}
+                value={zoomUrl}
+                onChangeText={setZoomUrl}
+                placeholder="https://zoom.us/j/... atau meet.google.com/..."
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+              />
+
+              {meetingIdInput || passcode ? (
+                <View style={styles.virtualMetaRow}>
+                  <View style={styles.virtualMetaCol}>
+                    <Text style={styles.virtualMetaLabel}>Meeting ID</Text>
+                    <Text style={styles.virtualMetaValue}>{meetingIdInput}</Text>
+                  </View>
+                  <View style={styles.virtualMetaCol}>
+                    <Text style={styles.virtualMetaLabel}>Passcode</Text>
+                    <Text style={styles.virtualMetaValue}>{passcode}</Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        {/* SECTION 2: Sasaran Peserta & Unit Kerja */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>2. Sasaran Peserta & Unit Kerja</Text>
+          </View>
+
+          {isAdministrator ? (
+            <>
+              <Pressable
+                onPress={() => setTargetType('all_units')}
+                style={[styles.radioCard, targetType === 'all_units' && styles.radioCardActive]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: targetType === 'all_units' }}
+              >
+                {targetType === 'all_units' ? (
+                  <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+                ) : (
+                  <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+                )}
+                <View style={styles.radioTextWrap}>
+                  <Text style={styles.radioTitle}>
+                    Terbuka untuk Seluruh Unit Kerja (Pleno / Universal)
+                  </Text>
+                  <Text style={styles.radioSub}>
+                    Seluruh pegawai dari semua bagian/Pokja LLDIKTI berhak mengikuti rapat.
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setTargetType('selected_units')}
+                style={[
+                  styles.radioCard,
+                  targetType === 'selected_units' && styles.radioCardActive,
+                ]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: targetType === 'selected_units' }}
+              >
+                {targetType === 'selected_units' ? (
+                  <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+                ) : (
+                  <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+                )}
+                <View style={styles.radioTextWrap}>
+                  <Text style={styles.radioTitle}>Terbatas untuk Unit Kerja Tertentu</Text>
+                  <Text style={styles.radioSub}>
+                    Hanya pegawai dari unit kerja terpilih yang dapat mengisi presensi.
+                  </Text>
+                </View>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable
+              onPress={() => setTargetType('selected_units')}
+              style={[
+                styles.radioCard,
+                targetType === 'selected_units' && styles.radioCardActive,
+              ]}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: targetType === 'selected_units' }}
+            >
+              {targetType === 'selected_units' ? (
+                <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+              ) : (
+                <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+              )}
+              <View style={styles.radioTextWrap}>
+                <Text style={styles.radioTitle}>
+                  Internal Unit Kerja: {user?.unitKerja || 'Unit Anda'}
+                </Text>
+                <Text style={styles.radioSub}>
+                  Agenda ditujukan khusus untuk seluruh pegawai di lingkungan unit kerja Anda.
+                </Text>
+              </View>
+            </Pressable>
+          )}
+
+          <Pressable
+            onPress={() => setTargetType('selected_users')}
+            style={[
+              styles.radioCard,
+              targetType === 'selected_users' && styles.radioCardActive,
+            ]}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: targetType === 'selected_users' }}
+          >
+            {targetType === 'selected_users' ? (
+              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
+            ) : (
+              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
+            )}
+            <View style={styles.radioTextWrap}>
+              <Text style={styles.radioTitle}>Khusus Pegawai ASN Tertentu</Text>
+              <Text style={styles.radioSub}>
+                Hanya pegawai ASN yang dipilih secara spesifik yang dapat melihat dan mengisi
+                presensi rapat.
+              </Text>
+            </View>
+          </Pressable>
+
+          {targetType === 'all_units' ? (
+            <View style={styles.universalNoticeBox}>
+              <Users size={18} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.universalNoticeText}>
+                Seluruh pegawai aktif di lingkungan LLDIKTI Wilayah X otomatis terdaftar sebagai
+                peserta agenda ini.
+              </Text>
+            </View>
+          ) : null}
+
+          {targetType === 'selected_units' && isAdministrator ? (
+            <View style={styles.unitSelectSection}>
+              <View style={styles.selectionHeaderRow}>
+                <Text style={styles.unitSelectHeader}>
+                  Pilih Unit Kerja ({selectedUnits.length} dipilih):
+                </Text>
+                <View style={styles.selectionQuickActions}>
+                  <Pressable
+                    onPress={() => setSelectedUnits((formOptions?.units ?? []).map((u) => u.id))}
+                    style={styles.quickLinkBtn}
+                  >
+                    <Text style={styles.quickLinkText}>Pilih Semua</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setSelectedUnits([])} style={styles.quickLinkBtn}>
+                    <Text style={styles.quickLinkMutedText}>Hapus Semua</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.chipsWrap}>
+                {(formOptions?.units ?? []).map((unit) => {
+                  const selected = selectedUnits.includes(unit.id);
+                  return (
+                    <Pressable
+                      key={unit.id}
+                      onPress={() => toggleUnit(unit.id)}
+                      style={[styles.unitChip, selected && styles.unitChipSelected]}
+                    >
+                      {selected ? (
+                        <Check size={14} color={colors.onPrimary} strokeWidth={2.5} />
+                      ) : null}
+                      <Text
+                        style={[styles.unitChipText, selected && styles.unitChipTextSelected]}
+                      >
+                        {unit.kode_unit} — {unit.nama_unit}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {targetType === 'selected_units' && !isAdministrator ? (
+            <View style={styles.universalNoticeBox}>
+              <Building size={18} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.universalNoticeText}>
+                Sasaran dikunci ke unit kerja Anda ({user?.unitKerja || 'Unit Kerja Terkait'}).
+              </Text>
+            </View>
+          ) : null}
+
+          {targetType === 'selected_users' ? (
+            <View style={styles.unitSelectSection}>
+              <View style={styles.selectionHeaderRow}>
+                <Text style={styles.unitSelectHeader}>
+                  Pilih Pegawai ASN ({selectedUserIds.length} dipilih):
+                </Text>
+                <View style={styles.selectionQuickActions}>
+                  <Pressable
+                    onPress={() =>
+                      setSelectedUserIds(
+                        filteredCandidates
+                          .map((u) => Number(u.id))
+                          .filter((id) => Number.isFinite(id))
+                      )
+                    }
+                    style={styles.quickLinkBtn}
+                  >
+                    <Text style={styles.quickLinkText}>Pilih Semua</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setSelectedUserIds([])} style={styles.quickLinkBtn}>
+                    <Text style={styles.quickLinkMutedText}>Hapus Semua</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.candidateSearchBox}>
+                <Search size={15} color={colors.textMuted} strokeWidth={2} />
+                <TextInput
+                  value={userSearchQuery}
+                  onChangeText={setUserSearchQuery}
+                  placeholder="Cari nama, NIP, atau unit kerja ASN..."
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.candidateSearchInput}
+                />
+                {userSearchQuery.length > 0 ? (
+                  <Pressable
+                    onPress={() => setUserSearchQuery('')}
+                    style={styles.candidateSearchClear}
+                    accessibilityLabel="Bersihkan pencarian pegawai"
+                  >
+                    <X size={15} color={colors.textMuted} strokeWidth={2} />
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {isUserCandidatesLoading ? (
+                <View style={styles.candidateStateBox}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.candidateStateText}>Memuat daftar pegawai ASN...</Text>
+                </View>
+              ) : userCandidatesError ? (
+                <View style={styles.candidateStateBox}>
+                  <Text style={styles.candidateErrorText}>{userCandidatesError}</Text>
+                  <Pressable onPress={() => void fetchUserCandidates()} style={styles.retryBtn}>
+                    <Text style={styles.retryBtnText}>Muat Ulang</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <ScrollView
+                  nestedScrollEnabled
+                  style={styles.candidateListScroll}
+                  contentContainerStyle={styles.candidateListContent}
+                >
+                  {filteredCandidates.map((candidate) => {
+                    const numericId = Number(candidate.id);
+                    const isChecked = selectedUserIds.includes(numericId);
+                    return (
+                      <Pressable
+                        key={candidate.id}
+                        onPress={() => toggleUserCandidate(numericId)}
+                        style={[
+                          styles.candidateRow,
+                          isChecked && styles.candidateRowSelected,
+                        ]}
+                      >
+                        {isChecked ? (
+                          <CheckSquare size={18} color={colors.primary} strokeWidth={2} />
+                        ) : (
+                          <Square size={18} color={colors.textMuted} strokeWidth={2} />
+                        )}
+                        <View style={styles.candidateInfo}>
+                          <Text style={styles.candidateName} numberOfLines={1}>
+                            {candidate.name}
+                          </Text>
+                          <Text style={styles.candidateSub} numberOfLines={1}>
+                            {candidate.nip ? `NIP. ${candidate.nip}` : 'NIP tidak tersedia'}
+                            {candidate.unit ? ` • ${candidate.unit}` : ''}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                  {filteredCandidates.length === 0 ? (
+                    <Text style={styles.candidateEmptyText}>
+                      Tidak ada pegawai ASN yang cocok dengan pencarian.
+                    </Text>
+                  ) : null}
+                </ScrollView>
+              )}
+            </View>
+          ) : null}
+        </View>
+
+        {/* SECTION 3: Penugasan Pimpinan & Notulis Rapat */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>3. Penugasan Pimpinan & Notulis Rapat</Text>
           </View>
 
           <View style={styles.fieldGroup}>
@@ -628,266 +1085,135 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           </View>
         </View>
 
-        {/* SECTION 2: Waktu & Tempat */}
+        {/* SECTION 4: Surat Undangan / Edaran Resmi */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Waktu & Tempat</Text>
+            <Text style={styles.sectionTitle}>4. Surat Undangan / Edaran Resmi</Text>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>
-              Tanggal Pelaksanaan <Text style={styles.required}>*</Text>
-            </Text>
+          <View style={styles.modeSegmentedRow}>
             <Pressable
-              onPress={() => setActiveModal('date')}
-              style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
+              onPress={() => setSuratEdaranType('upload')}
+              style={[
+                styles.modeSegmentedBtn,
+                suratEdaranType === 'upload' && styles.modeSegmentedBtnActive,
+              ]}
             >
-              <View style={styles.selectorLeft}>
-                <Calendar size={18} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.selectorValue}>{date}</Text>
-              </View>
-              <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
+              <Upload
+                size={15}
+                color={suratEdaranType === 'upload' ? colors.onPrimary : colors.textSecondary}
+                strokeWidth={2}
+              />
+              <Text
+                style={[
+                  styles.modeSegmentedText,
+                  suratEdaranType === 'upload' && styles.modeSegmentedTextActive,
+                ]}
+              >
+                Unggah Berkas Fisik
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSuratEdaranType('digital')}
+              style={[
+                styles.modeSegmentedBtn,
+                suratEdaranType === 'digital' && styles.modeSegmentedBtnActive,
+              ]}
+            >
+              <FilePenLine
+                size={15}
+                color={suratEdaranType === 'digital' ? colors.onPrimary : colors.textSecondary}
+                strokeWidth={2}
+              />
+              <Text
+                style={[
+                  styles.modeSegmentedText,
+                  suratEdaranType === 'digital' && styles.modeSegmentedTextActive,
+                ]}
+              >
+                Buat Surat Digital Langsung
+              </Text>
             </Pressable>
           </View>
 
-          <View style={styles.timeRow}>
-            <View style={styles.timeCol}>
-              <Text style={styles.label}>Mulai (WIB)</Text>
-              <TextInput
-                style={styles.timeInput}
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="09:00"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.timeCol}>
-              <Text style={styles.label}>Selesai (WIB)</Text>
-              <TextInput
-                style={styles.timeInput}
-                value={endTime}
-                onChangeText={setEndTime}
-                placeholder="12:00"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-          </View>
-
-          <View style={styles.durationInline}>
-            <Clock size={15} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.durationInlineText}>
-              {computeDurationLabel(startTime, endTime)}
-            </Text>
-          </View>
-
-          {formatType !== 'online' ? (
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>
-                Ruang Rapat / Lokasi <Text style={styles.required}>*</Text>
-              </Text>
+          {suratEdaranType === 'upload' ? (
+            <>
               <Pressable
-                onPress={() => setActiveModal('venue')}
-                style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
+                onPress={handleUploadFile}
+                style={({ pressed }) => [styles.dropzone, pressed && styles.pressedState]}
               >
-                <View style={styles.selectorLeft}>
-                  <DoorOpen size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.selectorValue} numberOfLines={1}>
-                    {venue}
+                <View style={styles.dropzoneIconWrap}>
+                  <Upload size={20} color={colors.primary} strokeWidth={2} />
+                </View>
+                <View style={styles.dropzoneTextWrap}>
+                  <Text style={styles.dropzoneTitle}>Unggah Surat Undangan / Nota Dinas</Text>
+                  <Text style={styles.dropzoneSub}>
+                    Format PDF atau gambar bertanda tangan digital (Maksimal 5 MB)
                   </Text>
                 </View>
-                <View style={styles.selectorRight}>
-                  {venueId === 'custom' ? (
-                    <View style={styles.selectorBadge}>
-                      <Text style={styles.selectorBadgeText}>Kustom</Text>
-                    </View>
-                  ) : null}
-                  <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
-                </View>
               </Pressable>
-            </View>
-          ) : null}
 
-          {formatType !== 'offline' ? (
-            <View style={styles.virtualMeetingBox}>
-              <View style={styles.virtualHeader}>
-                <View style={styles.virtualHeaderLeft}>
-                  <Video size={16} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.virtualTitle}>Tautan Pertemuan Virtual</Text>
-                </View>
-                <View style={styles.virtualBadge}>
-                  <Text style={styles.virtualBadgeText}>Video Conference</Text>
-                </View>
-              </View>
-
-              <TextInput
-                style={styles.virtualInput}
-                value={zoomUrl}
-                onChangeText={setZoomUrl}
-                placeholder="https://zoom.lldikti10.kemdikbud.go.id/..."
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="none"
-              />
-
-              {meetingIdInput || passcode ? (
-                <View style={styles.virtualMetaRow}>
-                  <View style={styles.virtualMetaCol}>
-                    <Text style={styles.virtualMetaLabel}>Meeting ID</Text>
-                    <Text style={styles.virtualMetaValue}>{meetingIdInput}</Text>
+              {attachedFile ? (
+                <View style={styles.attachedCard}>
+                  <View style={styles.attachedLeft}>
+                    <View
+                      style={[
+                        styles.attachedIconBox,
+                        attachedFile.type.startsWith('image/')
+                          ? styles.attachedBadgeImage
+                          : styles.attachedBadgePdf,
+                      ]}
+                    >
+                      {attachedFile.type.startsWith('image/') ? (
+                        <ImageIcon size={18} color={colors.primary} strokeWidth={2} />
+                      ) : (
+                        <FileText size={18} color={colors.error} strokeWidth={2} />
+                      )}
+                    </View>
+                    <View style={styles.attachedInfo}>
+                      <Text style={styles.attachedName} numberOfLines={1}>
+                        {attachedFile.name}
+                      </Text>
+                      <Text style={styles.attachedMeta}>
+                        {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB •{' '}
+                        {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.virtualMetaCol}>
-                    <Text style={styles.virtualMetaLabel}>Passcode</Text>
-                    <Text style={styles.virtualMetaValue}>{passcode}</Text>
+                  <View style={styles.attachedActions}>
+                    <Pressable
+                      onPress={() => setIsViewerModalVisible(true)}
+                      style={styles.attachedActionBtn}
+                      accessibilityLabel="Pratinjau lampiran"
+                    >
+                      <Eye size={18} color={colors.primary} strokeWidth={2} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setAttachedFile(null)}
+                      style={styles.attachedActionBtn}
+                      accessibilityLabel="Hapus lampiran"
+                    >
+                      <Trash2 size={18} color={colors.error} strokeWidth={2} />
+                    </Pressable>
                   </View>
                 </View>
               ) : null}
-            </View>
-          ) : null}
-        </View>
-
-        {/* SECTION 3: Sasaran Peserta */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Sasaran Peserta</Text>
-          </View>
-
-          <Pressable
-            onPress={() => setScopeUniversal(true)}
-            style={[styles.radioCard, scopeUniversal && styles.radioCardActive]}
-          >
-            {scopeUniversal ? (
-              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
-            ) : (
-              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
-            )}
-            <View style={styles.radioTextWrap}>
-              <Text style={styles.radioTitle}>Seluruh Unit Kerja (Pleno / Universal)</Text>
-              <Text style={styles.radioSub}>
-                Semua pegawai di lingkungan LLDIKTI Wilayah X diikutsertakan.
-              </Text>
-            </View>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setScopeUniversal(false)}
-            style={[styles.radioCard, !scopeUniversal && styles.radioCardActive]}
-          >
-            {!scopeUniversal ? (
-              <CircleDot size={20} color={colors.primary} strokeWidth={2} />
-            ) : (
-              <Circle size={20} color={colors.textMuted} strokeWidth={2} />
-            )}
-            <View style={styles.radioTextWrap}>
-              <Text style={styles.radioTitle}>Unit Kerja Tertentu</Text>
-              <Text style={styles.radioSub}>
-                Pilih bagian atau kelompok kerja yang diundang secara spesifik.
-              </Text>
-            </View>
-          </Pressable>
-
-          {scopeUniversal ? (
-            <View style={styles.universalNoticeBox}>
-              <Users size={18} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.universalNoticeText}>
-                Semua pegawai di 11 unit kerja LLDIKTI Wilayah X otomatis terdaftar sebagai peserta
-                agenda ini.
-              </Text>
-            </View>
+            </>
           ) : (
-            <View style={styles.unitSelectSection}>
-              <Text style={styles.unitSelectHeader}>
-                Pilih Unit Kerja ({selectedUnits.length} dipilih):
-              </Text>
-              <View style={styles.chipsWrap}>
-                {(formOptions?.units ?? []).map((unit) => {
-                  const selected = selectedUnits.includes(unit.id);
-                  return (
-                    <Pressable
-                      key={unit.id}
-                      onPress={() => toggleUnit(unit.id)}
-                      style={[styles.unitChip, selected && styles.unitChipSelected]}
-                    >
-                      {selected ? (
-                        <Check size={14} color={colors.onPrimary} strokeWidth={2.5} />
-                      ) : null}
-                      <Text
-                        style={[styles.unitChipText, selected && styles.unitChipTextSelected]}
-                      >
-                        {unit.nama_unit}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+            <View style={styles.digitalNoticeCard}>
+              <FilePenLine size={18} color={colors.primary} strokeWidth={2} />
+              <View style={styles.digitalNoticeBody}>
+                <Text style={styles.digitalNoticeTitle}>
+                  Naskah Surat Undangan Digital (Kop Resmi LLDIKTI X)
+                </Text>
+                <Text style={styles.digitalNoticeSub}>
+                  Sistem akan membuat draf surat dinas digital otomatis sesuai judul, jadwal,
+                  lokasi/tautan, dan pimpinan rapat. Penyesuaian isi & nomor surat dapat dilakukan
+                  setelah agenda disimpan.
+                </Text>
               </View>
             </View>
           )}
-        </View>
-
-        {/* SECTION 4: Lampiran Undangan */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Lampiran Undangan</Text>
-          </View>
-
-          <Pressable
-            onPress={handleUploadFile}
-            style={({ pressed }) => [styles.dropzone, pressed && styles.pressedState]}
-          >
-            <View style={styles.dropzoneIconWrap}>
-              <Upload size={20} color={colors.primary} strokeWidth={2} />
-            </View>
-            <View style={styles.dropzoneTextWrap}>
-              <Text style={styles.dropzoneTitle}>Unggah Surat Undangan / Nota Dinas</Text>
-              <Text style={styles.dropzoneSub}>
-                Format PDF atau gambar bertanda tangan digital (Maksimal 5 MB)
-              </Text>
-            </View>
-          </Pressable>
-
-          {attachedFile ? (
-            <View style={styles.attachedCard}>
-              <View style={styles.attachedLeft}>
-                <View
-                  style={[
-                    styles.attachedIconBox,
-                    attachedFile.type.startsWith('image/')
-                      ? styles.attachedBadgeImage
-                      : styles.attachedBadgePdf,
-                  ]}
-                >
-                  {attachedFile.type.startsWith('image/') ? (
-                    <ImageIcon size={18} color={colors.primary} strokeWidth={2} />
-                  ) : (
-                    <FileText size={18} color={colors.error} strokeWidth={2} />
-                  )}
-                </View>
-                <View style={styles.attachedInfo}>
-                  <Text style={styles.attachedName} numberOfLines={1}>
-                    {attachedFile.name}
-                  </Text>
-                  <Text style={styles.attachedMeta}>
-                    {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB •{' '}
-                    {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.attachedActions}>
-                <Pressable
-                  onPress={() => setIsViewerModalVisible(true)}
-                  style={styles.attachedActionBtn}
-                  accessibilityLabel="Pratinjau lampiran"
-                >
-                  <Eye size={18} color={colors.primary} strokeWidth={2} />
-                </Pressable>
-                <Pressable
-                  onPress={() => setAttachedFile(null)}
-                  style={styles.attachedActionBtn}
-                  accessibilityLabel="Hapus lampiran"
-                >
-                  <Trash2 size={18} color={colors.error} strokeWidth={2} />
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
         </View>
       </ScrollView>
 
@@ -900,21 +1226,34 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
       >
         <View style={styles.footerGrid}>
           <Pressable
-            onPress={handleSaveDraft}
-            style={({ pressed }) => [styles.draftButton, pressed && styles.buttonPressed]}
+            onPress={() => void handleSubmit('draft')}
+            disabled={isLoading}
+            style={({ pressed }) => [
+              styles.draftButton,
+              isLoading && styles.buttonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
           >
             <Save size={17} color={colors.textSecondary} strokeWidth={2} />
-            <Text style={styles.draftButtonText}>Simpan Konsep</Text>
+            <Text style={styles.draftButtonText}>
+              {isLoading && submittingStatus === 'draft' ? 'Menyimpan...' : 'Simpan Konsep'}
+            </Text>
           </Pressable>
 
           <Pressable
-            onPress={handleSubmit}
+            onPress={() => void handleSubmit('scheduled')}
             disabled={isLoading}
-            style={({ pressed }) => [styles.publishButton, pressed && styles.buttonPressed]}
+            style={({ pressed }) => [
+              styles.publishButton,
+              isLoading && styles.buttonDisabled,
+              pressed && styles.buttonPressed,
+            ]}
           >
             <CheckCircle2 size={17} color={colors.onPrimary} strokeWidth={2} />
             <Text style={styles.publishButtonText}>
-              {isLoading ? 'Menerbitkan...' : 'Terbitkan Agenda'}
+              {isLoading && submittingStatus === 'scheduled'
+                ? 'Menyimpan...'
+                : 'Simpan Agenda Rapat'}
             </Text>
           </Pressable>
         </View>
@@ -1404,5 +1743,182 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
   },
+  buttonDisabled: { opacity: 0.6 },
   buttonPressed: { opacity: 0.82 },
+  selectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  selectionQuickActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  quickLinkBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  quickLinkText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.infoText,
+  },
+  quickLinkMutedText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textMuted,
+  },
+  candidateSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: MIN_TOUCH_TARGET,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: rounded.md,
+    paddingHorizontal: 12,
+    backgroundColor: colors.surfaceCard,
+  },
+  candidateSearchInput: {
+    ...typography.bodySm,
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    color: colors.onSurface,
+  },
+  candidateSearchClear: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  candidateStateBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  candidateStateText: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+  },
+  candidateErrorText: {
+    ...typography.bodySm,
+    color: colors.error,
+    flex: 1,
+  },
+  retryBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primary,
+  },
+  retryBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  candidateListScroll: {
+    maxHeight: 260,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.background,
+  },
+  candidateListContent: {
+    padding: spacing.xs + 2,
+    gap: spacing.xs + 2,
+  },
+  candidateRow: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceCard,
+  },
+  candidateRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceSoft,
+  },
+  candidateInfo: { flex: 1, minWidth: 0 },
+  candidateName: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
+  },
+  candidateSub: {
+    ...typography.labelSm,
+    color: colors.textMuted,
+  },
+  candidateEmptyText: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+    textAlign: 'center',
+    padding: spacing.md,
+  },
+  modeSegmentedRow: {
+    flexDirection: 'row',
+    gap: spacing.xs + 2,
+    padding: 4,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceSoft,
+  },
+  modeSegmentedBtn: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    borderRadius: rounded.md,
+  },
+  modeSegmentedBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  modeSegmentedText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  modeSegmentedTextActive: {
+    color: colors.onPrimary,
+  },
+  digitalNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm + 2,
+    padding: spacing.md,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    backgroundColor: colors.infoBg,
+  },
+  digitalNoticeBody: { flex: 1, gap: 4 },
+  digitalNoticeTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.infoText,
+  },
+  digitalNoticeSub: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
 });

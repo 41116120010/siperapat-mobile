@@ -93,7 +93,7 @@ export const STATUS_OPTIONS: Array<{
   },
   {
     id: 'ongoing',
-    label: 'Presensi Dibuka',
+    label: 'Sedang Berlangsung',
     badge: 'Berlangsung',
     color: colors.success,
     icon: 'sensors',
@@ -114,7 +114,7 @@ export const STATUS_OPTIONS: Array<{
   },
   {
     id: 'draft',
-    label: 'Konsep',
+    label: 'Draf / Konsep',
     badge: 'Draf',
     color: colors.outlineVariant,
     icon: 'edit-note',

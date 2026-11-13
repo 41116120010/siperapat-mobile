@@ -1,22 +1,40 @@
 import { create } from 'zustand';
 import { Meeting, UserOption } from '../../domain/entities/types';
-import { AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
-import { ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
+import { agendaApi, AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
+import { ApiAgendaDto, ApiAgendaStatusCounts, ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
+import { toMeeting } from '../../data/mappers/apiMappers';
 import { MeetingRepositoryImpl } from '../../data/repositories/MeetingRepositoryImpl';
 
 const repository = new MeetingRepositoryImpl();
 let candidatesInFlightKey: string | null = null;
 type FilterTab = 'all' | 'ongoing' | 'upcoming' | 'completed';
+export type AgendaStatusFilter = 'all' | 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
+export type AgendaUnitFilter = 'all' | 'all_units' | number;
 interface MeetingState {
   meetings: Meeting[]; dashboardMeetings: Meeting[]; dashboardStats: ApiDashboardDto['stats'] | null;
   activeMeeting: Meeting | null; isLoading: boolean; isLoadingMore: boolean; error: string | null;
   isSavingMinutes: boolean;
   filterTab: FilterTab; currentPage: number; lastPage: number; total: number; typeFilter: 'hybrid' | 'offline' | 'online' | undefined;
+  statusFilter: AgendaStatusFilter;
+  searchQuery: string;
+  unitFilter: AgendaUnitFilter;
+  statusCounts: ApiAgendaStatusCounts | null;
+  agendaMetaById: Record<string, ApiAgendaDto>;
   formOptions: { users: ApiUserDto[]; units: ApiUnitDto[] } | null; isFormOptionsLoading: boolean;
   userCandidates: UserOption[]; userCandidatesTotal: number; isUserCandidatesLoading: boolean; userCandidatesError: string | null;
   setFilterTab: (tab: FilterTab) => void; fetchDashboard: () => Promise<void>;
-  fetchMeetings: (page?: number, append?: boolean, typeFilter?: 'all' | 'hybrid' | 'offline' | 'online') => Promise<void>;
+  fetchMeetings: (
+    page?: number,
+    append?: boolean,
+    typeFilter?: 'all' | 'hybrid' | 'offline' | 'online',
+    extraFilters?: {
+      status?: AgendaStatusFilter;
+      search?: string;
+      unitId?: AgendaUnitFilter;
+    },
+  ) => Promise<void>;
   getMeetingById: (id: string) => Promise<Meeting>;
+  getMeetingDetailWithDto: (id: string) => Promise<{ meeting: Meeting; raw: ApiAgendaDto }>;
   updateMinutes: (id: string, minutes: UpdateMinutesDto) => Promise<Meeting | null>;
   uploadSuratEdaran: (id: string, suratEdaran: UploadFileRef, meetingContext?: UpdateAgendaDto) => Promise<Meeting | null>;
   createMeeting: (payload: CreateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
@@ -32,7 +50,13 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   meetings: [], dashboardMeetings: [], dashboardStats: null, activeMeeting: null,
   isLoading: false, isLoadingMore: false, error: null, filterTab: 'all', currentPage: 0, lastPage: 1, total: 0,
   isSavingMinutes: false,
-  typeFilter: undefined, formOptions: null, isFormOptionsLoading: false,
+  typeFilter: undefined,
+  statusFilter: 'all',
+  searchQuery: '',
+  unitFilter: 'all',
+  statusCounts: null,
+  agendaMetaById: {},
+  formOptions: null, isFormOptionsLoading: false,
   userCandidates: [], userCandidatesTotal: 0, isUserCandidatesLoading: false, userCandidatesError: null,
 
   setFilterTab: (tab) => {
@@ -51,16 +75,33 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     finally { set({ isLoading: false }); }
   },
 
-  fetchMeetings: async (page = 1, append = false, requestedType) => {
+  fetchMeetings: async (page = 1, append = false, requestedType, extraFilters) => {
     const typeFilter = requestedType === undefined ? get().typeFilter : requestedType === 'all' ? undefined : requestedType;
+    const statusFilter = extraFilters?.status !== undefined ? extraFilters.status : get().statusFilter;
+    const searchQuery = extraFilters?.search !== undefined ? extraFilters.search : get().searchQuery;
+    const unitFilter = extraFilters?.unitId !== undefined ? extraFilters.unitId : get().unitFilter;
     if (append && (get().isLoadingMore || page > get().lastPage)) return;
-    if (page === 1) set({ typeFilter });
+    if (page === 1) set({ typeFilter, statusFilter, searchQuery, unitFilter });
     set(append ? { isLoadingMore: true, error: null } : { isLoading: true, error: null });
     try {
-      const result = await repository.getMeetings(page, { type: typeFilter });
+      const response = await agendaApi.list(page, 10, {
+        type: typeFilter,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        search: searchQuery.trim() || undefined,
+        unitId: unitFilter === 'all' ? undefined : unitFilter,
+      });
+      const mapped = response.data.map(toMeeting);
+      const nextMeta: Record<string, ApiAgendaDto> = append ? { ...get().agendaMetaById } : {};
+      response.data.forEach((dto) => {
+        nextMeta[String(dto.id)] = dto;
+      });
       set((state) => ({
-        meetings: append ? [...state.meetings, ...result.meetings.filter((item) => !state.meetings.some((old) => old.id === item.id))] : result.meetings,
-        currentPage: result.currentPage, lastPage: result.lastPage, total: result.total,
+        meetings: append ? [...state.meetings, ...mapped.filter((item) => !state.meetings.some((old) => old.id === item.id))] : mapped,
+        currentPage: response.meta.current_page,
+        lastPage: response.meta.last_page,
+        total: response.meta.total,
+        statusCounts: response.summary?.status_counts ?? state.statusCounts,
+        agendaMetaById: nextMeta,
       }));
     } catch (error) { set({ error: message(error, 'Gagal memuat daftar agenda.') }); }
     finally { set(append ? { isLoadingMore: false } : { isLoading: false }); }
@@ -70,6 +111,18 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     const meeting = await repository.getMeetingById(id);
     if (!meeting) throw new Error('Agenda tidak ditemukan.');
     return meeting;
+  },
+
+  getMeetingDetailWithDto: async (id) => {
+    const response = await agendaApi.detail(id);
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Agenda tidak ditemukan.');
+    }
+    const meeting = toMeeting(response.data);
+    set((state) => ({
+      agendaMetaById: { ...state.agendaMetaById, [String(response.data.id)]: response.data },
+    }));
+    return { meeting, raw: response.data };
   },
 
   updateMinutes: async (id, minutes) => {

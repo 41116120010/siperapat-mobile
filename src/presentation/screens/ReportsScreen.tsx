@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,17 +15,24 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
   ArrowUpRight,
+  Award,
   BarChart3,
+  BookOpen,
   Building2,
   Calendar,
   CheckCircle2,
+  ChevronsUpDown,
   ClipboardCheck,
   Download,
   FileSpreadsheet,
   FileText,
   Filter,
+  Link2,
+  MapPin,
   RotateCcw,
   Search,
+  ShieldCheck,
+  UserCheck,
   Users,
   X,
 } from 'lucide-react-native';
@@ -31,9 +40,20 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { formatTanggalIndonesia } from '../../core/utils/dateFormatter';
-import { ApiAgendaDto, ApiPaginationMeta } from '../../data/datasources/apiTypes';
+import {
+  resolveAttendanceMediaUrl,
+  resolveSuratEdaranUrl,
+} from '../../core/utils/mediaUrl';
+import { authTokenStore } from '../../data/datasources/authTokenStore';
+import {
+  ApiAgendaDto,
+  ApiAttendanceDto,
+  ApiPaginationMeta,
+} from '../../data/datasources/apiTypes';
+import { attendanceApi } from '../../data/datasources/attendanceApi';
 import {
   AgendaExportFormat,
+  ApiReportAgendaRecapDto,
   ApiReportSummaryDto,
   reportApi,
   ReportFilterParams,
@@ -44,7 +64,12 @@ import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
+import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
+import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
+import { CalendarDatePickerModal } from '../components/modals/CalendarDatePickerModal';
+import { useAuthStore } from '../store/useAuthStore';
+import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 
 export interface ReportsScreenProps {
@@ -58,15 +83,15 @@ type FormatFilterValue = 'all' | 'offline' | 'online' | 'hybrid';
 const STATUS_OPTIONS: Array<{ value: StatusFilterValue; label: string }> = [
   { value: 'all', label: 'Semua Status' },
   { value: 'completed', label: 'Selesai' },
-  { value: 'ongoing', label: 'Berlangsung' },
+  { value: 'ongoing', label: 'Sedang Berlangsung' },
   { value: 'scheduled', label: 'Terjadwal' },
   { value: 'cancelled', label: 'Dibatalkan' },
 ];
 
 const FORMAT_OPTIONS: Array<{ value: FormatFilterValue; label: string }> = [
   { value: 'all', label: 'Semua Format' },
-  { value: 'offline', label: 'Tatap Muka' },
-  { value: 'online', label: 'Daring' },
+  { value: 'offline', label: 'Tatap Muka (Luring)' },
+  { value: 'online', label: 'Daring (Virtual)' },
   { value: 'hybrid', label: 'Hibrida' },
 ];
 
@@ -110,20 +135,97 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+const BearerImage: React.FC<{
+  rawUrl?: string | null;
+  attendanceId?: number;
+  style: object;
+  resizeMode?: 'contain' | 'cover';
+  fallbackLabel?: string;
+}> = ({ rawUrl, attendanceId, style, resizeMode = 'contain', fallbackLabel }) => {
+  const [localUri, setLocalUri] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const resolved =
+      attendanceId != null
+        ? resolveAttendanceMediaUrl(rawUrl, String(attendanceId), 'signature')
+        : resolveSuratEdaranUrl(rawUrl);
+    if (!resolved) {
+      setLocalUri(null);
+      setFailed(true);
+      return () => {
+        active = false;
+      };
+    }
+
+    setFailed(false);
+    const load = async () => {
+      try {
+        const cacheDir = FileSystem.cacheDirectory;
+        if (!cacheDir) {
+          if (active) setFailed(true);
+          return;
+        }
+        const token = authTokenStore.get();
+        const safeKey = resolved.replace(/[^a-zA-Z0-9]/g, '_').slice(-40);
+        const dest = `${cacheDir}report_media_${safeKey}.png`;
+        const result = await FileSystem.downloadAsync(resolved, dest, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!active) return;
+        if (result.status >= 200 && result.status < 300) {
+          setLocalUri(result.uri);
+        } else {
+          setFailed(true);
+        }
+      } catch {
+        if (active) setFailed(true);
+      }
+    };
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [rawUrl]);
+
+  if (localUri) {
+    return <Image source={{ uri: localUri }} style={style} resizeMode={resizeMode} />;
+  }
+
+  return (
+    <View style={[style, styles.bearerImageFallback]}>
+      {failed ? (
+        <Text style={styles.bearerFallbackText}>
+          {fallbackLabel || 'Tidak dapat memuat media'}
+        </Text>
+      ) : (
+        <ActivityIndicator size="small" color={colors.primary} />
+      )}
+    </View>
+  );
+};
+
 export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   onBack,
   onOpenAgenda,
 }) => {
   const { showToast } = useFeedbackStore();
+  const isAdministrator = useAuthStore((state) => state.user?.role === 'administrator');
+  const { allUnits, fetchAllUnits } = useEmployeeStore();
   const exportRepoRef = useRef(new AgendaExportRepository());
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all');
   const [formatFilter, setFormatFilter] = useState<FormatFilterValue>('all');
+  const [selectedUnitId, setSelectedUnitId] = useState('');
+  const [unitModalVisible, setUnitModalVisible] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [activeDateField, setActiveDateField] = useState<'start' | 'end' | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [summary, setSummary] = useState<ApiReportSummaryDto | null>(null);
@@ -143,6 +245,45 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const [isExportingSummaryCsv, setIsExportingSummaryCsv] = useState(false);
   const [exportingKey, setExportingKey] = useState<string | null>(null);
 
+  const [recapModalVisible, setRecapModalVisible] = useState(false);
+  const [recapAgendaPreview, setRecapAgendaPreview] = useState<ApiAgendaDto | null>(null);
+  const [recapDetail, setRecapDetail] = useState<ApiReportAgendaRecapDto | null>(null);
+  const [recapAttendances, setRecapAttendances] = useState<ApiAttendanceDto[]>([]);
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [recapError, setRecapError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAdministrator) {
+      void fetchAllUnits({ activeOnly: false });
+    }
+  }, [isAdministrator, fetchAllUnits]);
+
+  const unitFilterOptions = useMemo<AgendaOption[]>(() => {
+    const items: AgendaOption[] = [
+      {
+        id: '',
+        title: 'Semua Unit Kerja',
+        subtitle: 'Tampilkan laporan seluruh unit kerja LLDIKTI Wilayah X',
+        icon: Building2,
+      },
+    ];
+    allUnits.forEach((u) => {
+      items.push({
+        id: String(u.id),
+        title: `${u.kode_unit} — ${u.nama_unit}`,
+        subtitle: u.is_active ? u.deskripsi ?? undefined : 'Unit Nonaktif',
+        icon: Building2,
+      });
+    });
+    return items;
+  }, [allUnits]);
+
+  const selectedUnitLabel = useMemo(() => {
+    if (!selectedUnitId) return 'Semua Unit Kerja';
+    const found = allUnits.find((u) => String(u.id) === selectedUnitId);
+    return found ? `${found.kode_unit} — ${found.nama_unit}` : `Unit #${selectedUnitId}`;
+  }, [allUnits, selectedUnitId]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery.trim());
@@ -154,6 +295,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     const filters: ReportFilterParams = {};
     if (statusFilter !== 'all') filters.status = statusFilter;
     if (formatFilter !== 'all') filters.tipe = formatFilter;
+    if (isAdministrator && selectedUnitId) {
+      filters.unit_id = Number(selectedUnitId);
+    }
     if (/^\d{4}-\d{2}-\d{2}$/.test(startDate.trim())) {
       filters.start_date = startDate.trim();
     }
@@ -161,11 +305,12 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
       filters.end_date = endDate.trim();
     }
     return filters;
-  }, [statusFilter, formatFilter, startDate, endDate]);
+  }, [statusFilter, formatFilter, isAdministrator, selectedUnitId, startDate, endDate]);
 
   const hasActiveFilters = Boolean(
     statusFilter !== 'all' ||
       formatFilter !== 'all' ||
+      (isAdministrator && selectedUnitId !== '') ||
       debouncedSearch.length > 0 ||
       startDate.trim().length > 0 ||
       endDate.trim().length > 0,
@@ -232,9 +377,47 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     setDebouncedSearch('');
     setStatusFilter('all');
     setFormatFilter('all');
+    setSelectedUnitId('');
     setStartDate('');
     setEndDate('');
     setCurrentPage(1);
+  };
+
+  const handleApplyFilters = () => {
+    setDebouncedSearch(searchQuery.trim());
+    setCurrentPage(1);
+    void loadReports(1, 'list');
+  };
+
+  const handleOpenRecap = async (agenda: ApiAgendaDto) => {
+    setRecapAgendaPreview(agenda);
+    setRecapDetail(null);
+    setRecapAttendances(agenda.attendances ?? []);
+    setRecapError(null);
+    setRecapModalVisible(true);
+    setRecapLoading(true);
+    try {
+      const [recapRes, attendanceRes] = await Promise.all([
+        reportApi.getAgendaRecap(String(agenda.id)),
+        attendanceApi
+          .agendaAttendances(String(agenda.id), 1, 50, { status: 'attended' })
+          .catch(() => null),
+      ]);
+      setRecapDetail(recapRes.data);
+      if (recapRes.data.agenda.attendances && recapRes.data.agenda.attendances.length > 0) {
+        setRecapAttendances(recapRes.data.agenda.attendances);
+      } else if (attendanceRes?.data) {
+        setRecapAttendances(attendanceRes.data);
+      }
+    } catch (err) {
+      setRecapError(
+        err instanceof Error
+          ? err.message
+          : 'Gagal memuat pratinjau detail rekapitulasi laporan.',
+      );
+    } finally {
+      setRecapLoading(false);
+    }
   };
 
   const handleExportSummaryCsv = async () => {
@@ -319,11 +502,32 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     ? Math.max(0, summary.completed_agendas - summary.count_with_notulen)
     : 0;
 
+  const activeRecapAgenda = recapDetail?.agenda ?? recapAgendaPreview;
+  const activeRecapPenutup =
+    typeof recapDetail?.report_config?.penutup === 'string' &&
+    recapDetail.report_config.penutup.trim().length > 0
+      ? recapDetail.report_config.penutup.trim()
+      : 'Demikian notulensi rapat kedinasan ini disusun secara sah sebagai bagian dari dokumentasi administrasi rapat di lingkungan LLDIKTI Wilayah X.';
+
+  const pimpinanAttendance = useMemo(() => {
+    if (!activeRecapAgenda?.pimpinan?.id) return null;
+    return (
+      recapAttendances.find((a) => a.user_id === activeRecapAgenda.pimpinan?.id) ?? null
+    );
+  }, [activeRecapAgenda, recapAttendances]);
+
+  const notulisAttendance = useMemo(() => {
+    if (!activeRecapAgenda?.notulis?.id) return null;
+    return (
+      recapAttendances.find((a) => a.user_id === activeRecapAgenda.notulis?.id) ?? null
+    );
+  }, [activeRecapAgenda, recapAttendances]);
+
   return (
     <View style={styles.container}>
       <Header
-        title="Laporan & Rekapitulasi"
-        subtitle="Analisis Kehadiran, Notulensi & Ekspor Dokumen"
+        title="Rekapitulasi & Laporan Rapat"
+        subtitle="Rekapitulasi kehadiran, notulensi resmi, dan ekspor dokumen rapat kedinasan."
         showBack={Boolean(onBack)}
         onBack={onBack}
       />
@@ -341,24 +545,6 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           />
         }
       >
-        {/* TOP EXPORT CTA */}
-        <View style={styles.topActionCard}>
-          <View style={styles.topActionTextWrap}>
-            <Text style={styles.topActionTitle}>Rekapitulasi Eksekutif</Text>
-            <Text style={styles.topActionSubtitle}>
-              Unduh ringkasan agenda & kehadiran dalam format CSV / Excel
-            </Text>
-          </View>
-          <Button
-            title="Unduh Rekap CSV"
-            onPress={handleExportSummaryCsv}
-            variant="primary"
-            size="md"
-            isLoading={isExportingSummaryCsv}
-            icon={<Download size={16} color={colors.onPrimary} strokeWidth={2} />}
-          />
-        </View>
-
         {isInitialLoading ? (
           <View style={styles.loadingCard}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -382,7 +568,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               />
             ) : null}
 
-            {/* 3 SUMMARY CARDS */}
+            {/* 1. 3 SUMMARY KPI CARDS */}
             {summary ? (
               <View style={styles.summarySection}>
                 {/* Card 1: Agenda Rapat */}
@@ -404,12 +590,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     </View>
                     <View style={styles.warningMiniPill}>
                       <Text style={styles.warningMiniText}>
-                        {summary.ongoing_agendas} Berlangsung
-                      </Text>
-                    </View>
-                    <View style={styles.neutralMiniPill}>
-                      <Text style={styles.neutralMiniText}>
-                        {summary.scheduled_agendas} Terjadwal
+                        {summary.ongoing_agendas} Berlangsung • {summary.scheduled_agendas} Terjadwal
                       </Text>
                     </View>
                   </View>
@@ -429,7 +610,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                         </Text>
                         <View style={styles.emeraldPill}>
                           <Text style={styles.emeraldPillText}>
-                            {summary.attendance_rate}% Partisipasi
+                            {summary.attendance_rate}% Rasio
                           </Text>
                         </View>
                       </View>
@@ -437,7 +618,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   </View>
                   <Text style={styles.summarySubtext}>
                     {summary.attendance_rate_subtext} · Rata-rata{' '}
-                    {summary.avg_attendances_per_agenda} peserta/rapat
+                    {summary.avg_attendances_per_agenda} aparatur per rapat dinas
                   </Text>
                 </View>
 
@@ -457,24 +638,42 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                         <Text style={styles.summaryKpi}>
                           {summary.governance_rate}%
                         </Text>
+                        <View style={styles.emeraldPill}>
+                          <Text style={styles.emeraldPillText}>Rampung</Text>
+                        </View>
                         <View style={styles.neutralMiniPill}>
                           <Text style={styles.neutralMiniText}>
-                            {summary.count_with_notulen}/{summary.completed_agendas} Rapat
+                            {summary.count_with_notulen} / {Math.max(1, summary.completed_agendas)} Berkas
                           </Text>
                         </View>
                       </View>
                     </View>
                   </View>
-                  <Text style={styles.summarySubtext}>
-                    {pendingNotulenCount === 0
-                      ? 'Seluruh rapat selesai telah memiliki notulensi resmi.'
-                      : `${pendingNotulenCount} agenda selesai belum dilengkapi notulensi.`}
-                  </Text>
+                  <View style={styles.summaryBadgeRow}>
+                    {pendingNotulenCount === 0 ? (
+                      <View style={styles.emeraldPill}>
+                        <CheckCircle2
+                          size={12}
+                          color={colors.onSuccessContainer}
+                          strokeWidth={2}
+                        />
+                        <Text style={styles.emeraldPillText}>
+                          Semua Notulen Lengkap
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.warningMiniPill}>
+                        <Text style={styles.warningMiniText}>
+                          {pendingNotulenCount} Belum Diisi
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               </View>
             ) : null}
 
-            {/* DISTRIBUSI FORMAT PELAKSANAAN */}
+            {/* 2. DISTRIBUSI FORMAT PELAKSANAAN & PARTISIPASI */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeaderRow}>
                 <BarChart3 size={18} color={colors.primary} strokeWidth={2} />
@@ -549,7 +748,6 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </View>
             </View>
 
-            {/* PARTISIPASI UNIT / ANGGOTA UNIT */}
             {summary && summary.unit_stats.length > 0 ? (
               <View style={styles.sectionCard}>
                 <View style={styles.sectionHeaderRow}>
@@ -613,35 +811,24 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </View>
             ) : null}
 
-            {/* FILTER & SEARCH PANEL */}
+            {/* 3. FILTER BAR & EXPORT CSV/EXCEL */}
             <View style={styles.sectionCard}>
               <View style={styles.filterHeaderRow}>
                 <View style={styles.sectionHeaderRow}>
                   <Filter size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.sectionTitle}>Filter & Pencarian Agenda</Text>
+                  <Text style={styles.sectionTitle}>Filter & Ekspor Rekapitulasi</Text>
                 </View>
-                <View style={styles.filterHeaderActions}>
-                  <Pressable
-                    onPress={() => setShowDateFilter((prev) => !prev)}
-                    style={styles.filterToggleBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Tampilkan filter tanggal"
-                  >
-                    <Calendar size={14} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.filterToggleText}>Tanggal</Text>
-                  </Pressable>
-                  {hasActiveFilters ? (
-                    <Pressable
-                      onPress={handleResetFilters}
-                      style={styles.resetFilterBtn}
-                      accessibilityRole="button"
-                      accessibilityLabel="Reset semua filter"
-                    >
-                      <RotateCcw size={14} color={colors.error} strokeWidth={2} />
-                      <Text style={styles.resetFilterText}>Reset</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+                <Pressable
+                  onPress={() => setShowDateFilter((prev) => !prev)}
+                  style={styles.filterToggleBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tampilkan filter tanggal"
+                >
+                  <Calendar size={14} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.filterToggleText}>
+                    {showDateFilter || startDate || endDate ? 'Sembunyikan Tanggal' : 'Rentang Tanggal'}
+                  </Text>
+                </Pressable>
               </View>
 
               {/* Search Input */}
@@ -654,6 +841,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   placeholderTextColor={colors.textMuted}
                   style={styles.searchInput}
                   returnKeyType="search"
+                  onSubmitEditing={handleApplyFilters}
                 />
                 {searchQuery.length > 0 ? (
                   <Pressable
@@ -667,99 +855,205 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                 ) : null}
               </View>
 
-              {/* Date Range Optional Inputs */}
-              {showDateFilter ? (
+              {/* Date Range Pickers */}
+              {(showDateFilter || startDate.length > 0 || endDate.length > 0) ? (
                 <View style={styles.dateRow}>
                   <View style={styles.dateField}>
-                    <Text style={styles.dateLabel}>Dari (YYYY-MM-DD)</Text>
-                    <TextInput
-                      value={startDate}
-                      onChangeText={setStartDate}
-                      placeholder="2026-01-01"
-                      placeholderTextColor={colors.textMuted}
-                      style={styles.dateInput}
-                      maxLength={10}
-                      autoCapitalize="none"
-                    />
+                    <Text style={styles.dateLabel}>Dari Tanggal</Text>
+                    <Pressable
+                      onPress={() => setActiveDateField('start')}
+                      style={({ pressed }) => [
+                        styles.dateTriggerBtn,
+                        pressed && styles.pressedChip,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Pilih tanggal mulai laporan"
+                    >
+                      <Calendar size={15} color={colors.primary} strokeWidth={2} />
+                      <Text
+                        style={[
+                          styles.dateTriggerText,
+                          !startDate && styles.dateTriggerPlaceholder,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {startDate || 'Pilih tanggal...'}
+                      </Text>
+                      {startDate ? (
+                        <Pressable
+                          onPress={() => setStartDate('')}
+                          hitSlop={8}
+                          accessibilityRole="button"
+                          accessibilityLabel="Hapus tanggal mulai"
+                        >
+                          <X size={14} color={colors.textMuted} strokeWidth={2} />
+                        </Pressable>
+                      ) : null}
+                    </Pressable>
                   </View>
+
                   <View style={styles.dateField}>
-                    <Text style={styles.dateLabel}>Sampai (YYYY-MM-DD)</Text>
-                    <TextInput
-                      value={endDate}
-                      onChangeText={setEndDate}
-                      placeholder="2026-12-31"
-                      placeholderTextColor={colors.textMuted}
-                      style={styles.dateInput}
-                      maxLength={10}
-                      autoCapitalize="none"
-                    />
+                    <Text style={styles.dateLabel}>Sampai Tanggal</Text>
+                    <Pressable
+                      onPress={() => setActiveDateField('end')}
+                      style={({ pressed }) => [
+                        styles.dateTriggerBtn,
+                        pressed && styles.pressedChip,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Pilih tanggal akhir laporan"
+                    >
+                      <Calendar size={15} color={colors.primary} strokeWidth={2} />
+                      <Text
+                        style={[
+                          styles.dateTriggerText,
+                          !endDate && styles.dateTriggerPlaceholder,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {endDate || 'Pilih tanggal...'}
+                      </Text>
+                      {endDate ? (
+                        <Pressable
+                          onPress={() => setEndDate('')}
+                          hitSlop={8}
+                          accessibilityRole="button"
+                          accessibilityLabel="Hapus tanggal akhir"
+                        >
+                          <X size={14} color={colors.textMuted} strokeWidth={2} />
+                        </Pressable>
+                      ) : null}
+                    </Pressable>
                   </View>
                 </View>
               ) : null}
 
-              {/* Status Chips */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipsRow}
-              >
-                {STATUS_OPTIONS.map((opt) => {
-                  const selected = statusFilter === opt.value;
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      onPress={() => setStatusFilter(opt.value)}
-                      style={[styles.filterChip, selected && styles.filterChipActive]}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                    >
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          selected && styles.filterChipTextActive,
-                        ]}
+              {/* Status Rapat */}
+              <View style={styles.filterGroupBlock}>
+                <Text style={styles.filterGroupLabel}>Status Rapat</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.chipsRow}
+                >
+                  {STATUS_OPTIONS.map((opt) => {
+                    const selected = statusFilter === opt.value;
+                    return (
+                      <Pressable
+                        key={opt.value}
+                        onPress={() => setStatusFilter(opt.value)}
+                        style={[styles.filterChip, selected && styles.filterChipActive]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
                       >
-                        {opt.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            selected && styles.filterChipTextActive,
+                          ]}
+                        >
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
 
-              {/* Format Chips */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipsRow}
-              >
-                {FORMAT_OPTIONS.map((opt) => {
-                  const selected = formatFilter === opt.value;
-                  return (
-                    <Pressable
-                      key={opt.value}
-                      onPress={() => setFormatFilter(opt.value)}
-                      style={[styles.filterChip, selected && styles.filterChipActive]}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                    >
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          selected && styles.filterChipTextActive,
-                        ]}
+              {/* Format Rapat */}
+              <View style={styles.filterGroupBlock}>
+                <Text style={styles.filterGroupLabel}>Format Rapat</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.chipsRow}
+                >
+                  {FORMAT_OPTIONS.map((opt) => {
+                    const selected = formatFilter === opt.value;
+                    return (
+                      <Pressable
+                        key={opt.value}
+                        onPress={() => setFormatFilter(opt.value)}
+                        style={[styles.filterChip, selected && styles.filterChipActive]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
                       >
-                        {opt.label}
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            selected && styles.filterChipTextActive,
+                          ]}
+                        >
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Unit Kerja Filter (Administrator Only) */}
+              {isAdministrator ? (
+                <View style={styles.filterGroupBlock}>
+                  <Text style={styles.filterGroupLabel}>Unit Kerja</Text>
+                  <Pressable
+                    onPress={() => setUnitModalVisible(true)}
+                    style={({ pressed }) => [
+                      styles.unitFilterTrigger,
+                      selectedUnitId !== '' && styles.unitFilterTriggerActive,
+                      pressed && styles.pressedChip,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Filter unit kerja laporan"
+                  >
+                    <View style={styles.unitFilterLeft}>
+                      <Building2 size={16} color={colors.primary} strokeWidth={2} />
+                      <Text style={styles.unitFilterText} numberOfLines={1}>
+                        {selectedUnitLabel}
                       </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+                    </View>
+                    <ChevronsUpDown size={16} color={colors.outline} strokeWidth={2} />
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {/* Explicit Terapkan / Reset + Unduh Rekap CSV / Excel */}
+              <View style={styles.filterButtonsRow}>
+                <Button
+                  title="Terapkan"
+                  onPress={handleApplyFilters}
+                  variant="primary"
+                  size="sm"
+                  icon={<Filter size={15} color={colors.onPrimary} strokeWidth={2} />}
+                  style={styles.filterActionBtn}
+                />
+                <Button
+                  title="Reset"
+                  onPress={handleResetFilters}
+                  variant="outline"
+                  size="sm"
+                  disabled={!hasActiveFilters}
+                  icon={<RotateCcw size={15} color={colors.primary} strokeWidth={2} />}
+                  style={styles.filterActionBtn}
+                />
+              </View>
+
+              <View style={styles.exportSummaryDivider}>
+                <Button
+                  title="Unduh Rekap CSV / Excel"
+                  onPress={handleExportSummaryCsv}
+                  variant="secondary"
+                  size="md"
+                  isLoading={isExportingSummaryCsv}
+                  icon={<Download size={16} color={colors.primary} strokeWidth={2} />}
+                />
+              </View>
             </View>
 
-            {/* REKAPITULASI AGENDA LIST */}
+            {/* 4. REKAPITULASI AGENDA LIST */}
             <View style={styles.listHeaderRow}>
               <Text style={styles.listTitle}>
-                Rekapitulasi Agenda ({pagination.total})
+                Daftar Rekapitulasi ({pagination.total})
               </Text>
               {isListLoading ? (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -899,24 +1193,22 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                           },
                         )}
 
-                        {onOpenAgenda ? (
-                          <Pressable
-                            onPress={() => onOpenAgenda(String(agenda.id))}
-                            style={({ pressed }) => [
-                              styles.detailChipBtn,
-                              pressed && styles.pressedChip,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Lihat detail agenda ${agenda.judul_rapat}`}
-                          >
-                            <Text style={styles.detailChipText}>Detail</Text>
-                            <ArrowUpRight
-                              size={14}
-                              color={colors.onPrimary}
-                              strokeWidth={2}
-                            />
-                          </Pressable>
-                        ) : null}
+                        <Pressable
+                          onPress={() => handleOpenRecap(agenda)}
+                          style={({ pressed }) => [
+                            styles.detailChipBtn,
+                            pressed && styles.pressedChip,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Lihat detail rekap laporan ${agenda.judul_rapat}`}
+                        >
+                          <Text style={styles.detailChipText}>Detail</Text>
+                          <ArrowUpRight
+                            size={14}
+                            color={colors.onPrimary}
+                            strokeWidth={2}
+                          />
+                        </Pressable>
                       </View>
                     </View>
                   );
@@ -936,6 +1228,477 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           </>
         )}
       </ScrollView>
+
+      {/* PRATINJAU DETAIL REKAP LAPORAN MODAL (Web reports/show.blade.php parity) */}
+      <Modal
+        visible={recapModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setRecapModalVisible(false)}
+      >
+        <View style={styles.recapModalContainer}>
+          <View style={styles.recapModalTopBar}>
+            <View style={styles.recapTopBarTextWrap}>
+              <Text style={styles.recapTopBarTitle}>Detail Rekap Laporan Rapat</Text>
+              {activeRecapAgenda?.slug ? (
+                <Text style={styles.recapTopBarSlug} numberOfLines={1}>
+                  {activeRecapAgenda.slug}
+                </Text>
+              ) : null}
+            </View>
+            <Pressable
+              onPress={() => setRecapModalVisible(false)}
+              style={({ pressed }) => [
+                styles.recapCloseBtn,
+                pressed && styles.pressedChip,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Tutup pratinjau laporan"
+            >
+              <X size={20} color={colors.primary} strokeWidth={2} />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={styles.recapScroll}
+            contentContainerStyle={styles.recapScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {recapLoading && !recapDetail ? (
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>
+                  Memuat pratinjau lengkap notulensi & bukti kehadiran...
+                </Text>
+              </View>
+            ) : null}
+
+            {recapError ? (
+              <ErrorState
+                title="Sebagian Detail Tidak Tersedia"
+                message={recapError}
+                onRetry={() => {
+                  if (recapAgendaPreview) {
+                    void handleOpenRecap(recapAgendaPreview);
+                  }
+                }}
+              />
+            ) : null}
+
+            {activeRecapAgenda ? (
+              <>
+                {/* Hero Banner */}
+                <View style={styles.recapHeroCard}>
+                  <View style={styles.recapHeroBadgesRow}>
+                    <View style={styles.recapStatusPill}>
+                      <Text style={styles.recapStatusText}>
+                        {activeRecapAgenda.status.label}
+                      </Text>
+                    </View>
+                    <View style={styles.recapFormatPill}>
+                      <Text style={styles.recapFormatText}>
+                        {formatMeetingTypeLabel(activeRecapAgenda.tipe_rapat)}
+                      </Text>
+                    </View>
+                    {activeRecapAgenda.jenis_rapat ? (
+                      <View style={styles.recapFormatPill}>
+                        <Text style={styles.recapFormatText}>
+                          {activeRecapAgenda.jenis_rapat}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.recapHeroTitle}>
+                    {activeRecapAgenda.judul_rapat}
+                  </Text>
+
+                  <View style={styles.recapHeroMetaList}>
+                    <View style={styles.recapHeroMetaRow}>
+                      <Calendar size={14} color={colors.onPrimary} strokeWidth={2} />
+                      <Text style={styles.recapHeroMetaText}>
+                        {activeRecapAgenda.jadwal_lengkap ||
+                          formatTanggalIndonesia(activeRecapAgenda.waktu_mulai)}
+                      </Text>
+                    </View>
+                    <View style={styles.recapHeroMetaRow}>
+                      <MapPin size={14} color={colors.onPrimary} strokeWidth={2} />
+                      <Text style={styles.recapHeroMetaText}>
+                        {activeRecapAgenda.lokasi_ruang || 'Daring / Ruang Virtual'}
+                      </Text>
+                    </View>
+                    <View style={styles.recapHeroMetaRow}>
+                      <Building2 size={14} color={colors.onPrimary} strokeWidth={2} />
+                      <Text style={styles.recapHeroMetaText}>
+                        Penyelenggara:{' '}
+                        {activeRecapAgenda.creator?.name || 'Administrator Sistem'}
+                        {activeRecapAgenda.creator?.unit?.kode_unit
+                          ? ` (${activeRecapAgenda.creator.unit.kode_unit})`
+                          : ''}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.recapHeroActions}>
+                    <Pressable
+                      onPress={() => handleExportAgenda(activeRecapAgenda.id, 'pdf')}
+                      disabled={Boolean(exportingKey)}
+                      style={({ pressed }) => [
+                        styles.recapExportBtn,
+                        pressed && styles.pressedChip,
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <FileText size={15} color={colors.primary} strokeWidth={2} />
+                      <Text style={styles.recapExportBtnText}>Unduh PDF (.pdf)</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => handleExportAgenda(activeRecapAgenda.id, 'word')}
+                      disabled={Boolean(exportingKey)}
+                      style={({ pressed }) => [
+                        styles.recapExportBtn,
+                        pressed && styles.pressedChip,
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <FileText size={15} color={colors.primary} strokeWidth={2} />
+                      <Text style={styles.recapExportBtnText}>Unduh Format Word (.docx)</Text>
+                    </Pressable>
+
+                    {onOpenAgenda ? (
+                      <Pressable
+                        onPress={() => {
+                          const targetId = String(activeRecapAgenda.id);
+                          setRecapModalVisible(false);
+                          onOpenAgenda(targetId);
+                        }}
+                        style={({ pressed }) => [
+                          styles.recapManageBtn,
+                          pressed && styles.pressedChip,
+                        ]}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.recapManageBtnText}>Kelola Agenda</Text>
+                        <ArrowUpRight size={15} color={colors.onPrimary} strokeWidth={2} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+
+                {/* Metadata Bar */}
+                <View style={styles.sectionCard}>
+                  <Text style={styles.recapSectionLabel}>INFORMASI ADMINISTRATIF</Text>
+                  <View style={styles.recapMetaGrid}>
+                    <View style={styles.recapMetaItem}>
+                      <Text style={styles.recapMetaKey}>MPI No. / Kode</Text>
+                      <Text style={styles.recapMetaValueMono}>
+                        {activeRecapAgenda.nomor_ba || activeRecapAgenda.slug}
+                      </Text>
+                    </View>
+                    <View style={styles.recapMetaItem}>
+                      <Text style={styles.recapMetaKey}>Penyelenggara</Text>
+                      <Text style={styles.recapMetaValue}>
+                        {activeRecapAgenda.creator?.unit?.nama_unit ||
+                          activeRecapAgenda.creator?.name ||
+                          'Tingkat Lembaga'}
+                      </Text>
+                    </View>
+                    <View style={styles.recapMetaItem}>
+                      <Text style={styles.recapMetaKey}>Pemimpin Rapat</Text>
+                      <View style={styles.recapInlineBadgeRow}>
+                        <Text style={styles.recapMetaValue}>
+                          {activeRecapAgenda.nama_pimpinan ||
+                            activeRecapAgenda.pimpinan?.name ||
+                            '—'}
+                        </Text>
+                        {activeRecapAgenda.pimpinan?.id ? (
+                          <View style={styles.neutralMiniPill}>
+                            <Text style={styles.neutralMiniText}>Khusus</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                    <View style={styles.recapMetaItem}>
+                      <Text style={styles.recapMetaKey}>Notulis Rapat</Text>
+                      <View style={styles.recapInlineBadgeRow}>
+                        <Text style={styles.recapMetaValue}>
+                          {activeRecapAgenda.nama_notulis ||
+                            activeRecapAgenda.notulis?.name ||
+                            '—'}
+                        </Text>
+                        {activeRecapAgenda.notulis?.id ? (
+                          <View style={styles.neutralMiniPill}>
+                            <Text style={styles.neutralMiniText}>Khusus</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                    <View style={styles.recapMetaItem}>
+                      <Text style={styles.recapMetaKey}>Total Kehadiran</Text>
+                      <Text style={styles.recapMetaValue}>
+                        {recapAttendances.length > 0
+                          ? recapAttendances.length
+                          : activeRecapAgenda.attendances_count ?? 0}{' '}
+                        Pegawai Hadir
+                      </Text>
+                    </View>
+                  </View>
+
+                  {activeRecapAgenda.link_meeting ? (
+                    <View style={styles.recapLinkBox}>
+                      <Link2 size={14} color={colors.primary} strokeWidth={2} />
+                      <Text style={styles.recapLinkText} selectable>
+                        {activeRecapAgenda.link_meeting}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* Target Partisipan Rapat */}
+                <View style={styles.sectionCard}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Users size={17} color={colors.primary} strokeWidth={2} />
+                    <Text style={styles.sectionTitle}>Target Partisipan Rapat</Text>
+                  </View>
+                  {activeRecapAgenda.is_all_units ||
+                  activeRecapAgenda.target_type === 'all_units' ? (
+                    <View style={styles.emeraldPill}>
+                      <CheckCircle2
+                        size={13}
+                        color={colors.onSuccessContainer}
+                        strokeWidth={2}
+                      />
+                      <Text style={styles.emeraldPillText}>
+                        Seluruh Pegawai LLDIKTI Wilayah X
+                      </Text>
+                    </View>
+                  ) : activeRecapAgenda.target_type === 'selected_users' ? (
+                    <View style={styles.recapTargetWrap}>
+                      <Text style={styles.recapTargetSub}>
+                        Peserta Terundang Khusus (
+                        {activeRecapAgenda.invited_users?.length ?? 0} pegawai)
+                      </Text>
+                      <View style={styles.summaryBadgeRow}>
+                        {(activeRecapAgenda.invited_users ?? []).map((u) => (
+                          <View key={u.id} style={styles.neutralMiniPill}>
+                            <Text style={styles.neutralMiniText}>{u.name}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.summaryBadgeRow}>
+                      {(activeRecapAgenda.units ?? []).length > 0 ? (
+                        activeRecapAgenda.units?.map((u) => (
+                          <View key={u.id} style={styles.neutralMiniPill}>
+                            <Text style={styles.neutralMiniText}>
+                              {u.kode_unit} — {u.nama_unit}
+                            </Text>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.summarySubtext}>
+                          {activeRecapAgenda.target_label || 'Unit penyelenggara'}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                {/* Notulensi Rapat */}
+                <View style={styles.sectionCard}>
+                  <View style={styles.sectionHeaderRow}>
+                    <BookOpen size={17} color={colors.primary} strokeWidth={2} />
+                    <Text style={styles.sectionTitle}>Notulensi Rapat</Text>
+                  </View>
+
+                  <View style={styles.notulenSubsection}>
+                    <Text style={styles.notulenHeading}>
+                      Pembahasan Jalannya Rapat
+                    </Text>
+                    {activeRecapAgenda.notulensi_html?.trim() ? (
+                      <SimpleHtmlView html={activeRecapAgenda.notulensi_html} />
+                    ) : (
+                      <Text style={styles.notulenEmptyText}>
+                        Pembahasan notulensi rapat belum diisi.
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.notulenSubsection}>
+                    <Text style={styles.notulenHeading}>
+                      Kesimpulan, Keputusan & Rencana Tindak Lanjut (RTL)
+                    </Text>
+                    {activeRecapAgenda.kesimpulan_html?.trim() ? (
+                      <SimpleHtmlView html={activeRecapAgenda.kesimpulan_html} />
+                    ) : (
+                      <Text style={styles.notulenEmptyText}>
+                        Kesimpulan dan tindak lanjut belum diisi.
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.notulenSubsection}>
+                    <Text style={styles.notulenHeading}>Penutup</Text>
+                    <Text style={styles.notulenBodyText}>{activeRecapPenutup}</Text>
+                  </View>
+                </View>
+
+                {/* Verifikasi Tanda Tangan Pemimpin & Notulis */}
+                <View style={styles.sectionCard}>
+                  <View style={styles.sectionHeaderRow}>
+                    <ShieldCheck size={17} color={colors.primary} strokeWidth={2} />
+                    <Text style={styles.sectionTitle}>Verifikasi Tanda Tangan</Text>
+                  </View>
+
+                  <View style={styles.signatureVerifyGrid}>
+                    <View style={styles.signatureVerifyCard}>
+                      <View style={styles.signatureVerifyHeader}>
+                        <Award size={15} color={colors.primary} strokeWidth={2} />
+                        <Text style={styles.signatureVerifyRole}>Pemimpin Rapat</Text>
+                      </View>
+                      <Text style={styles.signatureVerifyName}>
+                        {activeRecapAgenda.nama_pimpinan ||
+                          activeRecapAgenda.pimpinan?.name ||
+                          '—'}
+                      </Text>
+                      {pimpinanAttendance?.signature_url ? (
+                        <>
+                          <BearerImage
+                            rawUrl={pimpinanAttendance.signature_url}
+                            attendanceId={pimpinanAttendance.id}
+                            style={styles.signatureVerifyImage}
+                            fallbackLabel="TTD Pemimpin Rapat"
+                          />
+                          <View style={styles.emeraldPill}>
+                            <CheckCircle2
+                              size={12}
+                              color={colors.onSuccessContainer}
+                              strokeWidth={2}
+                            />
+                            <Text style={styles.emeraldPillText}>
+                              Tervalidasi Hadir
+                            </Text>
+                          </View>
+                        </>
+                      ) : (
+                        <View style={styles.neutralMiniPill}>
+                          <Text style={styles.neutralMiniText}>
+                            Belum Mengisi Presensi
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.signatureVerifyCard}>
+                      <View style={styles.signatureVerifyHeader}>
+                        <UserCheck size={15} color={colors.primary} strokeWidth={2} />
+                        <Text style={styles.signatureVerifyRole}>Notulis Rapat</Text>
+                      </View>
+                      <Text style={styles.signatureVerifyName}>
+                        {activeRecapAgenda.nama_notulis ||
+                          activeRecapAgenda.notulis?.name ||
+                          '—'}
+                      </Text>
+                      {notulisAttendance?.signature_url ? (
+                        <>
+                          <BearerImage
+                            rawUrl={notulisAttendance.signature_url}
+                            attendanceId={notulisAttendance.id}
+                            style={styles.signatureVerifyImage}
+                            fallbackLabel="TTD Notulis Rapat"
+                          />
+                          <View style={styles.emeraldPill}>
+                            <CheckCircle2
+                              size={12}
+                              color={colors.onSuccessContainer}
+                              strokeWidth={2}
+                            />
+                            <Text style={styles.emeraldPillText}>
+                              Tervalidasi Hadir
+                            </Text>
+                          </View>
+                        </>
+                      ) : (
+                        <View style={styles.neutralMiniPill}>
+                          <Text style={styles.neutralMiniText}>
+                            Belum Mengisi Presensi
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+
+                {/* Dokumentasi Rapat */}
+                {activeRecapAgenda.documentations &&
+                activeRecapAgenda.documentations.length > 0 ? (
+                  <View style={styles.sectionCard}>
+                    <Text style={styles.sectionTitle}>
+                      Dokumentasi Rapat ({activeRecapAgenda.documentations.length})
+                    </Text>
+                    <View style={styles.docGrid}>
+                      {activeRecapAgenda.documentations.map((doc) => (
+                        <View key={doc.id} style={styles.docCard}>
+                          <BearerImage
+                            rawUrl={doc.url || doc.file_url}
+                            style={styles.docThumb}
+                            resizeMode="cover"
+                            fallbackLabel="Foto Dokumentasi"
+                          />
+                          {doc.caption ? (
+                            <Text style={styles.docCaption} numberOfLines={2}>
+                              {doc.caption}
+                            </Text>
+                          ) : null}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <CalendarDatePickerModal
+        visible={activeDateField !== null}
+        onClose={() => setActiveDateField(null)}
+        selectedDate={activeDateField === 'start' ? startDate : endDate}
+        title={
+          activeDateField === 'start'
+            ? 'Pilih Tanggal Mulai'
+            : 'Pilih Tanggal Akhir'
+        }
+        subtitle="Filter rekapitulasi agenda berdasarkan rentang tanggal"
+        onSelectDate={(dateIso) => {
+          if (activeDateField === 'start') {
+            setStartDate(dateIso);
+          } else if (activeDateField === 'end') {
+            setEndDate(dateIso);
+          }
+          setActiveDateField(null);
+        }}
+      />
+
+      {isAdministrator ? (
+        <AgendaOptionModal
+          visible={unitModalVisible}
+          onClose={() => setUnitModalVisible(false)}
+          title="Filter Unit Kerja"
+          subtitle="Saring laporan dan statistik berdasarkan unit kerja"
+          options={unitFilterOptions}
+          selectedId={selectedUnitId}
+          searchable
+          searchPlaceholder="Cari nama atau kode unit..."
+          onSelect={(opt) => {
+            setSelectedUnitId(opt.id);
+            setUnitModalVisible(false);
+          }}
+        />
+      ) : null}
     </View>
   );
 };
@@ -1282,15 +2045,45 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansSemiBold,
     color: colors.textSecondary,
   },
-  dateInput: {
+  dateTriggerBtn: {
     minHeight: MIN_TOUCH_TARGET,
     borderWidth: 1,
     borderColor: colors.borderStrong,
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceCard,
     paddingHorizontal: spacing.sm + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dateTriggerText: {
     ...typography.labelMono,
     color: colors.onSurface,
+    flex: 1,
+  },
+  dateTriggerPlaceholder: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+  },
+  filterGroupBlock: {
+    gap: 6,
+  },
+  filterGroupLabel: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textSecondary,
+  },
+  filterButtonsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  filterActionBtn: {
+    flex: 1,
+  },
+  exportSummaryDivider: {
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
   },
   chipsRow: {
     gap: 8,
@@ -1426,5 +2219,315 @@ const styles = StyleSheet.create({
   },
   paginationWrap: {
     marginTop: spacing.xs,
+  },
+  unitFilterTrigger: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 10,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  unitFilterTriggerActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceSoft,
+  },
+  unitFilterLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  unitFilterText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
+    flex: 1,
+  },
+  bearerImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: rounded.md,
+    padding: spacing.xs,
+  },
+  bearerFallbackText: {
+    ...typography.labelSm,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  recapModalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  recapModalTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 4,
+    backgroundColor: colors.surfaceCard,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+  },
+  recapTopBarTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  recapTopBarTitle: {
+    ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
+  },
+  recapTopBarSlug: {
+    ...typography.labelMono,
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  recapCloseBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recapScroll: {
+    flex: 1,
+  },
+  recapScrollContent: {
+    padding: spacing.md,
+    gap: spacing.md,
+    paddingBottom: spacing.xl + spacing.lg,
+  },
+  recapHeroCard: {
+    backgroundColor: colors.primaryDarkest,
+    borderRadius: rounded.lg,
+    padding: spacing.md,
+    gap: spacing.sm + 2,
+  },
+  recapHeroBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  recapStatusPill: {
+    backgroundColor: colors.success,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: rounded.full,
+  },
+  recapStatusText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  recapFormatPill: {
+    backgroundColor: colors.primaryContainer,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: rounded.full,
+  },
+  recapFormatText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onPrimary,
+  },
+  recapHeroTitle: {
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.sansExtraBold,
+    color: colors.onPrimary,
+  },
+  recapHeroMetaList: {
+    gap: 6,
+  },
+  recapHeroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  recapHeroMetaText: {
+    ...typography.bodySm,
+    color: colors.onPrimary,
+    flex: 1,
+  },
+  recapHeroActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingTop: spacing.xs,
+  },
+  recapExportBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceCard,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recapExportBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
+  },
+  recapManageBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    borderRadius: rounded.md,
+    backgroundColor: colors.success,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  recapManageBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  recapSectionLabel: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textMuted,
+    letterSpacing: 0.5,
+  },
+  recapMetaGrid: {
+    gap: spacing.sm,
+  },
+  recapMetaItem: {
+    gap: 2,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+  },
+  recapMetaKey: {
+    ...typography.labelSm,
+    color: colors.textMuted,
+  },
+  recapMetaValue: {
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
+  },
+  recapMetaValueMono: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    color: colors.primary,
+  },
+  recapInlineBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  recapLinkBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: spacing.sm,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  recapLinkText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.primary,
+    flex: 1,
+  },
+  recapTargetWrap: {
+    gap: 6,
+  },
+  recapTargetSub: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textSecondary,
+  },
+  notulenSubsection: {
+    gap: 6,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  notulenHeading: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
+  },
+  notulenEmptyText: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+  },
+  notulenBodyText: {
+    ...typography.bodyMd,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  signatureVerifyGrid: {
+    gap: spacing.sm,
+  },
+  signatureVerifyCard: {
+    padding: spacing.sm + 4,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  signatureVerifyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  signatureVerifyRole: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  signatureVerifyName: {
+    ...typography.bodyMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  signatureVerifyImage: {
+    width: '100%',
+    height: 84,
+    backgroundColor: colors.surfaceCard,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  docGrid: {
+    gap: spacing.sm,
+  },
+  docCard: {
+    gap: 6,
+    padding: spacing.xs,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  docThumb: {
+    width: '100%',
+    height: 160,
+    borderRadius: rounded.sm,
+  },
+  docCaption: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
   },
 });

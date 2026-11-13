@@ -21,20 +21,56 @@ export interface ApiUserDto {
   created_at?: string | null; updated_at?: string | null;
 }
 export interface ApiActivityLogDto { id: number; user_id: number | null; user?: ApiUserDto | null; activity_type: string; category?: { value: string; label: string }; description: string; target_model: string | null; target_id: number | null; properties: Record<string, unknown> | null; ip_address: string | null; user_agent: string | null; created_at: string | null }
+export interface ApiAgendaStatusCounts {
+  all: number;
+  draft: number;
+  ongoing: number;
+  scheduled: number;
+  completed: number;
+  cancelled: number;
+}
 export interface ApiAgendaDto {
   id: number; judul_rapat: string; slug: string; jenis_rapat: string; tipe_rapat: 'hybrid' | 'offline' | 'online';
   lokasi_ruang: string | null; link_meeting: string | null; waktu_mulai: string; waktu_selesai: string | null;
   rentang_waktu: string | null; jadwal_lengkap: string | null; is_all_units: boolean;
   target_type?: 'all_units' | 'selected_units' | 'selected_users';
+  target_label?: string;
   status: { value: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled'; label: string };
-  surat_edaran?: { url: string | null; stream_url?: string | null; extension: string | null; is_pdf: boolean; is_image: boolean };
-  creator?: ApiUserDto | null; pimpinan?: ApiUserDto | null; notulis?: ApiUserDto | null; units?: ApiUnitDto[];
+  allowed_transitions?: Array<'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled'>;
+  can_start_now?: boolean;
+  is_overdue?: boolean;
+  earliest_start_at?: string | null;
+  effective_end_at?: string | null;
+  surat_edaran?: { type?: 'upload' | 'digital'; is_digital?: boolean; url: string | null; stream_url?: string | null; extension: string | null; is_pdf: boolean; is_image: boolean };
+  creator?: ApiUserDto | null; pimpinan?: ApiUserDto | null; notulis?: ApiUserDto | null;
+  nama_pimpinan?: string; nama_notulis?: string;
+  units?: ApiUnitDto[];
   attendances_count?: number; is_eligible?: boolean; has_attended?: boolean;
+  my_attendance?: ApiAttendanceDto | null;
+  has_notulensi?: boolean;
   nomor_ba?: string | null; total_invited?: number; total_attended?: number; unattended_count?: number; participation_rate?: number; participation_rate_label?: string;
   export_links?: { pdf?: string; word?: string; csv?: string };
-  notulensi_html?: string | null; kesimpulan_html?: string | null; documentations?: Array<{ id: number; url: string; caption?: string | null }>;
+  notulensi_html?: string | null; kesimpulan_html?: string | null;
+  notulensi_raw?: string | null; kesimpulan_raw?: string | null;
+  documentations?: Array<{ id: number; agenda_id?: number; url?: string; file_url?: string; caption?: string | null; sort_order?: number; created_at?: string | null; updated_at?: string | null }>;
+  attendances?: ApiAttendanceDto[];
   invited_users?: ApiUserDto[];
+  report_config?: Record<string, unknown>;
+  permissions?: {
+    can_update: boolean;
+    can_delete: boolean;
+    can_manage_status: boolean;
+    can_manage_minutes: boolean;
+    can_manage_circular: boolean;
+    can_attend: boolean;
+    can_export: boolean;
+  } | null;
   created_at?: string | null; updated_at?: string | null;
+}
+export interface ApiAgendaPage extends ApiPaginated<ApiAgendaDto> {
+  summary?: {
+    status_counts?: ApiAgendaStatusCounts;
+  };
 }
 export interface ApiAttendanceDto {
   id: number; agenda_id: number; user_id: number;

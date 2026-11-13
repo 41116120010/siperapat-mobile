@@ -43,9 +43,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const TAB_ICONS: Record<keyof MainTabParamList, LucideIcon> = {
-  Beranda: Home,
-  Agenda: Calendar,
+  Dashboard: Home,
   Riwayat: Clock,
+  Agenda: Calendar,
   Profil: UserCircle,
 };
 
@@ -115,6 +115,7 @@ const CustomBottomTabBar: React.FC<BottomTabBarProps> = ({
 
 export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: rootStackNav }) => {
   const user = useAuthStore((state) => state.user);
+  const canManageMeetings = user?.role === 'administrator' || user?.role === 'admin';
   const detailRoute = user?.role === 'staff' ? 'AgendaDetail' : 'Monitoring';
   useEffect(() => {
     if (!user) rootStackNav.replace('Login');
@@ -127,7 +128,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
         lazy: true,
       }}
     >
-      <Tab.Screen name="Beranda">
+      <Tab.Screen name="Dashboard">
         {({ navigation: tabNav }) => (
           <DashboardScreen
             onNavigatePresensi={(id) => {
@@ -138,23 +139,27 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
               triggerPageTransition();
               rootStackNav.navigate(detailRoute, { meetingId: id });
             }}
-            onNavigateAgenda={() => {
-              tabNav.navigate('Agenda');
+            onNavigateAgenda={
+              canManageMeetings
+                ? () => {
+                    tabNav.navigate('Agenda');
+                  }
+                : undefined
+            }
+            onNavigateRiwayat={() => {
+              tabNav.navigate('Riwayat');
             }}
-          />
-        )}
-      </Tab.Screen>
-
-      <Tab.Screen name="Agenda">
-        {() => (
-          <AgendaScreen
-            onNavigateDetail={(id) => {
+            onNavigateCreate={
+              canManageMeetings
+                ? () => {
+                    triggerPageTransition();
+                    rootStackNav.navigate('CreateMeeting');
+                  }
+                : undefined
+            }
+            onNavigateReceipt={(attendanceId) => {
               triggerPageTransition();
-              rootStackNav.navigate(detailRoute, { meetingId: id });
-            }}
-            onNavigateCreate={() => {
-              triggerPageTransition();
-              rootStackNav.navigate('CreateMeeting');
+              rootStackNav.navigate('Receipt', { attendanceId });
             }}
           />
         )}
@@ -170,6 +175,23 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
           />
         )}
       </Tab.Screen>
+
+      {canManageMeetings ? (
+        <Tab.Screen name="Agenda">
+          {() => (
+            <AgendaScreen
+              onNavigateDetail={(id) => {
+                triggerPageTransition();
+                rootStackNav.navigate(detailRoute, { meetingId: id });
+              }}
+              onNavigateCreate={() => {
+                triggerPageTransition();
+                rootStackNav.navigate('CreateMeeting');
+              }}
+            />
+          )}
+        </Tab.Screen>
+      ) : null}
 
       <Tab.Screen name="Profil">
         {() => (
@@ -213,6 +235,7 @@ const safeGoBack = (navigation: any, fallbackRoute = 'MainTabs') => {
 export const AppNavigator: React.FC = () => {
   const role = useAuthStore((state) => state.user?.role);
   const canManageEmployees = role === 'administrator' || role === 'admin';
+  const canManageMeetings = role === 'administrator' || role === 'admin';
   const isAdministrator = role === 'administrator';
 
   return (
@@ -292,12 +315,12 @@ export const AppNavigator: React.FC = () => {
       </Stack.Screen>
 
       <Stack.Screen name="CreateMeeting">
-        {({ navigation }) => (
+        {({ navigation }) => canManageMeetings ? (
           <CreateMeetingScreen
             onBack={() => safeGoBack(navigation, 'MainTabs')}
             onSuccess={() => safeGoBack(navigation, 'MainTabs')}
           />
-        )}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
       </Stack.Screen>
 
       <Stack.Screen name="Monitoring">
@@ -308,6 +331,14 @@ export const AppNavigator: React.FC = () => {
             onNavigateEdit={(id) => {
               triggerPageTransition();
               navigation.navigate('EditMeeting', { meetingId: id });
+            }}
+            onNavigatePresensi={(id) => {
+              triggerPageTransition();
+              navigation.navigate('Presensi', { meetingId: id });
+            }}
+            onNavigateReceipt={(attendanceId) => {
+              triggerPageTransition();
+              navigation.navigate('Receipt', { attendanceId });
             }}
           />
         )}
@@ -322,18 +353,22 @@ export const AppNavigator: React.FC = () => {
               triggerPageTransition();
               navigation.navigate('Presensi', { meetingId: id });
             }}
+            onNavigateReceipt={(attendanceId) => {
+              triggerPageTransition();
+              navigation.navigate('Receipt', { attendanceId });
+            }}
           />
         )}
       </Stack.Screen>
 
       <Stack.Screen name="EditMeeting">
-        {({ navigation, route }) => (
+        {({ navigation, route }) => canManageMeetings ? (
           <EditMeetingScreen
             meetingId={route.params.meetingId}
             onBack={() => safeGoBack(navigation, 'Monitoring')}
             onSuccess={() => safeGoBack(navigation, 'Monitoring')}
           />
-        )}
+        ) : <RoleAccessDenied onBack={() => safeGoBack(navigation, 'MainTabs')} />}
       </Stack.Screen>
 
       <Stack.Screen name="EmployeeDirectory">

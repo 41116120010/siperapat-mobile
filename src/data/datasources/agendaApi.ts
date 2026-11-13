@@ -1,9 +1,14 @@
 import { File } from 'expo-file-system';
 import { ApiBinaryResponse, ApiError, apiClient } from './apiClient';
-import { ApiAgendaDto, ApiDashboardDto, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
+import { ApiAgendaDto, ApiAgendaPage, ApiDashboardDto, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
 import { requireApiBaseUrl } from '../../core/config/apiConfig';
 
-export type AgendaFilters = { status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled'; type?: 'hybrid' | 'offline' | 'online'; search?: string; unitId?: number };
+export type AgendaFilters = {
+  status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
+  type?: 'hybrid' | 'offline' | 'online';
+  search?: string;
+  unitId?: number | 'all_units';
+};
 export interface CreateAgendaDto {
   judul_rapat: string; jenis_rapat: string; tipe_rapat: 'hybrid' | 'offline' | 'online';
   lokasi_ruang?: string | null; link_meeting?: string | null; waktu_mulai: string; waktu_selesai?: string | null;
@@ -11,6 +16,8 @@ export interface CreateAgendaDto {
   /** Agenda target. `all_units` = all units, `selected_units` = unit_ids, `selected_users` = user_ids. */
   target_type?: 'all_units' | 'selected_units' | 'selected_users';
   is_all_units: boolean; unit_ids?: number[]; user_ids?: number[]; status?: 'draft' | 'scheduled';
+  surat_edaran_type?: 'upload' | 'digital';
+  open_surat_edaran_after_save?: boolean;
 }
 export interface UpdateAgendaDto extends Omit<Partial<CreateAgendaDto>, 'status'> {
   status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
@@ -123,8 +130,10 @@ export const agendaApi = {
   dashboard: () => apiClient.get<ApiEnvelope<ApiDashboardDto>>('/dashboard'),
   list: (page = 1, perPage = 10, filters: AgendaFilters = {}) => {
     const query = queryString({ page, per_page: perPage, status: filters.status, tipe_rapat: filters.type, search: filters.search, unit_id: filters.unitId });
-    return apiClient.get<ApiPaginated<ApiAgendaDto>>(`/agendas?${query}`);
+    return apiClient.get<ApiAgendaPage>(`/agendas?${query}`);
   },
+  updateStatus: (id: string | number, status: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled') =>
+    apiClient.patch<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/status`, { status }),
   detail: (id: string) => apiClient.get<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`),
   updateMinutes: (id: string, data: UpdateMinutesDto) => {
     if (data.photos && data.photos.length > 0) {

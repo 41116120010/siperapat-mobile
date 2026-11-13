@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   Linking,
   Modal,
@@ -14,16 +15,20 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
 import {
   ArrowLeft,
   Calendar,
   Camera,
   CheckCircle2,
+  Clock,
   CloudUpload,
   Download,
   ExternalLink,
   Eye,
+  FileCheck2,
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
@@ -31,9 +36,13 @@ import {
   Mail,
   NotebookPen,
   Pencil,
+  Play,
   Plus,
+  RotateCcw,
   Scale,
   Search,
+  Send,
+  ShieldCheck,
   Trash2,
   User,
   Users,
@@ -43,16 +52,22 @@ import {
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
+import { formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFormatter';
+import { resolveAttendanceMediaUrl, resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { Button } from '../components/common/Button';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
+import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import { UploadSuratEdaranModal } from '../components/modals/UploadSuratEdaranModal';
-import { resolveFileMimeType, UploadFileRef } from '../../data/datasources/agendaApi';
+import { agendaApi, resolveFileMimeType, UploadFileRef } from '../../data/datasources/agendaApi';
+import { apiClient } from '../../data/datasources/apiClient';
+import { attendanceApi } from '../../data/datasources/attendanceApi';
+import { authTokenStore } from '../../data/datasources/authTokenStore';
 import { AgendaExportFormat } from '../../data/datasources/reportApi';
-import { meetingToUpdateDto } from '../../data/mappers/apiMappers';
+import { meetingToUpdateDto, toMeeting } from '../../data/mappers/apiMappers';
 import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
 import { AttendanceStatus, Meeting } from '../../domain/entities/types';
 import { useAttendanceStore } from '../store/useAttendanceStore';
@@ -71,6 +86,8 @@ interface MonitoringScreenProps {
   meetingId?: string;
   onBack?: () => void;
   onNavigateEdit?: (meetingId: string) => void;
+  onNavigatePresensi?: (meetingId: string) => void;
+  onNavigateReceipt?: (attendanceId: string) => void;
 }
 
 type TabType = 'verified' | 'unverified' | 'minutes';
@@ -78,7 +95,26 @@ type TabType = 'verified' | 'unverified' | 'minutes';
 interface DocumentationItem {
   id: number | string;
   url: string;
+  file_url?: string | null;
   caption?: string | null;
+  created_at?: string | null;
+}
+
+interface SeConfigMeta {
+  perihal?: string | null;
+  nomor_surat?: string | null;
+  tanggal_surat?: string | null;
+  tujuan_surat?: string | null;
+}
+
+interface SignerAttendanceRecord {
+  id: string;
+  userId?: string;
+  name: string;
+  nip: string;
+  signedAt?: string | null;
+  selfieUrl?: string | null;
+  signatureUrl?: string | null;
 }
 
 type MeetingWithDocs = Meeting & {
@@ -86,15 +122,105 @@ type MeetingWithDocs = Meeting & {
 };
 
 interface Participant {
+  id?: string;
   name: string;
   role: string;
   nip: string;
   time: string;
+  signedAt?: string | null;
   location: string;
   unit?: string;
   isOnline?: boolean;
   status: AttendanceStatus;
+  selfieUrl?: string | null;
+  signatureUrl?: string | null;
+  verificationToken?: string;
+  ipAddress?: string;
+  deviceInfo?: string;
 }
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Berkas tidak dapat dibaca.'));
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const comma = result.indexOf(',');
+      if (comma < 0) reject(new Error('Format berkas tidak valid.'));
+      else resolve(result.slice(comma + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function resolveDocExtension(url?: string | null): 'pdf' | 'vid' | 'img' {
+  const lower = (url ?? '').split('?')[0].toLowerCase();
+  if (lower.endsWith('.pdf')) return 'pdf';
+  if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm')) return 'vid';
+  return 'img';
+}
+
+const AuthMediaThumbnail: React.FC<{
+  attendanceId: string;
+  rawUrl?: string | null;
+  mediaType: 'selfie' | 'signature';
+  style: object;
+  fallback?: React.ReactNode;
+}> = ({ attendanceId, rawUrl, mediaType, style, fallback }) => {
+  const [cachedUri, setCachedUri] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const resolved = resolveAttendanceMediaUrl(rawUrl, attendanceId, mediaType);
+    if (!resolved) {
+      setFailed(true);
+      return;
+    }
+    if (resolved.startsWith('data:image/') || resolved.startsWith('file://')) {
+      setCachedUri(resolved);
+      setFailed(false);
+      return;
+    }
+
+    (async () => {
+      try {
+        const token = await authTokenStore.get();
+        const cacheDir = FileSystem.cacheDirectory ?? '';
+        const ext = mediaType === 'signature' ? 'png' : 'jpg';
+        const dest = `${cacheDir}mon_${mediaType}_${attendanceId}.${ext}`;
+        const res = await FileSystem.downloadAsync(resolved, dest, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!active) return;
+        if (res.status >= 200 && res.status < 300) {
+          setCachedUri(`${res.uri}?t=${Date.now()}`);
+          setFailed(false);
+        } else {
+          setFailed(true);
+        }
+      } catch {
+        if (active) setFailed(true);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [attendanceId, rawUrl, mediaType]);
+
+  if (failed || !cachedUri) {
+    return <>{fallback ?? null}</>;
+  }
+
+  return (
+    <Image
+      source={{ uri: cachedUri }}
+      style={style}
+      resizeMode={mediaType === 'signature' ? 'contain' : 'cover'}
+    />
+  );
+};
 
 function plainText(html?: string | null) {
   return (
@@ -130,6 +256,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   onBack,
   meetingId,
   onNavigateEdit,
+  onNavigatePresensi,
+  onNavigateReceipt,
 }) => {
   const insets = useSafeAreaInsets();
   const exportRepository = useMemo(() => new AgendaExportRepository(), []);
@@ -152,6 +280,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     useAttendanceStore();
 
   const [meeting, setMeeting] = useState<MeetingWithDocs | null>(null);
+  const [rawAgenda, setRawAgenda] = useState<Record<string, any> | null>(null);
+  const [seConfig, setSeConfig] = useState<SeConfigMeta | null>(null);
+  const [signerAttendances, setSignerAttendances] = useState<SignerAttendanceRecord[]>([]);
+  const [evidenceParticipant, setEvidenceParticipant] = useState<Participant | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isDownloadingEdaran, setIsDownloadingEdaran] = useState(false);
   const [isEditingMinutes, setIsEditingMinutes] = useState(false);
   const [minutesDraft, setMinutesDraft] = useState('');
   const [conclusionDraft, setConclusionDraft] = useState('');
@@ -243,20 +377,167 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     });
   };
 
-  useEffect(() => {
+  const loadAgendaDetail = useCallback(async () => {
     if (!meetingId) return;
-    void getMeetingById(meetingId)
-      .then((agenda) => {
-        setMeeting(agenda as MeetingWithDocs);
-        setAgendaError(null);
-      })
-      .catch((requestError: unknown) => {
-        setMeeting(null);
-        setAgendaError(
-          requestError instanceof Error ? requestError.message : 'Gagal memuat detail agenda.',
-        );
+    try {
+      const response = await agendaApi.detail(meetingId);
+      const raw = response.data as unknown as Record<string, any>;
+      const mapped = toMeeting(response.data) as MeetingWithDocs;
+      mapped.documentations = (raw.documentations ?? []).map((doc: any) => ({
+        id: doc.id,
+        url: doc.file_url ?? doc.url ?? '',
+        file_url: doc.file_url ?? doc.url ?? null,
+        caption: doc.caption ?? null,
+        created_at: doc.created_at ?? null,
+      }));
+      mapped.suratEdaran = raw.surat_edaran ?? mapped.suratEdaran;
+      setRawAgenda(raw);
+      setMeeting(mapped);
+      setAgendaError(null);
+
+      if (raw.surat_edaran?.is_digital) {
+        try {
+          const seRes = await apiClient.get<{ data?: { config?: SeConfigMeta } }>(
+            `/agendas/${encodeURIComponent(meetingId)}/surat-edaran/digital`
+          );
+          setSeConfig(seRes.data?.config ?? null);
+        } catch {
+          setSeConfig(null);
+        }
+      } else {
+        setSeConfig(null);
+      }
+
+      try {
+        const attRes = await attendanceApi.agendaAttendances(meetingId, 1, 50, { status: 'attended' });
+        const rows = (attRes.data ?? []).map((item: any) => ({
+          id: String(item.id),
+          userId: item.user?.id !== undefined ? String(item.user.id) : undefined,
+          name: item.user?.name ?? '',
+          nip: item.user?.nip ?? '',
+          signedAt: item.checked_in_at ?? item.signed_at ?? null,
+          selfieUrl: item.selfie_url ?? null,
+          signatureUrl: item.signature_url ?? null,
+        }));
+        setSignerAttendances(rows);
+      } catch {
+        setSignerAttendances([]);
+      }
+    } catch (requestError: unknown) {
+      setMeeting(null);
+      setRawAgenda(null);
+      setAgendaError(
+        requestError instanceof Error ? requestError.message : 'Gagal memuat detail agenda.',
+      );
+    }
+  }, [meetingId]);
+
+  useEffect(() => {
+    void loadAgendaDetail();
+  }, [loadAgendaDetail]);
+
+  const handleTransitionStatus = (
+    nextStatus: 'draft' | 'scheduled' | 'ongoing' | 'completed',
+    title: string,
+    message: string,
+    confirmText: string,
+  ) => {
+    if (!meeting || isUpdatingStatus) return;
+    useFeedbackStore.getState().showModal({
+      type: 'confirm',
+      title,
+      message,
+      confirmText,
+      cancelText: 'Batal',
+      onConfirm: async () => {
+        setIsUpdatingStatus(true);
+        try {
+          await agendaApi.updateStatus(meeting.id, nextStatus);
+          useFeedbackStore.getState().showToast({
+            type: 'success',
+            message: 'Status agenda rapat berhasil diperbarui.',
+          });
+          await loadAgendaDetail();
+        } catch (err) {
+          useFeedbackStore.getState().showModal({
+            type: 'error',
+            title: 'Perubahan Status Ditolak',
+            message:
+              err instanceof Error
+                ? err.message
+                : 'Tidak dapat mengubah status agenda rapat saat ini.',
+            confirmText: 'Mengerti',
+          });
+        } finally {
+          setIsUpdatingStatus(false);
+        }
+      },
+    });
+  };
+
+  const handleDownloadSuratEdaran = async () => {
+    const streamPath =
+      rawAgenda?.surat_edaran?.stream_url ??
+      rawAgenda?.surat_edaran?.url ??
+      meeting?.invitationPdfUrl;
+    if (!streamPath) return;
+
+    setIsDownloadingEdaran(true);
+    try {
+      const response = await agendaApi.downloadSuratEdaran(streamPath);
+      const directory = FileSystem.cacheDirectory;
+      if (!directory) throw new Error('Penyimpanan sementara perangkat tidak tersedia.');
+      const ext =
+        rawAgenda?.surat_edaran?.extension ||
+        (rawAgenda?.surat_edaran?.is_image ? 'jpg' : 'pdf');
+      const fallbackName = `Surat-Edaran_${meeting?.code || meetingId || 'Agenda'}.${ext}`;
+      const safeName = (response.filename || fallbackName).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
+      const destUri = `${directory}${safeName}`;
+      const base64 = await blobToBase64(response.blob);
+      await FileSystem.writeAsStringAsync(destUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
       });
-  }, [meetingId, getMeetingById]);
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Fitur berbagi berkas tidak tersedia pada perangkat ini.');
+      }
+      await Sharing.shareAsync(destUri, {
+        mimeType: response.contentType ?? undefined,
+        dialogTitle: 'Unduh Surat Edaran',
+      });
+    } catch (err) {
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Gagal mengunduh surat edaran.',
+      });
+    } finally {
+      setIsDownloadingEdaran(false);
+    }
+  };
+
+  const handleDownloadDocumentation = async (doc: DocumentationItem) => {
+    const fileUrl = doc.file_url ?? doc.url;
+    if (!fileUrl) return;
+    try {
+      const ext = resolveDocExtension(fileUrl);
+      if (ext !== 'img') {
+        await Linking.openURL(fileUrl);
+        return;
+      }
+      const cacheDir = FileSystem.cacheDirectory ?? '';
+      const dest = `${cacheDir}doc_${doc.id}_${Date.now()}.jpg`;
+      const res = await FileSystem.downloadAsync(fileUrl, dest);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(res.uri, { dialogTitle: 'Unduh Dokumentasi Rapat' });
+      } else {
+        await Linking.openURL(fileUrl);
+      }
+    } catch {
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: 'Tidak dapat mengunduh berkas dokumentasi.',
+      });
+    }
+  };
 
   useEffect(() => {
     if (!meetingId || activeTab === 'minutes') return;
@@ -515,6 +796,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     () =>
       activeTab !== 'minutes'
         ? agendaAttendances.map((record) => ({
+            id: record.id ? String(record.id) : undefined,
             name: record.asnName || 'Nama tidak disediakan',
             role: record.asnJabatan || 'Pegawai',
             nip: record.asnNip || '',
@@ -524,9 +806,15 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 : record.timestamp
                   ? new Date(record.timestamp).toLocaleString('id-ID')
                   : 'Waktu tidak tersedia',
+            signedAt: record.timestamp || null,
             location: record.asnUnitKerja || 'LLDIKTI Wilayah X',
             unit: record.asnUnitKerja,
             status: record.status,
+            selfieUrl: record.selfieUrl ?? null,
+            signatureUrl: record.signatureUrl ?? null,
+            verificationToken: record.verificationToken,
+            ipAddress: record.ipAddress,
+            deviceInfo: record.deviceInfo,
           }))
         : [],
     [activeTab, agendaAttendances],
@@ -640,9 +928,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
             refreshing={isLoading}
             onRefresh={() => {
               if (!meetingId) return;
-              void getMeetingById(meetingId)
-                .then((agenda) => setMeeting(agenda as MeetingWithDocs))
-                .catch(() => {});
+              void loadAgendaDetail();
               if (activeTab !== 'minutes') {
                 void fetchAgendaAttendances(meetingId, attendancePage, false, {
                   status: activeTab === 'unverified' ? 'unattended' : 'attended',
@@ -654,48 +940,244 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           />
         }
       >
+        {/* PERSONAL ATTENDANCE CTA (show.blade.php) */}
+        {(() => {
+          const myAtt = rawAgenda?.my_attendance as { id?: number | string; checked_in_at?: string; selfie_url?: string; signature_url?: string; verification_token?: string } | null | undefined;
+          const hasAttended = Boolean(rawAgenda?.has_attended || myAtt);
+          const isEligible = rawAgenda?.is_eligible ?? true;
+          if (hasAttended && myAtt) {
+            return (
+              <View style={styles.myAttendedBanner}>
+                <View style={styles.myAttendedBannerLeft}>
+                  <CheckCircle2 size={18} color={colors.success} strokeWidth={2} />
+                  <View style={styles.flexOne}>
+                    <Text style={styles.myAttendedBannerTitle}>Anda Sudah Hadir</Text>
+                    <Text style={styles.myAttendedBannerSub}>
+                      Presensi Anda telah tercatat sah pada rapat ini.
+                    </Text>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    if (myAtt.id && onNavigateReceipt) {
+                      onNavigateReceipt(String(myAtt.id));
+                    } else if (myAtt.id) {
+                      setEvidenceParticipant({
+                        id: String(myAtt.id),
+                        name: user?.name ?? 'Pegawai',
+                        role: user?.jabatan ?? 'ASN',
+                        nip: user?.nip ?? '',
+                        time: myAtt.checked_in_at ?? '',
+                        signedAt: myAtt.checked_in_at ?? null,
+                        location: user?.unitKerja ?? 'LLDIKTI Wilayah X',
+                        status: 'tercatat',
+                        selfieUrl: myAtt.selfie_url ?? null,
+                        signatureUrl: myAtt.signature_url ?? null,
+                        verificationToken: myAtt.verification_token,
+                      });
+                    }
+                  }}
+                  style={({ pressed }) => [styles.myAttendedReceiptBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Lihat bukti presensi pribadi"
+                >
+                  <FileCheck2 size={15} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.myAttendedReceiptText}>Bukti</Text>
+                </Pressable>
+              </View>
+            );
+          }
+          if (meeting?.status === 'ongoing' && isEligible && onNavigatePresensi) {
+            return (
+              <View style={styles.personalPresensiCta}>
+                <Button
+                  title="Isi Presensi Saya"
+                  variant="success"
+                  size="md"
+                  fullWidth
+                  onPress={() => onNavigatePresensi(meeting.id)}
+                  icon={<FileCheck2 size={18} color={colors.onPrimary} strokeWidth={2} />}
+                />
+              </View>
+            );
+          }
+          return null;
+        })()}
+
+        {/* STATUS TRANSITION TOOLBAR (show.blade.php + AgendaController::updateStatus) */}
+        {(() => {
+          const allowedTransitions: string[] = Array.isArray(rawAgenda?.allowed_transitions)
+            ? rawAgenda!.allowed_transitions
+            : [];
+          const canManageStatus = Boolean(
+            rawAgenda?.permissions?.can_manage_status ?? userCanEdit,
+          );
+          const canStartNow = rawAgenda?.can_start_now ?? true;
+          const earliestStartAt = rawAgenda?.earliest_start_at as string | null | undefined;
+          const isOverdue = Boolean(rawAgenda?.is_overdue);
+          if (!canManageStatus || allowedTransitions.length === 0) return null;
+
+          return (
+            <View style={styles.statusToolbarCard}>
+              <Text style={styles.statusToolbarTitle}>Kontrol Siklus Rapat</Text>
+              {isOverdue && meeting?.rawStatus === 'ongoing' ? (
+                <View style={styles.overdueBanner}>
+                  <Clock size={15} color={colors.onWarningContainer} strokeWidth={2} />
+                  <Text style={styles.overdueBannerText}>
+                    Jadwal rapat telah melewati batas waktu selesai. Silakan tutup dan selesaikan agenda ini.
+                  </Text>
+                </View>
+              ) : null}
+
+              <View style={styles.statusToolbarBtns}>
+                {allowedTransitions.includes('scheduled') && meeting?.rawStatus === 'draft' ? (
+                  <Pressable
+                    disabled={isUpdatingStatus}
+                    onPress={() =>
+                      handleTransitionStatus(
+                        'scheduled',
+                        'Terbitkan Agenda',
+                        'Agenda konsep ini akan diterbitkan dan dijadwalkan kepada unit/peserta terkait. Lanjutkan?',
+                        'Terbitkan Agenda',
+                      )
+                    }
+                    style={({ pressed }) => [styles.statusBtnPrimary, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Terbitkan Agenda"
+                  >
+                    <Send size={15} color={colors.onPrimary} strokeWidth={2} />
+                    <Text style={styles.statusBtnPrimaryText}>Terbitkan Agenda</Text>
+                  </Pressable>
+                ) : null}
+
+                {allowedTransitions.includes('draft') && meeting?.rawStatus === 'scheduled' ? (
+                  <Pressable
+                    disabled={isUpdatingStatus}
+                    onPress={() =>
+                      handleTransitionStatus(
+                        'draft',
+                        'Kembalikan ke Konsep',
+                        'Agenda akan dikembalikan ke status Konsep (Draft) agar dapat disunting ulang sebelum dimulai.',
+                        'Buka Kembali',
+                      )
+                    }
+                    style={({ pressed }) => [styles.statusBtnOutline, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Buka Kembali sebagai Konsep"
+                  >
+                    <RotateCcw size={15} color={colors.primary} strokeWidth={2} />
+                    <Text style={styles.statusBtnOutlineText}>Buka Kembali sebagai Konsep</Text>
+                  </Pressable>
+                ) : null}
+
+                {allowedTransitions.includes('ongoing') ? (
+                  <View style={styles.startWrap}>
+                    <Pressable
+                      disabled={isUpdatingStatus || !canStartNow}
+                      onPress={() =>
+                        handleTransitionStatus(
+                          'ongoing',
+                          'Mulai Rapat',
+                          'Sesi presensi akan dibuka bagi seluruh peserta rapat yang diundang. Mulai rapat sekarang?',
+                          'Mulai Rapat',
+                        )
+                      }
+                      style={({ pressed }) => [
+                        styles.statusBtnSuccess,
+                        (!canStartNow || isUpdatingStatus) && styles.statusBtnDisabled,
+                        pressed && styles.pressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Mulai Rapat"
+                    >
+                      <Play size={15} color={colors.onPrimary} strokeWidth={2} />
+                      <Text style={styles.statusBtnPrimaryText}>Mulai Rapat</Text>
+                    </Pressable>
+                    {!canStartNow ? (
+                      <Text style={styles.startGuardHint}>
+                        Rapat hanya dapat dibuka paling cepat 15 menit sebelum jadwal
+                        {earliestStartAt
+                          ? ` (${formatWaktuWIB(earliestStartAt)})`
+                          : '.'}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {allowedTransitions.includes('completed') ? (
+                  <Pressable
+                    disabled={isUpdatingStatus}
+                    onPress={() =>
+                      handleTransitionStatus(
+                        'completed',
+                        'Tutup Rapat & Selesaikan',
+                        'Sesi presensi akan ditutup secara permanen dan status rapat berubah menjadi Selesai. Lanjutkan?',
+                        'Tutup & Selesaikan',
+                      )
+                    }
+                    style={({ pressed }) => [styles.statusBtnPrimary, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Tutup Rapat dan Selesaikan"
+                  >
+                    <CheckCircle2 size={15} color={colors.onPrimary} strokeWidth={2} />
+                    <Text style={styles.statusBtnPrimaryText}>Tutup Rapat & Selesaikan</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          );
+        })()}
+
         {/* MANAGEMENT QUICK ACTIONS BAR */}
-        {userCanEdit || userCanDelete ? (
-          <View style={styles.managementGrid}>
-            {userCanEdit ? (
-              <Pressable
-                style={({ pressed }) => [styles.actionBtnNeutral, pressed && styles.pressed]}
-                onPress={() => {
-                  if (meetingId && onNavigateEdit) onNavigateEdit(meetingId);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Ubah Agenda Rapat"
-              >
-                <Pencil size={15} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.actionBtnNeutralText}>Ubah Agenda</Text>
-              </Pressable>
-            ) : null}
+        {(() => {
+          const hasAttendances =
+            Number(rawAgenda?.attendances_count ?? meeting?.totalAttended ?? 0) > 0;
+          const allowDelete = Boolean(
+            (rawAgenda?.permissions?.can_delete ?? userCanDelete) && !hasAttendances,
+          );
+          if (!userCanEdit && !allowDelete) return null;
+          return (
+            <View style={styles.managementGrid}>
+              {userCanEdit ? (
+                <Pressable
+                  style={({ pressed }) => [styles.actionBtnNeutral, pressed && styles.pressed]}
+                  onPress={() => {
+                    if (meetingId && onNavigateEdit) onNavigateEdit(meetingId);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ubah Agenda Rapat"
+                >
+                  <Pencil size={15} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.actionBtnNeutralText}>Ubah Agenda</Text>
+                </Pressable>
+              ) : null}
 
-            {userCanEdit ? (
-              <Pressable
-                style={({ pressed }) => [styles.actionBtnNeutral, pressed && styles.pressed]}
-                onPress={handleOpenRolesModal}
-                accessibilityRole="button"
-                accessibilityLabel="Tugaskan Peran Pimpinan dan Notulis"
-              >
-                <Users size={15} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.actionBtnNeutralText}>Tugaskan Peran</Text>
-              </Pressable>
-            ) : null}
+              {userCanEdit ? (
+                <Pressable
+                  style={({ pressed }) => [styles.actionBtnNeutral, pressed && styles.pressed]}
+                  onPress={handleOpenRolesModal}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tugaskan Peran Pimpinan dan Notulis"
+                >
+                  <Users size={15} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.actionBtnNeutralText}>Tugaskan Peran</Text>
+                </Pressable>
+              ) : null}
 
-            {userCanDelete ? (
-              <Pressable
-                style={({ pressed }) => [styles.actionBtnDanger, pressed && styles.pressed]}
-                onPress={handleConfirmDelete}
-                accessibilityRole="button"
-                accessibilityLabel="Hapus Agenda Rapat"
-              >
-                <Trash2 size={15} color={colors.error} strokeWidth={2} />
-                <Text style={styles.actionBtnDangerText}>Hapus Agenda</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
+              {allowDelete ? (
+                <Pressable
+                  style={({ pressed }) => [styles.actionBtnDanger, pressed && styles.pressed]}
+                  onPress={handleConfirmDelete}
+                  accessibilityRole="button"
+                  accessibilityLabel="Hapus Agenda Rapat"
+                >
+                  <Trash2 size={15} color={colors.error} strokeWidth={2} />
+                  <Text style={styles.actionBtnDangerText}>Hapus Agenda</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        })()}
 
         {/* ZOOM / ONLINE MEETING LINK */}
         {meeting?.zoomUrl ? (
@@ -932,59 +1414,97 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                       : 'Belum ada data kehadiran.'}
                 </Text>
               ) : (
-                filteredList.map((p, idx) => (
-                  <View key={`${p.nip}-${idx}`} style={styles.participantCard}>
-                    <View style={styles.pAvatar}>
-                      {p.isOnline ? (
-                        <Video size={18} color={colors.primary} strokeWidth={2} />
-                      ) : (
-                        <User size={18} color={colors.primary} strokeWidth={2} />
-                      )}
-                    </View>
-                    <View style={styles.flexOne}>
-                      <View style={styles.pTopRow}>
-                        <View style={styles.flexOne}>
-                          <Text style={styles.pName}>{p.name}</Text>
-                          <Text style={styles.pRole}>{p.role}</Text>
-                        </View>
-                        <View
-                          style={[
-                            styles.pStatusBadge,
-                            p.status === 'belum_hadir'
-                              ? styles.pStatusBadgeWait
-                              : styles.pStatusBadgeValid,
-                          ]}
+                filteredList.map((p, idx) => {
+                  const canInspectEvidence = p.status !== 'belum_hadir' && Boolean(p.id);
+                  return (
+                    <View key={`${p.nip}-${idx}`} style={styles.participantCard}>
+                      {canInspectEvidence ? (
+                        <Pressable
+                          onPress={() => setEvidenceParticipant(p)}
+                          style={({ pressed }) => [styles.pAvatarBtn, pressed && styles.pressed]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Lihat bukti selfie dan tanda tangan ${p.name}`}
                         >
-                          <Text
-                            style={[
-                              styles.pStatusText,
-                              p.status === 'belum_hadir'
-                                ? styles.pStatusTextWait
-                                : styles.pStatusTextValid,
-                            ]}
-                          >
-                            {p.status === 'belum_hadir' ? 'Belum Hadir' : 'Tercatat'}
+                          <AuthMediaThumbnail
+                            attendanceId={p.id!}
+                            rawUrl={p.selfieUrl}
+                            mediaType="selfie"
+                            style={styles.pAvatarImage}
+                            fallback={
+                              p.isOnline ? (
+                                <Video size={18} color={colors.primary} strokeWidth={2} />
+                              ) : (
+                                <User size={18} color={colors.primary} strokeWidth={2} />
+                              )
+                            }
+                          />
+                        </Pressable>
+                      ) : (
+                        <View style={styles.pAvatar}>
+                          {p.isOnline ? (
+                            <Video size={18} color={colors.primary} strokeWidth={2} />
+                          ) : (
+                            <User size={18} color={colors.primary} strokeWidth={2} />
+                          )}
+                        </View>
+                      )}
+                      <View style={styles.flexOne}>
+                        <View style={styles.pTopRow}>
+                          <View style={styles.flexOne}>
+                            <Text style={styles.pName}>{p.name}</Text>
+                            <Text style={styles.pRole}>{p.role}</Text>
+                          </View>
+                          <View style={styles.pRightActions}>
+                            <View
+                              style={[
+                                styles.pStatusBadge,
+                                p.status === 'belum_hadir'
+                                  ? styles.pStatusBadgeWait
+                                  : styles.pStatusBadgeValid,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.pStatusText,
+                                  p.status === 'belum_hadir'
+                                    ? styles.pStatusTextWait
+                                    : styles.pStatusTextValid,
+                                ]}
+                              >
+                                {p.status === 'belum_hadir' ? 'Belum Hadir' : 'Tercatat'}
+                              </Text>
+                            </View>
+                            {canInspectEvidence ? (
+                              <Pressable
+                                onPress={() => setEvidenceParticipant(p)}
+                                style={({ pressed }) => [styles.pEvidenceBtn, pressed && styles.pressed]}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Periksa bukti ${p.name}`}
+                              >
+                                <Eye size={14} color={colors.primary} strokeWidth={2} />
+                              </Pressable>
+                            ) : null}
+                          </View>
+                        </View>
+                        <View style={styles.pMetaRow}>
+                          <Text style={styles.pMetaText}>
+                            NIP: <Text style={styles.pMetaValueMono}>{p.nip || '-'}</Text>
                           </Text>
+                          <Text style={styles.pMetaDot}>•</Text>
+                          <Text style={styles.pMetaText} numberOfLines={1}>
+                            {p.location}
+                          </Text>
+                          {activeTab === 'verified' ? (
+                            <>
+                              <Text style={styles.pMetaDot}>•</Text>
+                              <Text style={styles.pMetaText}>{p.time}</Text>
+                            </>
+                          ) : null}
                         </View>
                       </View>
-                      <View style={styles.pMetaRow}>
-                        <Text style={styles.pMetaText}>
-                          NIP: <Text style={styles.pMetaValueMono}>{p.nip || '-'}</Text>
-                        </Text>
-                        <Text style={styles.pMetaDot}>•</Text>
-                        <Text style={styles.pMetaText} numberOfLines={1}>
-                          {p.location}
-                        </Text>
-                        {activeTab === 'verified' ? (
-                          <>
-                            <Text style={styles.pMetaDot}>•</Text>
-                            <Text style={styles.pMetaText}>{p.time}</Text>
-                          </>
-                        ) : null}
-                      </View>
                     </View>
-                  </View>
-                ))
+                  );
+                })
               )}
 
               {agendaAttendancePage && agendaAttendancePage.total > 0 ? (
@@ -1189,20 +1709,76 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               <View style={styles.divider} />
               {docs.length > 0 ? (
                 <View style={styles.docsGrid}>
-                  {docs.map((doc) => (
-                    <Pressable
-                      key={String(doc.id)}
-                      onPress={() => setZoomDoc(doc)}
-                      style={({ pressed }) => [styles.docCard, pressed && styles.pressed]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Pratinjau ${doc.caption || 'Dokumentasi Rapat'}`}
-                    >
-                      <Image source={{ uri: doc.url }} style={styles.docThumb} resizeMode="cover" />
-                      <Text style={styles.docCaption} numberOfLines={1}>
-                        {doc.caption || 'Dokumentasi Rapat'}
-                      </Text>
-                    </Pressable>
-                  ))}
+                  {docs.map((doc) => {
+                    const docUrl = doc.file_url ?? doc.url;
+                    const extBadge = resolveDocExtension(docUrl);
+                    const docDate = doc.created_at
+                      ? `${formatTanggalIndonesia(doc.created_at)} • ${formatWaktuWIB(doc.created_at)}`
+                      : null;
+                    return (
+                      <View key={String(doc.id)} style={styles.docCard}>
+                        <Pressable
+                          onPress={() => {
+                            if (extBadge === 'img') {
+                              setZoomDoc({ ...doc, url: docUrl });
+                            } else if (docUrl) {
+                              void Linking.openURL(docUrl);
+                            }
+                          }}
+                          style={({ pressed }) => [styles.docThumbPress, pressed && styles.pressed]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Pratinjau ${doc.caption || 'Dokumentasi Rapat'}`}
+                        >
+                          {extBadge === 'img' ? (
+                            <Image source={{ uri: docUrl }} style={styles.docThumb} resizeMode="cover" />
+                          ) : (
+                            <View style={styles.docNonImgBox}>
+                              <FileText size={24} color={colors.primary} strokeWidth={2} />
+                            </View>
+                          )}
+                          <View style={styles.docExtBadge}>
+                            <Text style={styles.docExtBadgeText}>
+                              {extBadge === 'pdf' ? 'PDF' : extBadge === 'vid' ? 'VID' : 'IMG'}
+                            </Text>
+                          </View>
+                        </Pressable>
+                        <Text style={styles.docCaption} numberOfLines={1}>
+                          {doc.caption || 'Dokumentasi Rapat'}
+                        </Text>
+                        {docDate ? (
+                          <Text style={styles.docDateText} numberOfLines={1}>
+                            {docDate}
+                          </Text>
+                        ) : null}
+                        <View style={styles.docFooterRow}>
+                          <Pressable
+                            onPress={() => {
+                              if (extBadge === 'img') {
+                                setZoomDoc({ ...doc, url: docUrl });
+                              } else if (docUrl) {
+                                void Linking.openURL(docUrl);
+                              }
+                            }}
+                            style={({ pressed }) => [styles.docActionBtn, pressed && styles.pressed]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Pratinjau dokumentasi"
+                          >
+                            <Eye size={13} color={colors.primary} strokeWidth={2} />
+                            <Text style={styles.docActionText}>Pratinjau</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => void handleDownloadDocumentation(doc)}
+                            style={({ pressed }) => [styles.docActionBtn, pressed && styles.pressed]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Unduh dokumentasi"
+                          >
+                            <Download size={13} color={colors.primary} strokeWidth={2} />
+                            <Text style={styles.docActionText}>Unduh</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               ) : (
                 <View style={styles.emptyInfoRow}>
@@ -1213,108 +1789,330 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 </View>
               )}
             </View>
+
+            {/* PENUTUP & VERIFIKASI TANDA TANGAN DIGITAL (show.blade.php:508-597) */}
+            {(() => {
+              const findSigner = (
+                targetId?: number | string | null,
+                targetName?: string | null,
+              ): SignerAttendanceRecord | undefined => {
+                if (targetId !== null && targetId !== undefined) {
+                  const byId = signerAttendances.find((a) => a.userId === String(targetId));
+                  if (byId) return byId;
+                }
+                if (targetName && targetName.trim().length > 0) {
+                  const norm = targetName.trim().toLowerCase();
+                  return signerAttendances.find((a) => a.name.trim().toLowerCase() === norm);
+                }
+                return undefined;
+              };
+              const pimpinanAtt = findSigner(meeting?.leaderId, meeting?.leader);
+              const notulisAtt = findSigner(meeting?.notulisId, meeting?.notulis);
+              const renderSignerBox = (
+                roleTitle: string,
+                assignedName: string,
+                fallbackNip: string | null | undefined,
+                att?: SignerAttendanceRecord,
+              ) => (
+                <View style={styles.signerCard}>
+                  <Text style={styles.signerRoleLabel}>{roleTitle}</Text>
+                  <Text style={styles.signerNameText}>{assignedName || 'Belum ditugaskan'}</Text>
+                  <Text style={styles.signerNipText}>
+                    NIP: {att?.nip || fallbackNip || '-'}
+                  </Text>
+                  <View style={styles.signerSigBox}>
+                    {att ? (
+                      <AuthMediaThumbnail
+                        attendanceId={att.id}
+                        rawUrl={att.signatureUrl}
+                        mediaType="signature"
+                        style={styles.signerSigImg}
+                        fallback={
+                          <Text style={styles.signerEmptyText}>Tanda tangan terverifikasi</Text>
+                        }
+                      />
+                    ) : (
+                      <Text style={styles.signerEmptyText}>Belum melakukan presensi</Text>
+                    )}
+                  </View>
+                  <View
+                    style={[
+                      styles.signerStatusPill,
+                      att ? styles.signerStatusValid : styles.signerStatusWait,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.signerStatusText,
+                        att ? styles.signerStatusTextValid : styles.signerStatusTextWait,
+                      ]}
+                    >
+                      {att
+                        ? `Hadir (${att.signedAt ? formatWaktuWIB(att.signedAt) : 'Tercatat'})`
+                        : 'Belum Melakukan Presensi'}
+                    </Text>
+                  </View>
+                </View>
+              );
+              return (
+                <View style={styles.panelCard}>
+                  <View style={styles.sectionHeaderRow}>
+                    <View style={styles.iconCircle}>
+                      <ShieldCheck size={18} color={colors.primary} strokeWidth={2} />
+                    </View>
+                    <View style={styles.flexOne}>
+                      <Text style={styles.panelTitle}>Penutup & Verifikasi Tanda Tangan</Text>
+                      <Text style={styles.panelSubtitle}>
+                        Pengesahan digital Berita Acara oleh Pimpinan & Notulis Rapat
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.closingNoteText}>
+                    Demikian berita acara dan notulensi rapat kedinasan ini disusun secara sah melalui sistem SIPERAPAT LLDIKTI Wilayah X.
+                  </Text>
+                  <View style={styles.signersGrid}>
+                    {renderSignerBox(
+                      'Pemimpin Rapat',
+                      meeting?.leader || '-',
+                      rawAgenda?.pimpinan?.nip,
+                      pimpinanAtt,
+                    )}
+                    {renderSignerBox(
+                      'Notulis Rapat',
+                      meeting?.notulis || '-',
+                      rawAgenda?.notulis?.nip,
+                      notulisAtt,
+                    )}
+                  </View>
+                </View>
+              );
+            })()}
+          </View>
+        ) : null}
+
+        {/* SECTION: TARGET PARTISIPAN RAPAT (show.blade.php:397-445) */}
+        {meeting ? (
+          <View style={styles.panelCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.iconCircle}>
+                <Users size={18} color={colors.primary} strokeWidth={2} />
+              </View>
+              <View style={styles.flexOne}>
+                <Text style={styles.panelTitle}>Target Partisipan Rapat</Text>
+                <Text style={styles.panelSubtitle}>
+                  Sasaran unit kerja atau pegawai ASN yang diundang
+                </Text>
+              </View>
+            </View>
+            {meeting.targetType === 'selected_users' ? (
+              <View style={styles.targetListWrap}>
+                <View style={styles.targetBannerNeutral}>
+                  <Text style={styles.targetBannerText}>
+                    Khusus Pegawai ASN Tertentu ({meeting.invitedUsers?.length ?? meeting.totalInvited ?? 0} Pegawai)
+                  </Text>
+                </View>
+                {(meeting.invitedUsers ?? []).map((u) => {
+                  const isSelf = user?.id && String(u.id) === String(user.id);
+                  return (
+                    <View
+                      key={u.id}
+                      style={[styles.targetUserRow, isSelf && styles.targetUserRowSelf]}
+                    >
+                      <View style={styles.targetUserHeader}>
+                        <Text style={styles.targetUserName}>{u.name}</Text>
+                        {isSelf ? (
+                          <View style={styles.selfBadge}>
+                            <Text style={styles.selfBadgeText}>(Anda)</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.targetUserMeta}>
+                        NIP: {u.nip || '-'} • {u.unit || 'Pusat'}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : meeting.isAllUnits || meeting.targetType === 'all_units' ? (
+              <View style={styles.targetBannerEmerald}>
+                <CheckCircle2 size={16} color={colors.onSuccessContainer} strokeWidth={2} />
+                <Text style={styles.targetBannerEmeraldText}>
+                  Terbuka untuk Seluruh Unit Kerja LLDIKTI Wilayah X
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.targetChipsWrap}>
+                {(meeting.unitsList ?? []).length > 0 ? (
+                  meeting.unitsList!.map((unit) => (
+                    <View key={unit.id} style={styles.targetUnitChip}>
+                      <Text style={styles.targetUnitChipText}>
+                        {unit.kode_unit} — {unit.nama_unit}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.emptyItalicText}>
+                    {meeting.targetAudience || 'Unit kerja terpilih'}
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
         ) : null}
 
         {/* SECTION: SURAT EDARAN RAPAT */}
-        <View style={styles.panelCard}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.iconCircle}>
-              <Mail size={18} color={colors.primary} strokeWidth={2} />
-            </View>
-            <View style={styles.flexOne}>
-              <Text style={styles.panelTitle}>Surat Edaran Rapat</Text>
-              <Text style={styles.panelSubtitle}>
-                Dokumen kedinasan pemanggilan peserta dan agenda kerja
-              </Text>
-            </View>
-          </View>
-
-          {meeting?.invitationPdfUrl ? (
-            <View style={styles.edaranContent}>
-              <Pressable
-                onPress={handlePreviewSuratEdaran}
-                style={({ pressed }) => [styles.edaranDocPreview, pressed && styles.pressed]}
-                accessibilityLabel="Lihat dokumen surat edaran rapat"
-              >
-                <View
-                  style={[
-                    styles.edaranPdfBadge,
-                    meeting.suratEdaran?.is_image
-                      ? styles.edaranBadgeInfo
-                      : styles.edaranBadgePdf,
-                  ]}
-                >
-                  {meeting.suratEdaran?.is_image ? (
-                    <ImageIcon size={20} color={colors.primary} strokeWidth={2} />
-                  ) : (
-                    <FileText size={20} color={colors.error} strokeWidth={2} />
-                  )}
+        {(() => {
+          const suratEdaranMeta = rawAgenda?.surat_edaran ?? meeting?.suratEdaran;
+          const resolvedEdaranUrl =
+            resolveSuratEdaranUrl(
+              suratEdaranMeta?.stream_url ?? suratEdaranMeta?.url ?? meeting?.invitationPdfUrl,
+            ) ?? meeting?.invitationPdfUrl;
+          const badgeLabel = suratEdaranMeta?.is_digital
+            ? 'SURAT DIGITAL'
+            : suratEdaranMeta?.is_image
+            ? 'GAMBAR'
+            : 'PDF';
+          return (
+            <View style={styles.panelCard}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.iconCircle}>
+                  <Mail size={18} color={colors.primary} strokeWidth={2} />
                 </View>
                 <View style={styles.flexOne}>
-                  <Text style={styles.edaranDocName} numberOfLines={1} ellipsizeMode="tail">
-                    Surat-Edaran_{meeting.code || 'Agenda'}.
-                    {meeting.suratEdaran?.extension ||
-                      (meeting.suratEdaran?.is_image ? 'jpg' : 'pdf')}
-                  </Text>
-                  <Text style={styles.edaranDocMeta}>
-                    Dokumen Resmi LLDIKTI Wilayah X • Ketuk untuk melihat
+                  <Text style={styles.panelTitle}>Surat Edaran Rapat</Text>
+                  <Text style={styles.panelSubtitle}>
+                    Naskah Surat Dinas & Dokumen Pemanggilan Peserta
                   </Text>
                 </View>
-                <View style={styles.edaranStatusBadge}>
-                  <Text style={styles.edaranStatusText}>Tersedia</Text>
-                </View>
-              </Pressable>
-
-              <View style={styles.edaranBtnGroup}>
-                <Button
-                  title="Lihat Surat Edaran"
-                  onPress={handlePreviewSuratEdaran}
-                  variant="primary"
-                  size="md"
-                  fullWidth
-                  icon={<Eye size={18} color={colors.onPrimary} strokeWidth={2} />}
-                />
-                {userCanManageSuratEdaran ? (
-                  <Button
-                    title="Ganti Berkas Surat Edaran"
-                    onPress={() => void handlePickSuratEdaran()}
-                    disabled={isUploadingEdaran}
-                    variant="outline"
-                    size="md"
-                    fullWidth
-                    icon={<CloudUpload size={18} color={colors.primary} strokeWidth={2} />}
-                  />
+                {resolvedEdaranUrl ? (
+                  <View style={styles.edaranTypeBadge}>
+                    <Text style={styles.edaranTypeBadgeText}>{badgeLabel}</Text>
+                  </View>
                 ) : null}
               </View>
-            </View>
-          ) : (
-            <View style={styles.edaranContent}>
-              <View style={styles.edaranEmptyBox}>
-                <Info size={20} color={colors.textMuted} strokeWidth={2} />
-                <View style={styles.flexOne}>
-                  <Text style={styles.edaranEmptyTitle}>Berkas Belum Dilampirkan</Text>
-                  <Text style={styles.edaranEmptySub}>
-                    {userCanManageSuratEdaran
-                      ? 'Unggah berkas surat edaran resmi (PDF atau gambar).'
-                      : 'Sekretariat LLDIKTI X belum mengunggah dokumen surat edaran.'}
-                  </Text>
+
+              {seConfig ? (
+                <View style={styles.seConfigCard}>
+                  {seConfig.nomor_surat ? (
+                    <Text style={styles.seConfigRow}>
+                      Nomor Surat: <Text style={styles.seConfigStrong}>{seConfig.nomor_surat}</Text>
+                    </Text>
+                  ) : null}
+                  {seConfig.perihal ? (
+                    <Text style={styles.seConfigRow}>
+                      Perihal: <Text style={styles.seConfigStrong}>{seConfig.perihal}</Text>
+                    </Text>
+                  ) : null}
+                  {seConfig.tanggal_surat ? (
+                    <Text style={styles.seConfigRow}>
+                      Tanggal Surat: <Text style={styles.seConfigStrong}>{seConfig.tanggal_surat}</Text>
+                    </Text>
+                  ) : null}
+                  {seConfig.tujuan_surat ? (
+                    <Text style={styles.seConfigRow}>
+                      Tujuan: <Text style={styles.seConfigStrong}>{seConfig.tujuan_surat}</Text>
+                    </Text>
+                  ) : null}
                 </View>
-              </View>
-              {userCanManageSuratEdaran ? (
-                <Button
-                  title="Unggah Surat Edaran (PDF/Gambar)"
-                  onPress={() => void handlePickSuratEdaran()}
-                  disabled={isUploadingEdaran}
-                  variant="primary"
-                  size="md"
-                  fullWidth
-                  icon={<CloudUpload size={18} color={colors.onPrimary} strokeWidth={2} />}
-                />
               ) : null}
+
+              {resolvedEdaranUrl && meeting ? (
+                <View style={styles.edaranContent}>
+                  <Pressable
+                    onPress={handlePreviewSuratEdaran}
+                    style={({ pressed }) => [styles.edaranDocPreview, pressed && styles.pressed]}
+                    accessibilityLabel="Lihat dokumen surat edaran rapat"
+                  >
+                    <View
+                      style={[
+                        styles.edaranPdfBadge,
+                        suratEdaranMeta?.is_image
+                          ? styles.edaranBadgeInfo
+                          : styles.edaranBadgePdf,
+                      ]}
+                    >
+                      {suratEdaranMeta?.is_image ? (
+                        <ImageIcon size={20} color={colors.primary} strokeWidth={2} />
+                      ) : (
+                        <FileText size={20} color={colors.error} strokeWidth={2} />
+                      )}
+                    </View>
+                    <View style={styles.flexOne}>
+                      <Text style={styles.edaranDocName} numberOfLines={1} ellipsizeMode="tail">
+                        Surat-Edaran_{meeting.code || 'Agenda'}.
+                        {suratEdaranMeta?.extension ||
+                          (suratEdaranMeta?.is_image ? 'jpg' : 'pdf')}
+                      </Text>
+                      <Text style={styles.edaranDocMeta}>
+                        Dokumen Resmi LLDIKTI Wilayah X • Ketuk untuk melihat
+                      </Text>
+                    </View>
+                    <View style={styles.edaranStatusBadge}>
+                      <Text style={styles.edaranStatusText}>Tersedia</Text>
+                    </View>
+                  </Pressable>
+
+                  <View style={styles.edaranBtnGroup}>
+                    <View style={styles.edaranSplitRow}>
+                      <Button
+                        title="Lihat Surat Edaran"
+                        onPress={handlePreviewSuratEdaran}
+                        variant="primary"
+                        size="md"
+                        style={styles.flexOne}
+                        icon={<Eye size={18} color={colors.onPrimary} strokeWidth={2} />}
+                      />
+                      <Button
+                        title={isDownloadingEdaran ? 'Mengunduh...' : 'Unduh'}
+                        onPress={() => void handleDownloadSuratEdaran()}
+                        disabled={isDownloadingEdaran}
+                        variant="outline"
+                        size="md"
+                        icon={<Download size={18} color={colors.primary} strokeWidth={2} />}
+                      />
+                    </View>
+                    {userCanManageSuratEdaran ? (
+                      <Button
+                        title="Ganti Berkas Surat Edaran"
+                        onPress={() => void handlePickSuratEdaran()}
+                        disabled={isUploadingEdaran}
+                        variant="outline"
+                        size="md"
+                        fullWidth
+                        icon={<CloudUpload size={18} color={colors.primary} strokeWidth={2} />}
+                      />
+                    ) : null}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.edaranContent}>
+                  <View style={styles.edaranEmptyBox}>
+                    <Info size={20} color={colors.textMuted} strokeWidth={2} />
+                    <View style={styles.flexOne}>
+                      <Text style={styles.edaranEmptyTitle}>Berkas Belum Dilampirkan</Text>
+                      <Text style={styles.edaranEmptySub}>
+                        {userCanManageSuratEdaran
+                          ? 'Unggah berkas surat edaran resmi (PDF atau gambar).'
+                          : 'Sekretariat LLDIKTI X belum mengunggah dokumen surat edaran.'}
+                      </Text>
+                    </View>
+                  </View>
+                  {userCanManageSuratEdaran ? (
+                    <Button
+                      title="Unggah Surat Edaran (PDF/Gambar)"
+                      onPress={() => void handlePickSuratEdaran()}
+                      disabled={isUploadingEdaran}
+                      variant="primary"
+                      size="md"
+                      fullWidth
+                      icon={<CloudUpload size={18} color={colors.onPrimary} strokeWidth={2} />}
+                    />
+                  ) : null}
+                </View>
+              )}
             </View>
-          )}
-        </View>
+          );
+        })()}
 
         {/* SECTION: EKSPOR DOKUMEN RAPAT */}
         <View style={styles.panelCard}>
@@ -1505,6 +2303,21 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           </View>
         </View>
       </Modal>
+      {/* MODAL 5: Participant Biometric & Signature Evidence */}
+      <EvidenceViewerModal
+        visible={Boolean(evidenceParticipant)}
+        onClose={() => setEvidenceParticipant(null)}
+        attendanceId={evidenceParticipant?.id}
+        selfieUrl={evidenceParticipant?.selfieUrl}
+        signatureUrl={evidenceParticipant?.signatureUrl}
+        participantName={evidenceParticipant?.name}
+        participantNip={evidenceParticipant?.nip}
+        meetingTitle={meeting?.title}
+        verificationToken={evidenceParticipant?.verificationToken}
+        signedAt={evidenceParticipant?.signedAt ?? undefined}
+        ipAddress={evidenceParticipant?.ipAddress}
+        deviceInfo={evidenceParticipant?.deviceInfo}
+      />
     </View>
   );
 };
@@ -2141,5 +2954,439 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 360,
     backgroundColor: colors.surfaceSoft,
+  },
+  myAttendedBanner: {
+    ...cardSurface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    padding: spacing.sm + 4,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
+  },
+  myAttendedBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  myAttendedBannerTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSuccessContainer,
+  },
+  myAttendedBannerSub: {
+    ...typography.labelSm,
+    color: colors.onSuccessContainer,
+  },
+  myAttendedReceiptBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    minWidth: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  myAttendedReceiptText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
+  },
+  personalPresensiCta: {
+    marginBottom: spacing.xs,
+  },
+  statusToolbarCard: {
+    ...cardSurface,
+    borderRadius: rounded.xl,
+    borderColor: colors.borderStrong,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  statusToolbarTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  overdueBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    padding: spacing.sm,
+    borderRadius: rounded.md,
+    backgroundColor: colors.warningContainer,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+  },
+  overdueBannerText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onWarningContainer,
+    flex: 1,
+  },
+  statusToolbarBtns: {
+    gap: spacing.xs + 2,
+  },
+  statusBtnPrimary: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primary,
+  },
+  statusBtnSuccess: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: rounded.md,
+    backgroundColor: colors.success,
+  },
+  statusBtnOutline: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  statusBtnDisabled: {
+    opacity: 0.5,
+  },
+  statusBtnPrimaryText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+  },
+  statusBtnOutlineText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
+  },
+  startWrap: {
+    gap: 6,
+  },
+  startGuardHint: {
+    ...typography.labelSm,
+    color: colors.warning,
+    fontFamily: fontFamilies.sansMedium,
+  },
+  pAvatarBtn: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  pRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pEvidenceBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docThumbPress: {
+    position: 'relative',
+  },
+  docNonImgBox: {
+    width: '100%',
+    height: 112,
+    backgroundColor: colors.surfaceSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docExtBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.primary,
+  },
+  docExtBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 9,
+    color: colors.onPrimary,
+  },
+  docDateText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.monoRegular,
+    fontSize: 10,
+    color: colors.textMuted,
+    paddingHorizontal: spacing.xs,
+  },
+  docFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: spacing.xs,
+  },
+  docActionBtn: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  docActionText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11,
+    color: colors.primary,
+  },
+  closingNoteText: {
+    ...typography.bodySm,
+    color: colors.textSecondary,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  signersGrid: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  signerCard: {
+    padding: spacing.sm + 2,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    gap: 4,
+  },
+  signerRoleLabel: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  signerNameText: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  signerNipText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoRegular,
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  signerSigBox: {
+    height: 72,
+    marginVertical: spacing.xs,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  signerSigImg: {
+    width: '92%',
+    height: 62,
+  },
+  signerEmptyText: {
+    ...typography.labelSm,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+  },
+  signerStatusPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: rounded.full,
+    borderWidth: 1,
+  },
+  signerStatusValid: {
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
+  },
+  signerStatusWait: {
+    backgroundColor: colors.surfaceSoft,
+    borderColor: colors.borderStrong,
+  },
+  signerStatusText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+  },
+  signerStatusTextValid: {
+    color: colors.onSuccessContainer,
+  },
+  signerStatusTextWait: {
+    color: colors.textMuted,
+  },
+  targetListWrap: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.xs + 2,
+  },
+  targetBannerNeutral: {
+    padding: spacing.sm,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  targetBannerText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  targetUserRow: {
+    padding: spacing.sm,
+    borderRadius: rounded.md,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    gap: 2,
+  },
+  targetUserRowSelf: {
+    backgroundColor: colors.successContainer,
+    borderColor: colors.successBorder,
+  },
+  targetUserHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+  },
+  targetUserName: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  targetUserMeta: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoRegular,
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  selfBadge: {
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.success,
+  },
+  selfBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+    fontSize: 10,
+  },
+  targetBannerEmerald: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    padding: spacing.sm + 2,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  targetBannerEmeraldText: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSuccessContainer,
+    flex: 1,
+  },
+  targetChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  targetUnitChip: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  targetUnitChipText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  edaranTypeBadge: {
+    paddingHorizontal: spacing.xs + 2,
+    paddingVertical: 3,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  edaranTypeBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 10,
+    color: colors.primary,
+  },
+  seConfigCard: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: rounded.md,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    gap: 3,
+  },
+  seConfigRow: {
+    ...typography.bodySm,
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  seConfigStrong: {
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
+  },
+  edaranSplitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
   },
 });

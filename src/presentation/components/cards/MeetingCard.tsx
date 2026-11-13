@@ -1,317 +1,546 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Camera, ChevronRight, ExternalLink, FileText } from 'lucide-react-native';
+import {
+  Calendar,
+  Camera,
+  Clock,
+  ExternalLink,
+  FileText,
+  MapPin,
+  Users,
+} from 'lucide-react-native';
 import { Meeting } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
-import { Button } from '../common/Button';
 
-interface MeetingCardProps {
+export interface MeetingCardProps {
   meeting: Meeting;
+  /** @deprecated Kept for backward compatibility; all cards now use the unified Web SSOT layout. */
   isActive?: boolean;
+  showAttendance?: boolean;
+  footerRight?: React.ReactNode;
   onPressAction?: () => void;
   onPressDetail?: () => void;
   onPressPdf?: () => void;
   onPressJoinLink?: () => void;
+  statusLabel?: string;
+  isOverdue?: boolean;
+  attendancesCount?: number;
+  targetLabel?: string;
+  organizerLabel?: string;
+  roleBadge?: string;
+}
+
+const SHORT_ID_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'Mei',
+  'Jun',
+  'Jul',
+  'Agu',
+  'Sep',
+  'Okt',
+  'Nov',
+  'Des',
+];
+
+function formatAgendaDateTime(
+  dateIso: string,
+  startTime: string,
+  endTime: string
+): string {
+  const dateMatch = dateIso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const dateLabel = dateMatch
+    ? `${Number(dateMatch[3])} ${SHORT_ID_MONTHS[Number(dateMatch[2]) - 1] ?? dateMatch[2]} ${dateMatch[1]}`
+    : dateIso;
+  const rangeLabel = endTime
+    ? `${startTime} - ${endTime} WIB`
+    : `${startTime} WIB s.d. Selesai`;
+  return dateLabel ? `${dateLabel}, ${rangeLabel}` : rangeLabel;
+}
+
+function getSoftStatusBadge(
+  status: Meeting['status'],
+  customLabel?: string,
+  isOverdue?: boolean
+): {
+  label: string;
+  bg: string;
+  border: string;
+  text: string;
+  showLiveDot: boolean;
+} {
+  if (isOverdue) {
+    return {
+      label: 'Terlewat',
+      bg: colors.warningContainer,
+      border: colors.warningBorder,
+      text: colors.onWarningContainer,
+      showLiveDot: false,
+    };
+  }
+
+  switch (status) {
+    case 'ongoing':
+      return {
+        label: customLabel || 'Sedang Berlangsung',
+        bg: colors.successContainer,
+        border: colors.successBorder,
+        text: colors.onSuccessContainer,
+        showLiveDot: true,
+      };
+    case 'completed':
+      return {
+        label: customLabel || 'Selesai',
+        bg: colors.surfaceSoft,
+        border: colors.borderStrong,
+        text: colors.textSecondary,
+        showLiveDot: false,
+      };
+    case 'draft':
+      return {
+        label: customLabel || 'Konsep',
+        bg: colors.surfaceSoft,
+        border: colors.borderStrong,
+        text: colors.textMuted,
+        showLiveDot: false,
+      };
+    case 'cancelled':
+      return {
+        label: customLabel || 'Dibatalkan',
+        bg: colors.errorContainer,
+        border: colors.errorBorder,
+        text: colors.onErrorContainer,
+        showLiveDot: false,
+      };
+    case 'upcoming':
+    default:
+      return {
+        label: customLabel || 'Terjadwal',
+        bg: colors.infoBg,
+        border: colors.infoBorder,
+        text: colors.infoText,
+        showLiveDot: false,
+      };
+  }
+}
+
+function getFormatLabel(type: Meeting['type']): string {
+  switch (type) {
+    case 'online':
+      return 'Daring';
+    case 'hybrid':
+      return 'Hybrid';
+    case 'offline':
+    default:
+      return 'Luring';
+  }
+}
+
+function resolveTargetText(meeting: Meeting, customLabel?: string): string {
+  if (customLabel) return customLabel;
+  if (meeting.targetType === 'selected_users') return 'Khusus ASN Tertentu';
+  if (meeting.isAllUnits || meeting.targetType === 'all_units') {
+    return 'Seluruh Unit LLDIKTI (Pleno)';
+  }
+  if (meeting.unitsList && meeting.unitsList.length > 0) {
+    return meeting.unitsList.map((u) => u.kode_unit).join(', ');
+  }
+  return meeting.targetAudience || 'Unit Kerja Tertentu';
 }
 
 export const MeetingCard: React.FC<MeetingCardProps> = ({
   meeting,
-  isActive = false,
+  showAttendance = true,
+  footerRight,
   onPressAction,
   onPressDetail,
   onPressPdf,
   onPressJoinLink,
+  statusLabel,
+  isOverdue,
+  attendancesCount,
+  targetLabel,
+  organizerLabel,
+  roleBadge,
 }) => {
-  if (isActive) {
-    return (
-      <View style={styles.activeContainer}>
-        {/* Active Banner */}
-        <View style={styles.activeHeader}>
-          <Text style={styles.activeHeaderTitle}>Presensi Sedang Dibuka</Text>
+  const isOnline = meeting.type === 'online';
+  const statusMeta = getSoftStatusBadge(meeting.status, statusLabel, isOverdue);
+  const attendedCount = attendancesCount ?? meeting.totalAttended ?? 0;
+  const resolvedTarget = resolveTargetText(meeting, targetLabel);
+  const formattedSchedule = formatAgendaDateTime(
+    meeting.date,
+    meeting.startTime,
+    meeting.endTime
+  );
+  const resolvedLocation = isOnline
+    ? 'Ruang Virtual / Tautan Rapat'
+    : meeting.venue || 'Tempat Pelaksanaan Belum Ditentukan';
+
+  const hasFallbackFooterRight =
+    footerRight === undefined &&
+    Boolean(onPressAction || (isOnline && ((onPressPdf && meeting.invitationPdfUrl) || (onPressJoinLink && meeting.zoomUrl))));
+
+  return (
+    <View style={styles.cardContainer}>
+      {/* Card Header: Soft Status Pill (Left) + Attendance Pill (Right) */}
+      <View style={styles.cardHeader}>
+        <View
+          style={[
+            styles.statusBadge,
+            { backgroundColor: statusMeta.bg, borderColor: statusMeta.border },
+          ]}
+        >
+          {statusMeta.showLiveDot ? <View style={styles.liveDot} /> : null}
+          <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>
+            {statusMeta.label}
+          </Text>
         </View>
 
-        {/* Content Body */}
-        <View style={styles.activeBody}>
-          <Text style={styles.meetingCategory}>
-            {meeting.type === 'hybrid'
-              ? 'Rapat Pleno Hybrid'
-              : meeting.type === 'online'
-              ? 'Rapat Daring Kedinasan'
-              : 'Rapat Luring Kedinasan'}
-          </Text>
-          <Text style={styles.activeTitle}>{meeting.title}</Text>
-          <Text style={styles.leaderText}>
-            Pemimpin Rapat:{' '}
-            <Text style={styles.leaderHighlight}>{meeting.leader}</Text>
-          </Text>
+        {showAttendance ? (
+          <View style={styles.attendanceBadge}>
+            <Users size={13} color={colors.textMuted} strokeWidth={2} />
+            <Text style={styles.attendanceBadgeText}>{attendedCount} Hadir</Text>
+          </View>
+        ) : null}
+      </View>
 
-          {/* Sesi & Lokasi Rapat */}
-          <View style={styles.meetingInfoGrid}>
-            <View style={styles.meetingInfoItem}>
-              <Text style={styles.infoLabel}>Waktu Sesi</Text>
-              <Text style={styles.infoValue}>
-                {meeting.startTime} - {meeting.endTime} WIB
-              </Text>
-            </View>
-            <View style={styles.meetingInfoItem}>
-              <Text style={styles.infoLabel}>Lokasi / Ruang</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {meeting.venue || 'Tidak tersedia'}
+      {/* Card Body: Title, Time, Location + Format, Target, BodyExtra */}
+      <Pressable
+        onPress={onPressDetail}
+        disabled={!onPressDetail}
+        style={({ pressed }) => [styles.cardBody, pressed && onPressDetail && styles.linkPressed]}
+        accessibilityRole={onPressDetail ? 'button' : undefined}
+        accessibilityLabel={`Lihat detail agenda ${meeting.title}`}
+      >
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {meeting.title}
+        </Text>
+
+        <View style={styles.metaStack}>
+          <View style={styles.metaRow}>
+            <Clock size={15} color={colors.textMuted} strokeWidth={2} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {formattedSchedule}
+            </Text>
+          </View>
+
+          <View style={styles.metaRow}>
+            <MapPin size={15} color={colors.textMuted} strokeWidth={2} />
+            <View style={styles.locationRowInner}>
+              <View style={styles.formatBadge}>
+                <Text style={styles.formatBadgeText}>{getFormatLabel(meeting.type)}</Text>
+              </View>
+              <Text style={styles.metaText} numberOfLines={1}>
+                {resolvedLocation}
               </Text>
             </View>
           </View>
 
-          {/* Action Button */}
-          {onPressAction ? (
-            <Button
-              title="Lakukan Presensi"
-              onPress={onPressAction}
-              variant="primary"
-              size="lg"
-              fullWidth
-              icon={<Camera size={18} color={colors.onPrimary} strokeWidth={2} />}
-            />
+          <View style={styles.metaRow}>
+            <Calendar size={15} color={colors.textMuted} strokeWidth={2} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {resolvedTarget}
+            </Text>
+          </View>
+
+          {organizerLabel || roleBadge ? (
+            <View style={styles.organizerRow}>
+              <View style={styles.organizerLeft}>
+                <Users size={14} color={colors.textMuted} strokeWidth={2} />
+                <Text style={styles.organizerText} numberOfLines={1}>
+                  Oleh:{' '}
+                  <Text style={styles.organizerStrong}>
+                    {organizerLabel || 'Penyelenggara'}
+                  </Text>
+                </Text>
+              </View>
+              {roleBadge ? (
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleBadgeText}>{roleBadge}</Text>
+                </View>
+              ) : null}
+            </View>
           ) : null}
         </View>
-      </View>
-    );
-  }
+      </Pressable>
 
-  // Upcoming / Standard Card
-  const isOnline = meeting.type === 'online';
-
-  return (
-    <View style={styles.cardContainer}>
-      <View style={styles.cardBody}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardCategory}>
-            {isOnline ? 'Daring via Zoom Meeting' : 'Jadwal Kedinasan'}
-          </Text>
-          <Text style={styles.cardTime}>
-            {meeting.date ? `${meeting.date}, ` : ''}{meeting.startTime} WIB
-          </Text>
-        </View>
-
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {meeting.title}
-        </Text>
-        <Text style={styles.cardVenue} numberOfLines={2}>
-          {meeting.agendaDescription || `${meeting.venue} • ${meeting.leader}`}
-        </Text>
-      </View>
-
-      {/* Footer Actions aligned with Web <x-agenda-card> */}
+      {/* Card Footer: Lihat Detail (Left) + Custom or Fallback Actions (Right) */}
       <View style={styles.cardFooter}>
-        {isOnline ? (
-          <>
-            <Pressable
-              onPress={onPressPdf}
-              style={({ pressed }) => [
-                styles.pdfButton,
-                pressed && styles.linkPressed,
-              ]}
-              hitSlop={4}
-            >
-              <FileText size={15} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.pdfButtonText}>Lihat Undangan (PDF)</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={onPressJoinLink || onPressDetail}
-              style={({ pressed }) => [
-                styles.detailButton,
-                pressed && styles.linkPressed,
-              ]}
-              hitSlop={4}
-            >
-              <Text style={styles.detailButtonText}>Akses Tautan</Text>
-              <ExternalLink size={16} color={colors.primary} strokeWidth={2} />
-            </Pressable>
-          </>
+        {onPressDetail ? (
+          <Pressable
+            onPress={onPressDetail}
+            style={({ pressed }) => [
+              styles.detailButton,
+              pressed && styles.linkPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Lihat detail ${meeting.title}`}
+          >
+            <Text style={styles.detailButtonText}>Lihat Detail</Text>
+          </Pressable>
         ) : (
-          <>
-            <Text style={styles.cardCode}>Kode: {meeting.code}</Text>
-            {onPressDetail ? (
+          <View />
+        )}
+
+        {footerRight !== undefined ? (
+          <View style={styles.footerRightWrap}>{footerRight}</View>
+        ) : hasFallbackFooterRight ? (
+          <View style={styles.footerRightWrap}>
+            {isOnline && onPressPdf && meeting.invitationPdfUrl ? (
               <Pressable
-                onPress={onPressDetail}
-                style={({ pressed }) => [
-                  styles.detailButton,
-                  pressed && styles.linkPressed,
-                ]}
-                hitSlop={4}
+                onPress={onPressPdf}
+                style={({ pressed }) => [styles.secondaryActionBtn, pressed && styles.linkPressed]}
+                accessibilityRole="button"
               >
-                <Text style={styles.detailButtonText}>Detail Agenda</Text>
-                <ChevronRight size={18} color={colors.primary} strokeWidth={2} />
+                <FileText size={14} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.secondaryActionText}>Undangan</Text>
               </Pressable>
             ) : null}
-          </>
-        )}
+            {isOnline && onPressJoinLink && meeting.zoomUrl ? (
+              <Pressable
+                onPress={onPressJoinLink}
+                style={({ pressed }) => [styles.secondaryActionBtn, pressed && styles.linkPressed]}
+                accessibilityRole="button"
+              >
+                <ExternalLink size={14} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.secondaryActionText}>Tautan</Text>
+              </Pressable>
+            ) : null}
+            {onPressAction ? (
+              <Pressable
+                onPress={onPressAction}
+                style={({ pressed }) => [styles.primaryActionBtn, pressed && styles.linkPressed]}
+                accessibilityRole="button"
+              >
+                <Camera size={14} color={colors.onPrimary} strokeWidth={2} />
+                <Text style={styles.primaryActionText}>Presensi</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  activeContainer: {
-    ...cardSurface,
-    borderRadius: rounded.xl,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    overflow: 'hidden',
-    marginBottom: spacing.md,
-  },
-  activeHeader: {
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  activeHeaderTitle: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  activeBody: {
-    padding: spacing.md,
-  },
-  meetingCategory: {
-    ...typography.labelSm,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  activeTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-    lineHeight: 22,
-    marginBottom: 4,
-  },
-  leaderText: {
-    ...typography.bodySm,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  leaderHighlight: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSurface,
-  },
-  meetingInfoGrid: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: rounded.md,
-    padding: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    marginBottom: spacing.md,
-    overflow: 'hidden',
-  },
-  meetingInfoItem: {
-    flex: 1,
-  },
-  infoLabel: {
-    ...typography.labelSm,
-    color: colors.textMuted,
-    fontSize: 11,
-    marginBottom: 2,
-  },
-  infoValue: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSurface,
-  },
   cardContainer: {
     ...cardSurface,
     borderRadius: rounded.xl,
     borderColor: colors.borderSubtle,
-    marginBottom: spacing.sm + 2,
+    marginBottom: spacing.sm + 4,
     overflow: 'hidden',
-  },
-  cardBody: {
-    padding: spacing.md,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
   },
-  cardCategory: {
-    ...typography.labelSm,
-    color: colors.textMuted,
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: rounded.full,
+    borderWidth: 1,
   },
-  cardTime: {
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: rounded.full,
+    backgroundColor: colors.successLight,
+  },
+  statusBadgeText: {
     ...typography.labelSm,
-    color: colors.textMuted,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11.5,
+  },
+  attendanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  attendanceBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textSecondary,
+    fontSize: 11.5,
+  },
+  cardBody: {
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   cardTitle: {
     ...typography.headlineSm,
     fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-    fontSize: 15,
-    lineHeight: 21,
-    marginBottom: 4,
+    fontSize: 15.5,
+    lineHeight: 22,
   },
-  cardVenue: {
+  metaStack: {
+    gap: 7,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  locationRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  metaText: {
     ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
     color: colors.textSecondary,
-    lineHeight: 18,
+    fontSize: 12.5,
+    flex: 1,
+  },
+  formatBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  formatBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.textSecondary,
+    fontSize: 10,
+  },
+  organizerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingTop: spacing.xs + 4,
+    marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  organizerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  organizerText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textMuted,
+    flex: 1,
+  },
+  organizerStrong: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+  },
+  roleBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.infoText,
+    fontSize: 10,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
+    paddingVertical: spacing.xs + 4,
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.borderSubtle,
   },
-  cardCode: {
-    ...typography.labelMono,
-    color: colors.textMuted,
-    fontSize: 11,
+  footerRightWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 6,
+    flexShrink: 1,
   },
   detailButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     minHeight: MIN_TOUCH_TARGET,
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    borderRadius: rounded.sm,
-    overflow: 'hidden',
-  },
-  pdfButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    minHeight: MIN_TOUCH_TARGET,
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    borderRadius: rounded.sm,
-    overflow: 'hidden',
-  },
-  linkPressed: {
-    backgroundColor: colors.surfaceSoft,
-    opacity: 0.85,
-  },
-  pdfButtonText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.primary,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   detailButtonText: {
-    ...typography.labelMd,
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+    fontSize: 12,
+  },
+  secondaryActionBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  secondaryActionText: {
+    ...typography.labelSm,
     fontFamily: fontFamilies.sansBold,
     color: colors.primary,
+    fontSize: 11.5,
+  },
+  primaryActionBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: rounded.md,
+    backgroundColor: colors.success,
+  },
+  primaryActionText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onPrimary,
+    fontSize: 11.5,
+  },
+  linkPressed: {
+    opacity: 0.8,
   },
 });
