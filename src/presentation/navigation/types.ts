@@ -4,7 +4,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   MainTabs: undefined;
   Presensi: { meetingId: string };
-  Receipt: { attendanceId: string };
+  Receipt: { attendanceId?: string; meetingId?: string };
   CreateMeeting: undefined;
   EditMeeting: { meetingId: string };
   Monitoring: { meetingId: string };
@@ -15,7 +15,8 @@ export type RootStackParamList = {
   AddUnit: undefined;
   EditUnit: { unitId: number | string };
   UnitDirectory: undefined;
-  AuditLog: { mode?: 'personal' | 'system' } | undefined;
+  AuditLog: undefined;
+  PersonalActivityLog: undefined;
   Reports: undefined;
   ReportDetail: { meetingId: string };
   ChangePassword: undefined;

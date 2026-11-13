@@ -14,9 +14,9 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Building,
-  CheckCircle2,
+  Check,
   ChevronDown,
-  FileText,
+  Clock,
   Layers,
   Play,
   Plus,
@@ -493,7 +493,6 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
                 accessibilityRole="button"
                 accessibilityLabel={`Kelola notulensi ${item.title}`}
               >
-                <FileText size={14} strokeWidth={2} color={colors.infoText} />
                 <Text style={styles.cardActionMinutesText}>Notulensi</Text>
               </Pressable>
             ) : null}
@@ -522,11 +521,11 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
                 accessibilityRole="button"
                 accessibilityLabel={`Mulai rapat ${item.title}`}
               >
-                <Play
-                  size={14}
-                  strokeWidth={2}
-                  color={meta?.can_start_now ? colors.onPrimary : colors.textMuted}
-                />
+                {meta?.can_start_now ? (
+                  <Play size={13} strokeWidth={2} color={colors.onPrimary} />
+                ) : (
+                  <Clock size={13} strokeWidth={2} color={colors.textMuted} />
+                )}
                 <Text
                   style={
                     meta?.can_start_now
@@ -550,7 +549,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
                 accessibilityRole="button"
                 accessibilityLabel={`Selesaikan rapat ${item.title}`}
               >
-                <CheckCircle2 size={14} strokeWidth={2} color={colors.onPrimary} />
+                <Check size={14} strokeWidth={2} color={colors.onPrimary} />
                 <Text style={styles.cardActionSolidText}>Selesai</Text>
               </Pressable>
             ) : null}
@@ -566,7 +565,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
                 accessibilityRole="button"
                 accessibilityLabel={`Hapus agenda ${item.title}`}
               >
-                <Trash2 size={15} strokeWidth={2} color={colors.onErrorContainer} />
+                <Trash2 size={15} strokeWidth={2} color={colors.error} />
               </Pressable>
             ) : null}
           </View>
@@ -650,9 +649,9 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
       {/* Title Section with Role-Guarded Create Meeting Button */}
       <View style={styles.titleSection}>
         <View style={styles.titleTextWrap}>
-          <Text style={styles.mainTitle}>Daftar Agenda Rapat</Text>
+          <Text style={styles.mainTitle}>Agenda Rapat Kedinasan</Text>
           <Text style={styles.mainSubtitle}>
-            Pengelolaan jadwal, informasi pelaksanaan, dan absensi rapat kedinasan.
+            Daftar pertemuan, rapat koordinasi, dan agenda kedinasan LLDIKTI
           </Text>
         </View>
         {canCreateAgenda ? (
@@ -671,41 +670,58 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
         ) : null}
       </View>
 
-      {/* Status Filter Tabs (1:1 Web agendas/index.blade.php) */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.statusTabsScroll}
-        contentContainerStyle={styles.horizontalFilterContent}
-      >
-        {STATUS_TABS.map((tab) => {
-          const isActive = statusFilter === tab.id;
-          const count = statusCounts ? statusCounts[tab.countKey] : undefined;
-          const tabText = count !== undefined ? `${tab.label} (${count})` : tab.label;
-          return (
-            <Pressable
-              key={tab.id}
-              onPress={() => handleStatusChange(tab.id)}
-              style={({ pressed }) => [
-                styles.filterTab,
-                isActive && styles.filterTabActive,
-                pressed && styles.filterTabPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
-            >
-              <Text
-                style={[
-                  styles.filterTabText,
-                  isActive && styles.filterTabTextActive,
+      {/* Segmented Status Filter Tabs Capsule (1:1 Web agendas/index.blade.php:15-52) */}
+      <View style={styles.statusTabsCapsule}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalFilterContent}
+        >
+          {STATUS_TABS.map((tab) => {
+            const isActive = statusFilter === tab.id;
+            const count = statusCounts ? statusCounts[tab.countKey] : undefined;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => handleStatusChange(tab.id)}
+                style={({ pressed }) => [
+                  styles.filterTab,
+                  isActive && styles.filterTabActive,
+                  pressed && styles.filterTabPressed,
                 ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
               >
-                {tabText}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    isActive && styles.filterTabTextActive,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+                {count !== undefined ? (
+                  <View
+                    style={[
+                      styles.filterTabBadge,
+                      isActive && styles.filterTabBadgeActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterTabBadgeText,
+                        isActive && styles.filterTabBadgeTextActive,
+                      ]}
+                    >
+                      {count}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {/* Unified White Bordered Filter Bar (1 Horizontal Row: Search + Format + Unit + Cari + Reset) */}
       <View style={styles.filterCard}>
@@ -901,14 +917,17 @@ const styles = StyleSheet.create({
   mainTitle: {
     ...typography.headlineMd,
     fontFamily: fontFamilies.sansBold,
-    fontSize: 20,
+    fontSize: 22,
+    lineHeight: 28,
     color: colors.onSurface,
     letterSpacing: -0.3,
   },
   mainSubtitle: {
-    ...typography.labelSm,
-    color: colors.textMuted,
-    fontSize: 12,
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
     marginTop: 2,
   },
   createButton: {
@@ -930,39 +949,60 @@ const styles = StyleSheet.create({
     color: colors.onPrimary,
     fontSize: 12,
   },
-  statusTabsScroll: {
-    marginHorizontal: -spacing.md,
+  statusTabsCapsule: {
+    backgroundColor: colors.surfaceSubtle,
+    padding: 6,
+    borderRadius: rounded.xl,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   horizontalFilterContent: {
     flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    gap: spacing.xs + 2,
+    alignItems: 'center',
+    gap: 6,
   },
   filterTab: {
-    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    borderRadius: rounded.full,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    gap: 6,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    borderRadius: rounded.lg,
   },
   filterTabActive: {
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
   filterTabPressed: {
     opacity: 0.85,
   },
   filterTabText: {
     ...typography.labelSm,
-    fontFamily: fontFamilies.sansMedium,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 12,
-    color: colors.onSurfaceVariant,
+    color: colors.textSecondary,
   },
   filterTabTextActive: {
     color: colors.onPrimary,
     fontFamily: fontFamilies.sansBold,
+  },
+  filterTabBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceContainer,
+  },
+  filterTabBadgeActive: {
+    backgroundColor: colors.primaryContainer,
+  },
+  filterTabBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  filterTabBadgeTextActive: {
+    color: colors.onPrimary,
   },
   filterCard: {
     ...cardSurface,
@@ -1065,19 +1105,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     borderRadius: rounded.md,
-    backgroundColor: colors.infoBg,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: colors.infoBorder,
+    borderColor: colors.borderStrong,
   },
   cardActionMinutesText: {
     ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
+    fontFamily: fontFamilies.sansBold,
     fontSize: 12,
-    color: colors.infoText,
+    color: colors.onSurface,
   },
   cardActionStartBtn: {
     flexDirection: 'row',
@@ -1087,7 +1126,7 @@ const styles = StyleSheet.create({
     minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: 10,
     borderRadius: rounded.md,
-    backgroundColor: colors.warningLight,
+    backgroundColor: colors.warning,
   },
   cardActionStartLockedBtn: {
     flexDirection: 'row',
@@ -1097,9 +1136,9 @@ const styles = StyleSheet.create({
     minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: 10,
     borderRadius: rounded.md,
-    backgroundColor: colors.surfaceSoft,
+    backgroundColor: colors.surfaceSubtle,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderStrong,
   },
   cardActionFinishBtn: {
     flexDirection: 'row',
@@ -1109,7 +1148,7 @@ const styles = StyleSheet.create({
     minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: 10,
     borderRadius: rounded.md,
-    backgroundColor: colors.successLight,
+    backgroundColor: colors.success,
   },
   cardActionSolidText: {
     ...typography.labelSm,

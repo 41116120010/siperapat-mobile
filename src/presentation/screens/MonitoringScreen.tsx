@@ -20,8 +20,11 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import {
   ArrowLeft,
+  BookOpen,
+  Building2,
   Calendar,
   Camera,
+  Check,
   CheckCircle2,
   Clock,
   CloudUpload,
@@ -34,6 +37,7 @@ import {
   Image as ImageIcon,
   Info,
   Mail,
+  MapPin,
   NotebookPen,
   Pencil,
   Play,
@@ -55,6 +59,7 @@ import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/them
 import { formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFormatter';
 import { resolveAttendanceMediaUrl, resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { Button } from '../components/common/Button';
+import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
@@ -82,12 +87,12 @@ import {
   canManageSuratEdaran,
 } from '../utils/permissionUtils';
 
-interface MonitoringScreenProps {
+export interface MonitoringScreenProps {
   meetingId?: string;
   onBack?: () => void;
   onNavigateEdit?: (meetingId: string) => void;
   onNavigatePresensi?: (meetingId: string) => void;
-  onNavigateReceipt?: (attendanceId: string) => void;
+  onNavigateReceipt?: (meetingId: string, attendanceId?: string) => void;
 }
 
 type TabType = 'verified' | 'unverified' | 'minutes';
@@ -838,84 +843,89 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     meeting?.notulis ||
     'Pilih Notulis Rapat';
 
+  const roleLower = (user?.role ?? '').toLowerCase();
+  const isAdministrator = roleLower === 'administrator';
+  const isAdminUnit = roleLower === 'admin';
+  const rawUnitId = rawAgenda?.unit_id ?? rawAgenda?.creator?.unit_id ?? meeting?.creatorUnitId;
+  const rawCreatedBy = rawAgenda?.created_by ?? rawAgenda?.creator?.id ?? meeting?.creatorId;
+  const rawStatus = String(
+    rawAgenda?.status?.value ?? rawAgenda?.status ?? meeting?.rawStatus ?? 'scheduled',
+  );
+  const isHostUnit =
+    isAdminUnit &&
+    Boolean(user?.unitId != null && rawUnitId != null && String(user.unitId) === String(rawUnitId));
+  const isCreator = Boolean(
+    user?.id && rawCreatedBy != null && String(user.id) === String(rawCreatedBy),
+  );
+
+  const canUpdate = Boolean(
+    rawAgenda?.permissions?.can_update ??
+      userCanEdit ??
+      (isAdministrator || (isAdminUnit && (isHostUnit || isCreator))),
+  );
+  const canManageStatus = Boolean(
+    rawAgenda?.permissions?.can_manage_status ?? (canUpdate || isAppointedLeader),
+  );
+  const canManageCircular = Boolean(
+    rawAgenda?.permissions?.can_manage_circular ?? userCanManageSuratEdaran ?? canUpdate,
+  );
+  const canManageMinutesFlag = Boolean(
+    rawAgenda?.permissions?.can_manage_minutes ??
+      userCanManageMinutes ??
+      (canUpdate || ((isAppointedLeader || isAppointedNotulis) && rawStatus === 'ongoing')),
+  );
+  const attendeesTotal = Number(
+    agendaAttendancePage?.summary?.total_attended ??
+      rawAgenda?.attendances_count ??
+      meeting?.totalAttended ??
+      filteredList.length ??
+      0,
+  );
+  const canDelete = Boolean(
+    (rawAgenda?.permissions?.can_delete ?? userCanDelete ?? canUpdate) && attendeesTotal === 0,
+  );
+
+  const statusLabelText = useMemo(() => {
+    if (typeof rawAgenda?.status?.label === 'string' && rawAgenda.status.label.trim()) {
+      return rawAgenda.status.label;
+    }
+    switch (rawStatus) {
+      case 'draft':
+        return 'Konsep (Draft)';
+      case 'ongoing':
+        return 'Sedang Berlangsung';
+      case 'completed':
+        return 'Selesai';
+      case 'cancelled':
+        return 'Dibatalkan';
+      default:
+        return 'Terjadwal';
+    }
+  }, [rawAgenda?.status?.label, rawStatus]);
+
+  const myAtt = rawAgenda?.my_attendance as
+    | {
+        id?: number | string;
+        checked_in_at?: string;
+        selfie_url?: string;
+        signature_url?: string;
+        verification_token?: string;
+      }
+    | null
+    | undefined;
+  const hasAttended = Boolean(rawAgenda?.has_attended || myAtt);
+  const canStartNow = rawAgenda?.can_start_now ?? true;
+  const earliestStartAt = rawAgenda?.earliest_start_at as string | null | undefined;
+
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
-
-      {/* Top Dark Slate Hero Banner matching show.blade.php */}
-      <View
-        style={[
-          styles.heroBanner,
-          { paddingTop: Math.max(insets.top, spacing.sm) + spacing.sm },
-        ]}
-      >
-        <View style={styles.heroTopBar}>
-          {onBack ? (
-            <Pressable
-              onPress={onBack}
-              style={({ pressed }) => [styles.heroBackBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Kembali ke Daftar Agenda"
-            >
-              <ArrowLeft size={16} color={colors.onPrimary} strokeWidth={2} />
-              <Text style={styles.heroBackText}>Daftar Agenda</Text>
-            </Pressable>
-          ) : (
-            <View />
-          )}
-          <StatusPill status={toPillStatus(meeting?.status)} />
-        </View>
-
-        <View style={styles.heroCodeRow}>
-          <Text style={styles.heroCode}>{meeting?.code ?? `Agenda #${meetingId ?? '-'}`}</Text>
-          {capacityBadgeLabel ? (
-            <View style={styles.capacityPill}>
-              <Text style={styles.capacityPillText}>{capacityBadgeLabel}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <Text style={styles.heroTitle} numberOfLines={3}>
-          {meeting?.title ??
-            (agendaError ? 'Detail agenda tidak dapat dimuat' : 'Memuat detail agenda...')}
-        </Text>
-
-        <View style={styles.heroMetaGrid}>
-          <View style={styles.heroMetaRow}>
-            <Calendar size={14} color={colors.borderStrong} strokeWidth={2} />
-            <Text style={styles.heroMetaText} numberOfLines={1}>
-              {meeting
-                ? `${meeting.date} • ${meeting.startTime}–${meeting.endTime || 'Selesai'} WIB`
-                : '-'}
-            </Text>
-          </View>
-          <View style={styles.heroMetaRow}>
-            <Video size={14} color={colors.borderStrong} strokeWidth={2} />
-            <Text style={styles.heroMetaText} numberOfLines={1}>
-              {meeting
-                ? `[${formatTipeLabel(meeting.type)}] ${meeting.venue || meeting.zoomUrl || 'Lokasi belum ditentukan'}`
-                : '-'}
-            </Text>
-          </View>
-          <View style={styles.heroPeopleRow}>
-            <View style={styles.heroPersonItem}>
-              <User size={13} color={colors.borderStrong} strokeWidth={2} />
-              <Text style={styles.heroPersonText} numberOfLines={1}>
-                Pimpinan: <Text style={styles.heroPersonBold}>{meeting?.leader || '-'}</Text>
-              </Text>
-            </View>
-            <View style={styles.heroPersonItem}>
-              <NotebookPen size={13} color={colors.borderStrong} strokeWidth={2} />
-              <Text style={styles.heroPersonText} numberOfLines={1}>
-                Notulis:{' '}
-                <Text style={styles.heroPersonBold}>
-                  {meeting ? meeting.notulis?.trim() || 'Belum ditugaskan' : '-'}
-                </Text>
-              </Text>
-            </View>
-          </View>
-        </View>
-      </View>
+      <StatusBar style="dark" />
+      <Header
+        title="Detail Agenda Rapat"
+        subtitle="Informasi pelaksanaan, dokumen edaran, notulensi, dan daftar hadir"
+        showBack={Boolean(onBack)}
+        onBack={onBack}
+      />
 
       <ScrollView
         contentContainerStyle={[
@@ -929,39 +939,284 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
             onRefresh={() => {
               if (!meetingId) return;
               void loadAgendaDetail();
-              if (activeTab !== 'minutes') {
-                void fetchAgendaAttendances(meetingId, attendancePage, false, {
-                  status: activeTab === 'unverified' ? 'unattended' : 'attended',
-                  search: searchQuery,
-                });
-              }
+              void fetchAgendaAttendances(meetingId, attendancePage, false, {
+                status: 'attended',
+                search: searchQuery,
+              });
             }}
             colors={[colors.primary]}
           />
         }
       >
-        {/* PERSONAL ATTENDANCE CTA (show.blade.php) */}
-        {(() => {
-          const myAtt = rawAgenda?.my_attendance as { id?: number | string; checked_in_at?: string; selfie_url?: string; signature_url?: string; verification_token?: string } | null | undefined;
-          const hasAttended = Boolean(rawAgenda?.has_attended || myAtt);
-          const isEligible = rawAgenda?.is_eligible ?? true;
-          if (hasAttended && myAtt) {
-            return (
-              <View style={styles.myAttendedBanner}>
-                <View style={styles.myAttendedBannerLeft}>
-                  <CheckCircle2 size={18} color={colors.success} strokeWidth={2} />
-                  <View style={styles.flexOne}>
-                    <Text style={styles.myAttendedBannerTitle}>Anda Sudah Hadir</Text>
-                    <Text style={styles.myAttendedBannerSub}>
-                      Presensi Anda telah tercatat sah pada rapat ini.
+        {/* 1. HERO BANNER GELAP (1:1 show.blade.php:10-253) */}
+        <View style={styles.heroCard}>
+          <Text style={styles.heroTitle}>
+            {meeting?.title ??
+              (agendaError ? 'Detail agenda tidak dapat dimuat' : 'Memuat detail agenda...')}
+          </Text>
+
+          <View style={styles.heroMetaList}>
+            {/* Item 1: Jenis Rapat */}
+            <View style={styles.heroMetaItem}>
+              <BookOpen size={15} color={colors.textMuted} strokeWidth={2} />
+              <Text style={styles.heroMetaText}>
+                {rawAgenda?.jenis_rapat || 'Rapat Koordinasi'}
+              </Text>
+            </View>
+
+            {/* Item 2: Status + Tanggal + Waktu */}
+            <View style={styles.heroMetaItem}>
+              <Clock size={15} color={colors.textMuted} strokeWidth={2} />
+              <Text style={styles.heroMetaText}>
+                <Text style={styles.heroMetaWhiteBold}>{statusLabelText}</Text>
+                {meeting
+                  ? ` • ${meeting.date} • ${meeting.startTime} - ${meeting.endTime || 'Selesai'} WIB`
+                  : ''}
+              </Text>
+            </View>
+
+            {/* Item 3: Tipe & Lokasi */}
+            <View style={styles.heroMetaItem}>
+              <MapPin size={15} color={colors.textMuted} strokeWidth={2} />
+              <Text style={styles.heroMetaText}>
+                {meeting
+                  ? `[${formatTipeLabel(meeting.type)}] ${meeting.venue || meeting.zoomUrl || 'Lokasi belum ditentukan'}`
+                  : '-'}
+              </Text>
+            </View>
+
+            {/* Item 4: Oleh Creator (Kode Unit) */}
+            <View style={styles.heroMetaItem}>
+              <Users size={15} color={colors.textMuted} strokeWidth={2} />
+              <Text style={styles.heroMetaText}>
+                Oleh: {rawAgenda?.creator?.name || 'Administrator'} (
+                {rawAgenda?.creator?.unit?.kode_unit || 'Pusat'})
+              </Text>
+            </View>
+          </View>
+
+          {/* Bottom Action Toolbar inside Dark Hero Card */}
+          <View style={styles.heroToolbarDivider}>
+            {/* Left Group: < Daftar Agenda + Capacity Badge (only for Admin Unit) */}
+            <View style={styles.heroToolbarRow}>
+              {onBack ? (
+                <Pressable
+                  onPress={onBack}
+                  style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Kembali ke Daftar Agenda"
+                >
+                  <ArrowLeft size={14} color={colors.onPrimaryContainer} strokeWidth={2} />
+                  <Text style={styles.heroBtnDarkText}>Daftar Agenda</Text>
+                </Pressable>
+              ) : null}
+
+              {isAdminUnit && !isAdministrator ? (
+                canUpdate ? (
+                  <View style={styles.capBadgeBlue}>
+                    <ShieldCheck size={13} color={colors.infoText} strokeWidth={2} />
+                    <Text style={styles.capBadgeBlueText}>Unit Penyelenggara</Text>
+                  </View>
+                ) : isAppointedLeader || isAppointedNotulis ? (
+                  <View style={styles.capBadgeAmber}>
+                    <NotebookPen size={13} color={colors.onWarningContainer} strokeWidth={2} />
+                    <Text style={styles.capBadgeAmberText}>
+                      {isAppointedLeader ? 'Pimpinan Rapat Bertugas' : 'Notulis Rapat Bertugas'}
                     </Text>
                   </View>
-                </View>
+                ) : (
+                  <View style={styles.capBadgeSlate}>
+                    <Eye size={13} color={colors.onPrimaryContainer} strokeWidth={2} />
+                    <Text style={styles.capBadgeSlateText}>
+                      Mode Pemantauan (Unit Partisipan)
+                    </Text>
+                  </View>
+                )
+              ) : null}
+            </View>
+
+            {/* Right Group: Action Buttons matching show.blade.php:60-250 */}
+            <View style={styles.heroActionsWrap}>
+              {canUpdate && meeting ? (
+                <Pressable
+                  onPress={() => onNavigateEdit?.(meeting.id)}
+                  style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <Pencil size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Edit Agenda</Text>
+                </Pressable>
+              ) : null}
+
+              {canManageCircular && meeting ? (
                 <Pressable
                   onPress={() => {
-                    if (myAtt.id && onNavigateReceipt) {
-                      onNavigateReceipt(String(myAtt.id));
-                    } else if (myAtt.id) {
+                    if (onNavigateEdit) onNavigateEdit(meeting.id);
+                    else void handlePickSuratEdaran();
+                  }}
+                  style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <FileText size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Naskah Surat Dinas</Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                disabled={Boolean(exporting)}
+                onPress={() => void handleExport('pdf')}
+                style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <FileText size={14} color={colors.error} strokeWidth={2} />
+                <Text style={styles.heroBtnWhiteText}>
+                  {exporting === 'pdf' ? 'Mengekspor...' : 'Ekspor PDF'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                disabled={Boolean(exporting)}
+                onPress={() => void handleExport('word')}
+                style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <FileText size={14} color={colors.infoText} strokeWidth={2} />
+                <Text style={styles.heroBtnWhiteText}>
+                  {exporting === 'word' ? 'Mengekspor...' : 'Ekspor Word'}
+                </Text>
+              </Pressable>
+
+              {canManageStatus && rawStatus === 'draft' ? (
+                <Pressable
+                  disabled={isUpdatingStatus}
+                  onPress={() =>
+                    handleTransitionStatus(
+                      'scheduled',
+                      'Terbitkan Agenda',
+                      'Terbitkan agenda konsep ini menjadi Terjadwal agar terlihat oleh pegawai dan siap dilaksanakan?',
+                      'Terbitkan Agenda',
+                    )
+                  }
+                  style={({ pressed }) => [styles.heroBtnBlue, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <Send size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Terbitkan Agenda</Text>
+                </Pressable>
+              ) : null}
+
+              {canManageStatus && rawStatus === 'cancelled' ? (
+                <Pressable
+                  disabled={isUpdatingStatus}
+                  onPress={() =>
+                    handleTransitionStatus(
+                      'draft',
+                      'Buka Kembali sebagai Konsep',
+                      'Buka kembali agenda yang dibatalkan ini sebagai Konsep (Draft)?',
+                      'Buka Kembali',
+                    )
+                  }
+                  style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <RotateCcw size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Buka Kembali sebagai Konsep</Text>
+                </Pressable>
+              ) : null}
+
+              {canManageStatus && rawStatus === 'scheduled' ? (
+                <Pressable
+                  disabled={isUpdatingStatus || !canStartNow}
+                  onPress={() =>
+                    handleTransitionStatus(
+                      'ongoing',
+                      'Mulai Rapat',
+                      'Mulai rapat dan buka sesi pengisian presensi sekarang?',
+                      'Mulai Rapat',
+                    )
+                  }
+                  style={({ pressed }) => [
+                    canStartNow ? styles.heroBtnAmber : styles.heroBtnDisabled,
+                    pressed && canStartNow && styles.pressed,
+                  ]}
+                  accessibilityRole="button"
+                >
+                  <Play
+                    size={14}
+                    color={canStartNow ? colors.onPrimary : colors.textMuted}
+                    strokeWidth={2}
+                  />
+                  <Text
+                    style={
+                      canStartNow ? styles.heroBtnWhiteText : styles.heroBtnDisabledText
+                    }
+                  >
+                    Mulai Rapat
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {canManageStatus && rawStatus === 'ongoing' ? (
+                <Pressable
+                  disabled={isUpdatingStatus}
+                  onPress={() =>
+                    handleTransitionStatus(
+                      'completed',
+                      'Tutup Rapat & Selesaikan',
+                      'Tutup sesi presensi dan tandai agenda rapat telah Selesai?',
+                      'Tutup & Selesaikan',
+                    )
+                  }
+                  style={({ pressed }) => [styles.heroBtnGreen, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <CheckCircle2 size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Tutup Rapat & Selesaikan</Text>
+                </Pressable>
+              ) : null}
+
+              {canUpdate ? (
+                <Pressable
+                  onPress={handleOpenRolesModal}
+                  style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <Users size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Tugaskan Peran</Text>
+                </Pressable>
+              ) : null}
+
+              {canManageMinutesFlag ? (
+                <Pressable
+                  onPress={handleEditMinutes}
+                  style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <NotebookPen size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Notulensi & Foto</Text>
+                </Pressable>
+              ) : null}
+
+              {canDelete ? (
+                <Pressable
+                  onPress={handleConfirmDelete}
+                  style={({ pressed }) => [styles.heroBtnRed, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <Trash2 size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Hapus Agenda</Text>
+                </Pressable>
+              ) : null}
+
+              {hasAttended ? (
+                <Pressable
+                  onPress={() => {
+                    if (onNavigateReceipt && meeting) {
+                      onNavigateReceipt(
+                        meeting.id,
+                        myAtt?.id !== undefined ? String(myAtt.id) : undefined,
+                      );
+                    } else if (myAtt?.id) {
                       setEvidenceParticipant({
                         id: String(myAtt.id),
                         name: user?.name ?? 'Pegawai',
@@ -977,214 +1232,69 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                       });
                     }
                   }}
-                  style={({ pressed }) => [styles.myAttendedReceiptBtn, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.heroBtnGreen, pressed && styles.pressed]}
                   accessibilityRole="button"
-                  accessibilityLabel="Lihat bukti presensi pribadi"
                 >
-                  <FileCheck2 size={15} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.myAttendedReceiptText}>Bukti</Text>
+                  <Check size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Anda Sudah Hadir</Text>
                 </Pressable>
-              </View>
-            );
-          }
-          if (meeting?.status === 'ongoing' && isEligible && onNavigatePresensi) {
-            return (
-              <View style={styles.personalPresensiCta}>
-                <Button
-                  title="Isi Presensi Saya"
-                  variant="success"
-                  size="md"
-                  fullWidth
+              ) : rawStatus === 'ongoing' && meeting && onNavigatePresensi ? (
+                <Pressable
                   onPress={() => onNavigatePresensi(meeting.id)}
-                  icon={<FileCheck2 size={18} color={colors.onPrimary} strokeWidth={2} />}
-                />
-              </View>
-            );
-          }
-          return null;
-        })()}
-
-        {/* STATUS TRANSITION TOOLBAR (show.blade.php + AgendaController::updateStatus) */}
-        {(() => {
-          const allowedTransitions: string[] = Array.isArray(rawAgenda?.allowed_transitions)
-            ? rawAgenda!.allowed_transitions
-            : [];
-          const canManageStatus = Boolean(
-            rawAgenda?.permissions?.can_manage_status ?? userCanEdit,
-          );
-          const canStartNow = rawAgenda?.can_start_now ?? true;
-          const earliestStartAt = rawAgenda?.earliest_start_at as string | null | undefined;
-          const isOverdue = Boolean(rawAgenda?.is_overdue);
-          if (!canManageStatus || allowedTransitions.length === 0) return null;
-
-          return (
-            <View style={styles.statusToolbarCard}>
-              <Text style={styles.statusToolbarTitle}>Kontrol Siklus Rapat</Text>
-              {isOverdue && meeting?.rawStatus === 'ongoing' ? (
-                <View style={styles.overdueBanner}>
-                  <Clock size={15} color={colors.onWarningContainer} strokeWidth={2} />
-                  <Text style={styles.overdueBannerText}>
-                    Jadwal rapat telah melewati batas waktu selesai. Silakan tutup dan selesaikan agenda ini.
-                  </Text>
-                </View>
-              ) : null}
-
-              <View style={styles.statusToolbarBtns}>
-                {allowedTransitions.includes('scheduled') && meeting?.rawStatus === 'draft' ? (
-                  <Pressable
-                    disabled={isUpdatingStatus}
-                    onPress={() =>
-                      handleTransitionStatus(
-                        'scheduled',
-                        'Terbitkan Agenda',
-                        'Agenda konsep ini akan diterbitkan dan dijadwalkan kepada unit/peserta terkait. Lanjutkan?',
-                        'Terbitkan Agenda',
-                      )
-                    }
-                    style={({ pressed }) => [styles.statusBtnPrimary, pressed && styles.pressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Terbitkan Agenda"
-                  >
-                    <Send size={15} color={colors.onPrimary} strokeWidth={2} />
-                    <Text style={styles.statusBtnPrimaryText}>Terbitkan Agenda</Text>
-                  </Pressable>
-                ) : null}
-
-                {allowedTransitions.includes('draft') && meeting?.rawStatus === 'scheduled' ? (
-                  <Pressable
-                    disabled={isUpdatingStatus}
-                    onPress={() =>
-                      handleTransitionStatus(
-                        'draft',
-                        'Kembalikan ke Konsep',
-                        'Agenda akan dikembalikan ke status Konsep (Draft) agar dapat disunting ulang sebelum dimulai.',
-                        'Buka Kembali',
-                      )
-                    }
-                    style={({ pressed }) => [styles.statusBtnOutline, pressed && styles.pressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Buka Kembali sebagai Konsep"
-                  >
-                    <RotateCcw size={15} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.statusBtnOutlineText}>Buka Kembali sebagai Konsep</Text>
-                  </Pressable>
-                ) : null}
-
-                {allowedTransitions.includes('ongoing') ? (
-                  <View style={styles.startWrap}>
-                    <Pressable
-                      disabled={isUpdatingStatus || !canStartNow}
-                      onPress={() =>
-                        handleTransitionStatus(
-                          'ongoing',
-                          'Mulai Rapat',
-                          'Sesi presensi akan dibuka bagi seluruh peserta rapat yang diundang. Mulai rapat sekarang?',
-                          'Mulai Rapat',
-                        )
-                      }
-                      style={({ pressed }) => [
-                        styles.statusBtnSuccess,
-                        (!canStartNow || isUpdatingStatus) && styles.statusBtnDisabled,
-                        pressed && styles.pressed,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Mulai Rapat"
-                    >
-                      <Play size={15} color={colors.onPrimary} strokeWidth={2} />
-                      <Text style={styles.statusBtnPrimaryText}>Mulai Rapat</Text>
-                    </Pressable>
-                    {!canStartNow ? (
-                      <Text style={styles.startGuardHint}>
-                        Rapat hanya dapat dibuka paling cepat 15 menit sebelum jadwal
-                        {earliestStartAt
-                          ? ` (${formatWaktuWIB(earliestStartAt)})`
-                          : '.'}
-                      </Text>
-                    ) : null}
-                  </View>
-                ) : null}
-
-                {allowedTransitions.includes('completed') ? (
-                  <Pressable
-                    disabled={isUpdatingStatus}
-                    onPress={() =>
-                      handleTransitionStatus(
-                        'completed',
-                        'Tutup Rapat & Selesaikan',
-                        'Sesi presensi akan ditutup secara permanen dan status rapat berubah menjadi Selesai. Lanjutkan?',
-                        'Tutup & Selesaikan',
-                      )
-                    }
-                    style={({ pressed }) => [styles.statusBtnPrimary, pressed && styles.pressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Tutup Rapat dan Selesaikan"
-                  >
-                    <CheckCircle2 size={15} color={colors.onPrimary} strokeWidth={2} />
-                    <Text style={styles.statusBtnPrimaryText}>Tutup Rapat & Selesaikan</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-          );
-        })()}
-
-        {/* MANAGEMENT QUICK ACTIONS BAR */}
-        {(() => {
-          const hasAttendances =
-            Number(rawAgenda?.attendances_count ?? meeting?.totalAttended ?? 0) > 0;
-          const allowDelete = Boolean(
-            (rawAgenda?.permissions?.can_delete ?? userCanDelete) && !hasAttendances,
-          );
-          if (!userCanEdit && !allowDelete) return null;
-          return (
-            <View style={styles.managementGrid}>
-              {userCanEdit ? (
-                <Pressable
-                  style={({ pressed }) => [styles.actionBtnNeutral, pressed && styles.pressed]}
-                  onPress={() => {
-                    if (meetingId && onNavigateEdit) onNavigateEdit(meetingId);
-                  }}
+                  style={({ pressed }) => [styles.heroBtnGreen, pressed && styles.pressed]}
                   accessibilityRole="button"
-                  accessibilityLabel="Ubah Agenda Rapat"
                 >
-                  <Pencil size={15} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.actionBtnNeutralText}>Ubah Agenda</Text>
-                </Pressable>
-              ) : null}
-
-              {userCanEdit ? (
-                <Pressable
-                  style={({ pressed }) => [styles.actionBtnNeutral, pressed && styles.pressed]}
-                  onPress={handleOpenRolesModal}
-                  accessibilityRole="button"
-                  accessibilityLabel="Tugaskan Peran Pimpinan dan Notulis"
-                >
-                  <Users size={15} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.actionBtnNeutralText}>Tugaskan Peran</Text>
-                </Pressable>
-              ) : null}
-
-              {allowDelete ? (
-                <Pressable
-                  style={({ pressed }) => [styles.actionBtnDanger, pressed && styles.pressed]}
-                  onPress={handleConfirmDelete}
-                  accessibilityRole="button"
-                  accessibilityLabel="Hapus Agenda Rapat"
-                >
-                  <Trash2 size={15} color={colors.error} strokeWidth={2} />
-                  <Text style={styles.actionBtnDangerText}>Hapus Agenda</Text>
+                  <FileCheck2 size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.heroBtnWhiteText}>Isi Presensi Saya</Text>
                 </Pressable>
               ) : null}
             </View>
-          );
-        })()}
 
-        {/* ZOOM / ONLINE MEETING LINK */}
+            {canManageStatus && rawStatus === 'scheduled' && !canStartNow ? (
+              <Text style={styles.earliestStartHint}>
+                Rapat baru dapat dimulai 15 menit sebelum jadwal
+                {earliestStartAt ? ` (${formatWaktuWIB(earliestStartAt)} WIB)` : ''}.
+              </Text>
+            ) : null}
+          </View>
+        </View>
+
+        {/* 2. METADATA INFO BAR 3 KOLOM (1:1 show.blade.php:256-271) */}
+        <View style={styles.metaInfoBar}>
+          <View style={styles.metaInfoCol}>
+            <Text style={styles.metaInfoLabel}>MPI No.</Text>
+            <Text style={styles.metaInfoMonoValue} numberOfLines={1}>
+              {rawAgenda?.slug || meeting?.code || '-'}
+            </Text>
+          </View>
+          <View style={styles.metaInfoDivider} />
+          <View style={styles.metaInfoCol}>
+            <Text style={styles.metaInfoLabel}>Pemimpin Rapat</Text>
+            <Text style={styles.metaInfoBoldValue} numberOfLines={1}>
+              {rawAgenda?.pimpinan?.name ||
+                rawAgenda?.nama_pimpinan ||
+                meeting?.leader ||
+                '-'}
+            </Text>
+          </View>
+          <View style={styles.metaInfoDivider} />
+          <View style={styles.metaInfoCol}>
+            <Text style={styles.metaInfoLabel}>Notulis Rapat</Text>
+            <Text style={styles.metaInfoBoldValue} numberOfLines={1}>
+              {rawAgenda?.notulis?.name ||
+                rawAgenda?.nama_notulis ||
+                meeting?.notulis ||
+                '-'}
+            </Text>
+          </View>
+        </View>
+
+        {/* 3. TAUTAN PERTEMUAN DARING (1:1 show.blade.php:274-289) */}
         {meeting?.zoomUrl ? (
           <View style={styles.zoomCard}>
             <View style={styles.zoomLeft}>
               <View style={styles.zoomIconBox}>
-                <Video size={18} color={colors.onPrimary} strokeWidth={2} />
+                <Video size={20} color={colors.onPrimary} strokeWidth={2} />
               </View>
               <View style={styles.flexOne}>
                 <Text style={styles.zoomTitle}>Tautan Pertemuan Daring</Text>
@@ -1197,967 +1307,721 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               onPress={() => void Linking.openURL(meeting.zoomUrl!)}
               style={({ pressed }) => [styles.zoomOpenBtn, pressed && styles.pressed]}
               accessibilityRole="button"
-              accessibilityLabel="Buka Tautan Daring"
+              accessibilityLabel="Buka Zoom atau Google Meet"
             >
-              <Text style={styles.zoomOpenText}>Buka</Text>
               <ExternalLink size={14} color={colors.onPrimary} strokeWidth={2} />
+              <Text style={styles.zoomOpenText}>Buka Zoom / GMeet</Text>
             </Pressable>
           </View>
         ) : null}
 
-        {/* LIVE ATTENDANCE METRICS & PROGRESS */}
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Rekapitulasi Kehadiran</Text>
-          <View style={styles.metricsGrid}>
-            <View style={styles.metricCol}>
-              <Text style={styles.metricLabel}>Hadir Sah</Text>
-              <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, styles.metricValueSuccess]}>
-                  {agendaAttendancePage?.summary.total_attended ?? meeting?.totalAttended ?? '—'}
-                </Text>
-                <Text style={styles.metricUnit}>ASN</Text>
-              </View>
+        {/* 4. PANEL PESERTA HADIR (1:1 show.blade.php:297-391) */}
+        <View style={styles.webPanel}>
+          <View style={styles.webPanelToolbar}>
+            <View style={styles.webPanelTitleWrap}>
+              <Users size={17} color={colors.onSurface} strokeWidth={2} />
+              <Text style={styles.webPanelTitle}>Peserta Hadir</Text>
             </View>
-            <View style={styles.metricCol}>
-              <Text style={styles.metricLabel}>Belum Hadir</Text>
-              <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, styles.metricValueError]}>
-                  {agendaAttendancePage?.summary?.unattended_count ?? '—'}
-                </Text>
-                <Text style={styles.metricUnit}>ASN</Text>
-              </View>
-            </View>
-            <View style={styles.metricCol}>
-              <Text style={styles.metricLabel}>Target</Text>
-              <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>{meeting?.totalInvited ?? '—'}</Text>
-                <Text style={styles.metricUnit}>ASN</Text>
-              </View>
+            <View style={styles.webCountPill}>
+              <Text style={styles.webCountPillText}>
+                {attendeesTotal} / {attendeesTotal}
+              </Text>
             </View>
           </View>
 
-          <View style={styles.progressSection}>
-            <View style={styles.progressLabelRow}>
-              <Text style={styles.progressLabel}>Partisipasi Kehadiran</Text>
-              <Text style={styles.progressValue}>
-                {agendaAttendancePage?.summary?.participation_rate_label ?? 'Rasio belum tersedia'}
-              </Text>
+          <View style={styles.attendeeSubBar}>
+            <View style={styles.attendeeSubPills}>
+              <View style={styles.hadirDarkPill}>
+                <Text style={styles.hadirDarkPillText}>✓ Hadir: {attendeesTotal}</Text>
+              </View>
+              <View style={styles.absenNeutralPill}>
+                <Text style={styles.absenNeutralPillText}>Absen: 0</Text>
+              </View>
             </View>
-            <View style={styles.progressBarBg}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    width: `${Math.max(0, Math.min(100, agendaAttendancePage?.summary?.participation_rate ?? 0))}%`,
-                  },
-                ]}
-              />
-            </View>
+
+            {canManageMinutesFlag ? (
+              <Pressable
+                onPress={handleEditMinutes}
+                style={({ pressed }) => [styles.subBarLinkBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Plus size={12} color={colors.textSecondary} strokeWidth={2} />
+                <Text style={styles.subBarLinkText}>Unggah Foto</Text>
+              </Pressable>
+            ) : null}
           </View>
-        </View>
 
-        {/* TABS */}
-        <View style={styles.tabBarWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabScrollContainer}
-          >
-            <Pressable
-              onPress={() => {
-                if (activeTab !== 'verified') {
-                  setActiveTab('verified');
-                  setAttendancePage(1);
-                }
-              }}
-              style={[styles.tabBtn, activeTab === 'verified' && styles.tabBtnActive]}
-              accessibilityRole="tab"
-              accessibilityLabel="Tab Tercatat"
-            >
-              <Text style={[styles.tabBtnText, activeTab === 'verified' && styles.tabBtnTextActive]}>
-                Tercatat
-              </Text>
-              <View
-                style={[
-                  styles.tabBadge,
-                  activeTab === 'verified' ? styles.tabBadgePrimary : styles.tabBadgeInactive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tabBadgeText,
-                    activeTab === 'verified' ? styles.tabBadgeTextOnDark : styles.tabBadgeTextInactive,
-                  ]}
-                >
-                  {agendaAttendancePage?.summary.total_attended ?? '—'}
+          <View style={styles.attendeeListBody}>
+            {filteredList.length === 0 ? (
+              <View style={styles.emptyBoxSimple}>
+                <Text style={styles.emptyBoxSimpleText}>
+                  {isLoading
+                    ? 'Memuat daftar hadir...'
+                    : 'Belum ada peserta yang melakukan presensi.'}
                 </Text>
               </View>
-            </Pressable>
+            ) : (
+              filteredList.map((p, idx) => {
+                const canInspectEvidence = Boolean(p.id);
+                const initials = (p.name || 'AS')
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((w) => w[0])
+                  .join('')
+                  .toUpperCase();
 
-            <Pressable
-              onPress={() => {
-                if (activeTab !== 'unverified') {
-                  setActiveTab('unverified');
-                  setAttendancePage(1);
-                }
-              }}
-              style={[styles.tabBtn, activeTab === 'unverified' && styles.tabBtnActive]}
-              accessibilityRole="tab"
-              accessibilityLabel="Tab Belum Hadir"
-            >
-              <Text
-                style={[styles.tabBtnText, activeTab === 'unverified' && styles.tabBtnTextActive]}
-              >
-                Belum Hadir
-              </Text>
-              <View
-                style={[
-                  styles.tabBadge,
-                  activeTab === 'unverified' ? styles.tabBadgeDanger : styles.tabBadgeInactive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tabBadgeText,
-                    activeTab === 'unverified'
-                      ? styles.tabBadgeTextOnDark
-                      : styles.tabBadgeTextInactive,
-                  ]}
-                >
-                  {agendaAttendancePage?.summary.unattended_count ?? '—'}
-                </Text>
-              </View>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                if (activeTab !== 'minutes') {
-                  setActiveTab('minutes');
-                  setAttendancePage(1);
-                }
-              }}
-              style={[styles.tabBtn, activeTab === 'minutes' && styles.tabBtnActive]}
-              accessibilityRole="tab"
-              accessibilityLabel="Tab Notulensi dan Dokumentasi"
-            >
-              <Text style={[styles.tabBtnText, activeTab === 'minutes' && styles.tabBtnTextActive]}>
-                Notulensi & Foto
-              </Text>
-            </Pressable>
-          </ScrollView>
-        </View>
-
-        {/* ATTENDANCE TAB CONTENT */}
-        {activeTab !== 'minutes' ? (
-          <View style={styles.filterSection}>
-            <View style={styles.searchBox}>
-              <Search size={18} color={colors.textMuted} strokeWidth={2} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Cari nama atau NIP pegawai..."
-                placeholderTextColor={colors.textMuted}
-                value={searchQuery}
-                onChangeText={(text) => {
-                  setSearchQuery(text);
-                  setAttendancePage(1);
-                }}
-              />
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.pokjaChipsRow}
-            >
-              {[
-                'Semua Unit',
-                ...Array.from(
-                  new Set(agendaAttendances.map((record) => record.asnUnitKerja).filter(Boolean)),
-                ),
-              ].map((chip) => {
-                const active = selectedPokja === chip;
                 return (
-                  <Pressable
-                    key={chip}
-                    onPress={() => {
-                      setSelectedPokja(chip);
-                      setAttendancePage(1);
-                    }}
-                    style={({ pressed }) => [
-                      styles.pokjaChip,
-                      active ? styles.pokjaChipActive : styles.pokjaChipInactive,
-                      pressed && styles.pressed,
+                  <View
+                    key={`${p.id ?? p.nip}-${idx}`}
+                    style={[
+                      styles.attendeeCompactRow,
+                      idx === filteredList.length - 1 && styles.attendeeCompactRowLast,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.pokjaChipText,
-                        active && styles.pokjaChipTextActive,
-                      ]}
-                    >
-                      {chip}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.participantFeed}>
-              {error ? (
-                <Text style={styles.pRole}>{error}</Text>
-              ) : filteredList.length === 0 ? (
-                <Text style={styles.pRole}>
-                  {isLoading
-                    ? 'Memuat kehadiran...'
-                    : activeTab === 'unverified'
-                      ? 'Semua undangan sudah presensi atau tidak ada data.'
-                      : 'Belum ada data kehadiran.'}
-                </Text>
-              ) : (
-                filteredList.map((p, idx) => {
-                  const canInspectEvidence = p.status !== 'belum_hadir' && Boolean(p.id);
-                  return (
-                    <View key={`${p.nip}-${idx}`} style={styles.participantCard}>
-                      {canInspectEvidence ? (
-                        <Pressable
-                          onPress={() => setEvidenceParticipant(p)}
-                          style={({ pressed }) => [styles.pAvatarBtn, pressed && styles.pressed]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Lihat bukti selfie dan tanda tangan ${p.name}`}
-                        >
+                    <View style={styles.attendeeCompactLeft}>
+                      <View style={styles.attendeeAvatarCircle}>
+                        {canInspectEvidence ? (
                           <AuthMediaThumbnail
                             attendanceId={p.id!}
                             rawUrl={p.selfieUrl}
                             mediaType="selfie"
-                            style={styles.pAvatarImage}
+                            style={styles.attendeeAvatarImg}
                             fallback={
-                              p.isOnline ? (
-                                <Video size={18} color={colors.primary} strokeWidth={2} />
-                              ) : (
-                                <User size={18} color={colors.primary} strokeWidth={2} />
-                              )
+                              <Text style={styles.attendeeInitialsText}>{initials}</Text>
                             }
                           />
-                        </Pressable>
-                      ) : (
-                        <View style={styles.pAvatar}>
-                          {p.isOnline ? (
-                            <Video size={18} color={colors.primary} strokeWidth={2} />
-                          ) : (
-                            <User size={18} color={colors.primary} strokeWidth={2} />
-                          )}
-                        </View>
-                      )}
+                        ) : (
+                          <Text style={styles.attendeeInitialsText}>{initials}</Text>
+                        )}
+                      </View>
                       <View style={styles.flexOne}>
-                        <View style={styles.pTopRow}>
-                          <View style={styles.flexOne}>
-                            <Text style={styles.pName}>{p.name}</Text>
-                            <Text style={styles.pRole}>{p.role}</Text>
-                          </View>
-                          <View style={styles.pRightActions}>
-                            <View
-                              style={[
-                                styles.pStatusBadge,
-                                p.status === 'belum_hadir'
-                                  ? styles.pStatusBadgeWait
-                                  : styles.pStatusBadgeValid,
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.pStatusText,
-                                  p.status === 'belum_hadir'
-                                    ? styles.pStatusTextWait
-                                    : styles.pStatusTextValid,
-                                ]}
-                              >
-                                {p.status === 'belum_hadir' ? 'Belum Hadir' : 'Tercatat'}
-                              </Text>
-                            </View>
-                            {canInspectEvidence ? (
-                              <Pressable
-                                onPress={() => setEvidenceParticipant(p)}
-                                style={({ pressed }) => [styles.pEvidenceBtn, pressed && styles.pressed]}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Periksa bukti ${p.name}`}
-                              >
-                                <Eye size={14} color={colors.primary} strokeWidth={2} />
-                              </Pressable>
-                            ) : null}
-                          </View>
-                        </View>
-                        <View style={styles.pMetaRow}>
-                          <Text style={styles.pMetaText}>
-                            NIP: <Text style={styles.pMetaValueMono}>{p.nip || '-'}</Text>
-                          </Text>
-                          <Text style={styles.pMetaDot}>•</Text>
-                          <Text style={styles.pMetaText} numberOfLines={1}>
-                            {p.location}
-                          </Text>
-                          {activeTab === 'verified' ? (
-                            <>
-                              <Text style={styles.pMetaDot}>•</Text>
-                              <Text style={styles.pMetaText}>{p.time}</Text>
-                            </>
-                          ) : null}
-                        </View>
+                        <Text style={styles.attendeeCompactName} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        <Text style={styles.attendeeCompactUnit} numberOfLines={1}>
+                          {p.unit || 'LLDIKTI'}
+                        </Text>
                       </View>
                     </View>
-                  );
-                })
-              )}
 
-              {agendaAttendancePage && agendaAttendancePage.total > 0 ? (
-                <PaginationBar
-                  currentPage={agendaAttendancePage.currentPage}
-                  lastPage={agendaAttendancePage.lastPage}
-                  total={agendaAttendancePage.total}
-                  label={activeTab === 'unverified' ? 'belum hadir' : 'peserta'}
-                  isLoading={isLoading}
-                  onPageChange={handlePageChange}
-                />
-              ) : null}
+                    {canInspectEvidence ? (
+                      <Pressable
+                        onPress={() => setEvidenceParticipant(p)}
+                        style={({ pressed }) => [
+                          styles.attendeeCameraBtn,
+                          pressed && styles.pressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Lihat bukti kehadiran ${p.name}`}
+                      >
+                        <Camera size={15} color={colors.textSecondary} strokeWidth={2} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })
+            )}
+          </View>
+
+          {agendaAttendancePage && agendaAttendancePage.total > 10 ? (
+            <View style={styles.webPanelFooter}>
+              <PaginationBar
+                currentPage={agendaAttendancePage.currentPage}
+                lastPage={agendaAttendancePage.lastPage}
+                total={agendaAttendancePage.total}
+                label="peserta"
+                isLoading={isLoading}
+                onPageChange={handlePageChange}
+              />
+            </View>
+          ) : null}
+        </View>
+
+        {/* 5. PANEL SURAT EDARAN / UNDANGAN (1:1 surat_edaran_preview.blade.php) */}
+        {(() => {
+          const suratEdaranMeta = rawAgenda?.surat_edaran ?? meeting?.suratEdaran;
+          const isDigitalCircular = Boolean(
+            suratEdaranMeta?.is_digital || rawAgenda?.surat_edaran_type === 'digital',
+          );
+          const resolvedEdaranUrl =
+            resolveSuratEdaranUrl(
+              suratEdaranMeta?.stream_url ??
+                suratEdaranMeta?.url ??
+                meeting?.invitationPdfUrl,
+            ) ?? meeting?.invitationPdfUrl;
+          const badgeLabel = isDigitalCircular
+            ? 'SURAT DIGITAL'
+            : suratEdaranMeta?.is_image
+              ? 'GAMBAR'
+              : 'PDF';
+          const digitalMeta = seConfig ?? rawAgenda?.surat_edaran_data ?? null;
+
+          return (
+            <View style={styles.webPanel}>
+              <View style={styles.webPanelToolbar}>
+                <View style={styles.webPanelTitleWrap}>
+                  <FileText size={17} color={colors.onSurface} strokeWidth={2} />
+                  <Text style={styles.webPanelTitle}>Surat Edaran / Undangan</Text>
+                </View>
+                {resolvedEdaranUrl || isDigitalCircular ? (
+                  <View
+                    style={[
+                      styles.circularTypeBadge,
+                      isDigitalCircular || suratEdaranMeta?.is_image
+                        ? styles.circularTypeBadgeBlue
+                        : styles.circularTypeBadgeRose,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.circularTypeBadgeText,
+                        isDigitalCircular || suratEdaranMeta?.is_image
+                          ? styles.circularTypeBadgeTextBlue
+                          : styles.circularTypeBadgeTextRose,
+                      ]}
+                    >
+                      {badgeLabel}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={styles.webPanelBody}>
+                {digitalMeta ? (
+                  <View style={styles.digitalMetaBox}>
+                    <View style={styles.digitalMetaLeft}>
+                      <Text style={styles.digitalMetaTitle} numberOfLines={1}>
+                        {digitalMeta.perihal || meeting?.title || 'Undangan Rapat'}
+                      </Text>
+                      <Text style={styles.digitalMetaLine}>
+                        <Text style={styles.digitalMetaStrong}>Nomor:</Text>{' '}
+                        {digitalMeta.nomor_surat || '-'}
+                      </Text>
+                      <Text style={styles.digitalMetaLine}>
+                        <Text style={styles.digitalMetaStrong}>Tanggal:</Text>{' '}
+                        {digitalMeta.tanggal_surat || '-'}
+                      </Text>
+                      <Text style={styles.digitalMetaLine} numberOfLines={2}>
+                        <Text style={styles.digitalMetaStrong}>Tujuan:</Text>{' '}
+                        {(digitalMeta as any).tujuan_surat ||
+                          (digitalMeta as any).kepada_yth ||
+                          '-'}
+                      </Text>
+                    </View>
+                    <View style={styles.digitalMetaIconBox}>
+                      <FileText size={20} color={colors.onPrimary} strokeWidth={2} />
+                    </View>
+                  </View>
+                ) : null}
+
+                {resolvedEdaranUrl ? (
+                  <View style={styles.circularActionsStack}>
+                    <Pressable
+                      onPress={handlePreviewSuratEdaran}
+                      style={({ pressed }) => [
+                        styles.circularPrimaryBtn,
+                        pressed && styles.pressed,
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <Eye size={16} color={colors.onPrimary} strokeWidth={2} />
+                      <Text style={styles.circularPrimaryBtnText}>
+                        Pratinjau Layar Penuh
+                      </Text>
+                    </Pressable>
+
+                    <View style={styles.circularSecondaryRow}>
+                      <Pressable
+                        disabled={isDownloadingEdaran}
+                        onPress={() => void handleDownloadSuratEdaran()}
+                        style={({ pressed }) => [
+                          styles.circularSecondaryBtn,
+                          pressed && styles.pressed,
+                        ]}
+                        accessibilityRole="button"
+                      >
+                        <Download size={14} color={colors.error} strokeWidth={2} />
+                        <Text style={styles.circularSecondaryBtnText}>
+                          {isDownloadingEdaran
+                            ? 'Mengunduh...'
+                            : isDigitalCircular
+                              ? 'Unduh PDF'
+                              : 'Unduh File'}
+                        </Text>
+                      </Pressable>
+
+                      {canManageCircular ? (
+                        <Pressable
+                          disabled={isUploadingEdaran}
+                          onPress={() => {
+                            if (isDigitalCircular && meeting && onNavigateEdit) {
+                              onNavigateEdit(meeting.id);
+                            } else {
+                              void handlePickSuratEdaran();
+                            }
+                          }}
+                          style={({ pressed }) => [
+                            styles.circularSecondaryBtn,
+                            pressed && styles.pressed,
+                          ]}
+                          accessibilityRole="button"
+                        >
+                          <Pencil size={14} color={colors.onSurface} strokeWidth={2} />
+                          <Text style={styles.circularSecondaryBtnText}>
+                            {isDigitalCircular ? 'Edit Naskah' : 'Ganti Berkas'}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.circularDashedEmpty}>
+                    <View style={styles.circularEmptyCircle}>
+                      <FileText size={18} color={colors.textMuted} strokeWidth={2} />
+                    </View>
+                    <Text style={styles.circularEmptyText}>
+                      Tidak ada berkas surat edaran atau undangan terlampir.
+                    </Text>
+                    {canManageCircular ? (
+                      <Pressable
+                        onPress={() => void handlePickSuratEdaran()}
+                        style={({ pressed }) => [
+                          styles.circularSecondaryBtn,
+                          pressed && styles.pressed,
+                        ]}
+                        accessibilityRole="button"
+                      >
+                        <CloudUpload size={14} color={colors.onSurface} strokeWidth={2} />
+                        <Text style={styles.circularSecondaryBtnText}>
+                          Unggah Surat Edaran
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                )}
+              </View>
+            </View>
+          );
+        })()}
+
+        {/* 6. PANEL TARGET PARTISIPAN RAPAT (1:1 show.blade.php:397-445) */}
+        {meeting ? (
+          <View style={styles.webPanel}>
+            <View style={styles.webPanelToolbar}>
+              <View style={styles.webPanelTitleWrap}>
+                <Building2 size={17} color={colors.onSurface} strokeWidth={2} />
+                <Text style={styles.webPanelTitle}>Target Partisipan Rapat</Text>
+              </View>
+            </View>
+
+            <View style={styles.webPanelBody}>
+              {meeting.targetType === 'selected_users' ? (
+                <View style={styles.targetSectionStack}>
+                  <View style={styles.targetSelectedHeaderBox}>
+                    <View style={styles.targetSelectedHeaderLeft}>
+                      <View style={styles.targetDarkCheckCircle}>
+                        <Users size={12} color={colors.onPrimary} strokeWidth={2} />
+                      </View>
+                      <Text style={styles.targetSelectedHeaderTitle}>
+                        Khusus Pegawai ASN Tertentu
+                      </Text>
+                    </View>
+                    <View style={styles.targetCountBadge}>
+                      <Text style={styles.targetCountBadgeText}>
+                        {meeting.invitedUsers?.length ?? meeting.totalInvited ?? 0} Pegawai
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.targetUpperCaption}>
+                    Daftar Pegawai yang Diundang:
+                  </Text>
+
+                  <View style={styles.targetUsersList}>
+                    {(meeting.invitedUsers ?? []).map((u) => {
+                      const uInitials = (u.name || 'AS')
+                        .trim()
+                        .split(/\s+/)
+                        .slice(0, 2)
+                        .map((w) => w[0])
+                        .join('')
+                        .toUpperCase();
+                      return (
+                        <View key={u.id} style={styles.targetInvitedRow}>
+                          <View style={styles.targetInvitedAvatar}>
+                            <Text style={styles.targetInvitedAvatarText}>{uInitials}</Text>
+                          </View>
+                          <View style={styles.flexOne}>
+                            <Text style={styles.targetInvitedName} numberOfLines={1}>
+                              {u.name}
+                            </Text>
+                            <Text style={styles.targetInvitedSub} numberOfLines={1}>
+                              NIP: {u.nip || '-'}
+                              {u.unit ? ` • ${u.unit}` : ''}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : meeting.isAllUnits || meeting.targetType === 'all_units' ? (
+                <View style={styles.targetAllUnitsBox}>
+                  <View style={styles.targetDarkCheckCircle}>
+                    <Check size={12} color={colors.onPrimary} strokeWidth={2} />
+                  </View>
+                  <Text style={styles.targetAllUnitsText}>
+                    Terbuka untuk Seluruh Unit LLDIKTI
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.targetSectionStack}>
+                  <Text style={styles.targetUpperCaption}>Hanya unit kerja berikut:</Text>
+                  <View style={styles.targetChipsWrap}>
+                    {(meeting.unitsList ?? []).length > 0 ? (
+                      meeting.unitsList!.map((unit) => (
+                        <View key={unit.id} style={styles.targetUnitChip}>
+                          <Text style={styles.targetUnitChipText}>
+                            {unit.kode_unit} - {unit.nama_unit}
+                          </Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.emptyItalicText}>
+                        {meeting.targetAudience || 'Tidak ada unit yang dipilih.'}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         ) : null}
 
-        {/* MINUTES & DOCUMENTATION TAB */}
-        {activeTab === 'minutes' ? (
-          <View style={styles.minutesSectionContainer}>
-            {isAppointedNotulis || isAppointedLeader ? (
-              <View style={styles.roleBannerContainer}>
-                <View
-                  style={[
-                    styles.roleBannerIconBox,
-                    isAppointedNotulis ? styles.roleBannerNotulisIcon : styles.roleBannerLeaderIcon,
-                  ]}
-                >
-                  {isAppointedNotulis ? (
-                    <NotebookPen size={18} color={colors.primary} strokeWidth={2} />
-                  ) : (
-                    <Scale size={18} color={colors.onWarningContainer} strokeWidth={2} />
-                  )}
-                </View>
-                <View style={styles.flexOne}>
-                  <Text style={styles.roleBannerTitle}>
-                    {isAppointedNotulis
-                      ? 'Penugasan: Notulis Rapat Resmi'
-                      : 'Penugasan: Pimpinan Rapat'}
-                  </Text>
-                  <Text style={styles.roleBannerSubtitle}>
-                    Anda memiliki wewenang menyusun Notulensi, Kesimpulan (RTL), dan Dokumentasi Foto rapat ini.
-                  </Text>
-                </View>
-              </View>
-            ) : null}
+        {/* 7. PANEL NOTULENSI RAPAT (1:1 show.blade.php:451-598) */}
+        {(() => {
+          const findSigner = (
+            targetId?: number | string | null,
+            targetName?: string | null,
+          ): SignerAttendanceRecord | undefined => {
+            if (targetId !== null && targetId !== undefined) {
+              const byId = signerAttendances.find((a) => a.userId === String(targetId));
+              if (byId) return byId;
+            }
+            if (targetName && targetName.trim().length > 0) {
+              const norm = targetName.trim().toLowerCase();
+              return signerAttendances.find((a) => a.name.trim().toLowerCase() === norm);
+            }
+            return undefined;
+          };
 
-            <View style={styles.minutesSectionHeader}>
-              <View style={styles.flexOne}>
-                <Text style={styles.panelTitle}>Risalah & Dokumen Rapat</Text>
-                <Text style={styles.panelSubtitle}>
-                  {meeting ? `Kode Agenda: ${meeting.code}` : 'Dokumentasi resmi agenda'}
-                </Text>
-              </View>
-              {userCanManageMinutes ? (
-                isEditingMinutes ? (
-                  <Pressable
-                    onPress={() => setIsEditingMinutes(false)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Batal mengubah risalah rapat"
-                    style={({ pressed }) => [styles.minutesHeaderBtn, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.minutesHeaderCancelText}>Batal</Text>
-                  </Pressable>
+          const pimpinanName =
+            rawAgenda?.pimpinan?.name ||
+            rawAgenda?.nama_pimpinan ||
+            meeting?.leader ||
+            '-';
+          const pimpinanNip =
+            rawAgenda?.pimpinan?.nip || rawAgenda?.nip_pimpinan || '-';
+          const notulisName =
+            rawAgenda?.notulis?.name ||
+            rawAgenda?.nama_notulis ||
+            meeting?.notulis ||
+            '-';
+          const notulisNip = rawAgenda?.notulis?.nip || '-';
+
+          const pimpinanAtt = findSigner(
+            rawAgenda?.pimpinan_id ?? meeting?.leaderId,
+            pimpinanName,
+          );
+          const notulisAtt = findSigner(
+            rawAgenda?.notulis_id ?? meeting?.notulisId,
+            notulisName,
+          );
+
+          const hasMinutesContent = Boolean(
+            meeting?.minutesHtml && plainText(meeting.minutesHtml).length > 0,
+          );
+          const hasSummaryContent = Boolean(
+            meeting?.summaryHtml && plainText(meeting.summaryHtml).length > 0,
+          );
+
+          const renderWebSignatureCol = (
+            roleTitle: string,
+            personName: string,
+            personNip: string,
+            att?: SignerAttendanceRecord,
+          ) => (
+            <View style={styles.webSigCol}>
+              <Text style={styles.webSigRoleLabel}>{roleTitle}</Text>
+              <View style={styles.webSigCanvasWrap}>
+                {att && att.signatureUrl ? (
+                  <AuthMediaThumbnail
+                    attendanceId={att.id}
+                    rawUrl={att.signatureUrl}
+                    mediaType="signature"
+                    style={styles.webSigImage}
+                    fallback={
+                      <Text style={styles.webSigFallbackItalic}>
+                        Hadir (Tanpa Tanda Tangan)
+                      </Text>
+                    }
+                  />
+                ) : att ? (
+                  <Text style={styles.webSigFallbackItalic}>
+                    Hadir (Tanpa Tanda Tangan)
+                  </Text>
                 ) : (
-                  <Pressable
-                    onPress={handleEditMinutes}
-                    accessibilityRole="button"
-                    accessibilityLabel="Ubah risalah rapat"
-                    style={({ pressed }) => [styles.minutesHeaderBtn, pressed && styles.pressed]}
-                  >
-                    <Pencil size={15} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.minutesHeaderEditText}>Ubah Risalah</Text>
-                  </Pressable>
-                )
+                  <View style={styles.webSigPendingDashed}>
+                    <Text style={styles.webSigPendingText}>Belum Mengisi Presensi</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.webSigUnderline}>
+                <Text style={styles.webSigPersonName}>{personName}</Text>
+              </View>
+              <Text style={styles.webSigPersonNip}>NIP {att?.nip || personNip || '-'}</Text>
+              {att ? (
+                <View style={styles.webSigHadirBadge}>
+                  <Text style={styles.webSigHadirBadgeText}>
+                    ✓ Hadir ({att.signedAt ? `${formatWaktuWIB(att.signedAt)} WIB` : 'Tercatat'})
+                  </Text>
+                </View>
               ) : null}
             </View>
+          );
 
-            {/* NOTULENSI CARD */}
-            <View style={styles.panelCard}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.iconCircle}>
-                  <NotebookPen size={18} color={colors.primary} strokeWidth={2} />
+          return (
+            <View style={styles.webPanel}>
+              <View style={styles.webPanelToolbar}>
+                <View style={styles.webPanelTitleWrap}>
+                  <NotebookPen size={17} color={colors.onSurface} strokeWidth={2} />
+                  <Text style={styles.webPanelTitle}>Notulensi Rapat</Text>
                 </View>
-                <View style={styles.flexOne}>
-                  <Text style={styles.panelTitle}>Notulensi Jalannya Rapat</Text>
-                  <Text style={styles.panelSubtitle}>
-                    Catatan dinas pembahasan agenda, dinamika, dan masukan peserta
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.divider} />
-              {isEditingMinutes ? (
-                <TextInput
-                  multiline
-                  textAlignVertical="top"
-                  value={minutesDraft}
-                  onChangeText={setMinutesDraft}
-                  editable={!isSavingMinutes}
-                  placeholder="Tuliskan jalannya rapat dan dinamika pembahasan secara lengkap..."
-                  placeholderTextColor={colors.textMuted}
-                  accessibilityLabel="Isi notulensi jalannya rapat"
-                  style={styles.minutesInput}
-                />
-              ) : meeting?.minutesHtml && plainText(meeting.minutesHtml).length > 0 ? (
-                <SimpleHtmlView html={meeting.minutesHtml} />
-              ) : (
-                <View style={styles.emptyInfoRow}>
-                  <Info size={18} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={styles.emptyItalicText}>
-                    Belum ada catatan jalannya rapat yang didokumentasikan.
-                  </Text>
-                </View>
-              )}
-            </View>
 
-            {/* KESIMPULAN CARD */}
-            <View style={styles.panelCard}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={[styles.iconCircle, styles.iconCircleSuccess]}>
-                  <CheckCircle2 size={18} color={colors.success} strokeWidth={2} />
-                </View>
-                <View style={styles.flexOne}>
-                  <Text style={styles.panelTitle}>Kesimpulan & Tindak Lanjut</Text>
-                  <Text style={styles.panelSubtitle}>
-                    Poin kesepakatan, arahan pimpinan rapat, PIC, dan tenggat waktu
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.divider} />
-              {isEditingMinutes ? (
-                <TextInput
-                  multiline
-                  textAlignVertical="top"
-                  value={conclusionDraft}
-                  onChangeText={setConclusionDraft}
-                  editable={!isSavingMinutes}
-                  placeholder="Tuliskan poin kesimpulan, arahan pimpinan, PIC, dan tenggat waktu..."
-                  placeholderTextColor={colors.textMuted}
-                  accessibilityLabel="Isi kesimpulan dan rencana tindak lanjut"
-                  style={styles.minutesInput}
-                />
-              ) : meeting?.summaryHtml && plainText(meeting.summaryHtml).length > 0 ? (
-                <SimpleHtmlView html={meeting.summaryHtml} />
-              ) : (
-                <View style={styles.emptyInfoRow}>
-                  <Info size={18} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={styles.emptyItalicText}>
-                    Belum ada kesimpulan & tindak lanjut yang didokumentasikan.
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {isEditingMinutes ? (
-              <View style={styles.minutesActionRow}>
-                <Button
-                  title="Batal"
-                  variant="outline"
-                  size="md"
-                  onPress={() => setIsEditingMinutes(false)}
-                  disabled={isSavingMinutes}
-                  style={styles.flexOne}
-                />
-                <Button
-                  title={isSavingMinutes ? 'Menyimpan...' : 'Simpan Risalah'}
-                  variant="primary"
-                  size="md"
-                  onPress={() => void handleSaveMinutes()}
-                  disabled={isSavingMinutes || !meeting}
-                  isLoading={isSavingMinutes}
-                  icon={<CheckCircle2 size={18} color={colors.onPrimary} strokeWidth={2} />}
-                  style={styles.flexTwo}
-                />
-              </View>
-            ) : null}
-
-            {/* DOKUMENTASI FOTO RAPAT */}
-            <View style={styles.panelCard}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.iconCircle}>
-                  <Camera size={18} color={colors.primary} strokeWidth={2} />
-                </View>
-                <View style={styles.flexOne}>
-                  <Text style={styles.panelTitle}>Dokumentasi Foto ({docs.length})</Text>
-                  <Text style={styles.panelSubtitle}>Bukti visual pelaksanaan rapat kedinasan</Text>
-                </View>
-                {userCanManageMinutes ? (
+                {canManageMinutesFlag ? (
                   <Pressable
-                    onPress={() => void handleUploadDocumentationPhoto()}
-                    disabled={isUploadingPhoto}
-                    style={({ pressed }) => [styles.minutesHeaderBtn, pressed && styles.pressed]}
+                    onPress={handleEditMinutes}
+                    style={({ pressed }) => [
+                      styles.toolbarOutlineBtn,
+                      pressed && styles.pressed,
+                    ]}
                     accessibilityRole="button"
-                    accessibilityLabel="Unggah foto dokumentasi rapat"
                   >
-                    <Plus size={15} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.minutesHeaderEditText}>
-                      {isUploadingPhoto ? 'Mengunggah...' : 'Unggah Foto'}
-                    </Text>
+                    <Pencil size={13} color={colors.onSurface} strokeWidth={2} />
+                    <Text style={styles.toolbarOutlineBtnText}>Edit Notulensi</Text>
                   </Pressable>
                 ) : null}
               </View>
-              <View style={styles.divider} />
-              {docs.length > 0 ? (
-                <View style={styles.docsGrid}>
-                  {docs.map((doc) => {
-                    const docUrl = doc.file_url ?? doc.url;
-                    const extBadge = resolveDocExtension(docUrl);
-                    const docDate = doc.created_at
-                      ? `${formatTanggalIndonesia(doc.created_at)} • ${formatWaktuWIB(doc.created_at)}`
-                      : null;
-                    return (
-                      <View key={String(doc.id)} style={styles.docCard}>
+
+              <View style={styles.webPanelBody}>
+                {/* Block P: Pembahasan */}
+                <View style={styles.notulenBlock}>
+                  <View style={styles.notulenHeadingRow}>
+                    <View style={styles.notulenCircleBadge}>
+                      <Text style={styles.notulenCircleBadgeText}>P</Text>
+                    </View>
+                    <Text style={styles.notulenHeadingText}>Pembahasan</Text>
+                  </View>
+                  <View style={styles.notulenContentCard}>
+                    {hasMinutesContent ? (
+                      <SimpleHtmlView html={meeting!.minutesHtml!} />
+                    ) : (
+                      <Text style={styles.emptyItalicText}>
+                        Notulensi jalannya rapat belum diinput oleh pengelola rapat.
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Block K: Keputusan & Tindak Lanjut */}
+                <View style={styles.notulenBlock}>
+                  <View style={styles.notulenHeadingRow}>
+                    <View style={styles.notulenCircleBadge}>
+                      <Text style={styles.notulenCircleBadgeText}>K</Text>
+                    </View>
+                    <Text style={styles.notulenHeadingText}>
+                      Keputusan & Tindak Lanjut
+                    </Text>
+                  </View>
+                  <View style={styles.notulenContentCard}>
+                    {hasSummaryContent ? (
+                      <SimpleHtmlView html={meeting!.summaryHtml!} />
+                    ) : (
+                      <Text style={styles.emptyItalicText}>
+                        Kesimpulan rapat belum diinput.
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Block ✓: Penutup */}
+                <View style={styles.notulenBlock}>
+                  <View style={styles.notulenHeadingRow}>
+                    <View style={styles.notulenCircleBadge}>
+                      <Text style={styles.notulenCircleBadgeText}>✓</Text>
+                    </View>
+                    <Text style={styles.notulenHeadingText}>Penutup</Text>
+                  </View>
+                  <View style={styles.notulenContentCard}>
+                    <Text style={styles.penutupMainText}>
+                      {meeting?.endTime
+                        ? `Rapat ditutup pada pukul ${meeting.endTime} WIB.`
+                        : 'Rapat telah selesai diselenggarakan.'}
+                    </Text>
+                    <Text style={styles.penutupSubText}>
+                      Notulen ini disusun oleh Sekretaris/PJ dan telah diverifikasi oleh
+                      pihak terkait.
+                    </Text>
+                  </View>
+                </View>
+
+                {/* 2-Column Signature Verification Grid (show.blade.php:529-597) */}
+                <View style={styles.webSigSectionDivider}>
+                  <View style={styles.webSigGrid}>
+                    {renderWebSignatureCol(
+                      'Pemimpin Rapat',
+                      pimpinanName,
+                      pimpinanNip,
+                      pimpinanAtt,
+                    )}
+                    {renderWebSignatureCol(
+                      'Notulis Rapat',
+                      notulisName,
+                      notulisNip,
+                      notulisAtt,
+                    )}
+                  </View>
+                </View>
+              </View>
+            </View>
+          );
+        })()}
+
+        {/* 8. PANEL DOKUMENTASI FOTO & LAMPIRAN (1:1 show.blade.php:603-728) */}
+        <View style={styles.webPanel}>
+          <View style={styles.webPanelToolbar}>
+            <View style={styles.webPanelTitleWrap}>
+              <ImageIcon size={17} color={colors.onSurface} strokeWidth={2} />
+              <Text style={styles.webPanelTitle}>Dokumentasi Foto & Lampiran</Text>
+            </View>
+
+            <View style={styles.docToolbarRight}>
+              {canManageMinutesFlag ? (
+                <Pressable
+                  onPress={handleEditMinutes}
+                  style={({ pressed }) => [
+                    styles.toolbarOutlineBtn,
+                    pressed && styles.pressed,
+                  ]}
+                  accessibilityRole="button"
+                >
+                  <Plus size={13} color={colors.onSurface} strokeWidth={2} />
+                  <Text style={styles.toolbarOutlineBtnText}>+ Kelola Foto / Notulen</Text>
+                </Pressable>
+              ) : null}
+              <View style={styles.webCountPill}>
+                <Text style={styles.webCountPillText}>{docs.length} File</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.webPanelBody}>
+            {docs.length > 0 ? (
+              <View style={styles.docsGrid}>
+                {docs.map((doc) => {
+                  const ext = resolveDocExtension(doc.file_url ?? doc.url);
+                  const isImage = ext === 'img';
+                  return (
+                    <View key={doc.id} style={styles.docCard}>
+                      {isImage ? (
                         <Pressable
-                          onPress={() => {
-                            if (extBadge === 'img') {
-                              setZoomDoc({ ...doc, url: docUrl });
-                            } else if (docUrl) {
-                              void Linking.openURL(docUrl);
-                            }
-                          }}
-                          style={({ pressed }) => [styles.docThumbPress, pressed && styles.pressed]}
+                          onPress={() => setZoomDoc(doc)}
+                          style={styles.docPreviewWrap}
                           accessibilityRole="button"
-                          accessibilityLabel={`Pratinjau ${doc.caption || 'Dokumentasi Rapat'}`}
                         >
-                          {extBadge === 'img' ? (
-                            <Image source={{ uri: docUrl }} style={styles.docThumb} resizeMode="cover" />
-                          ) : (
-                            <View style={styles.docNonImgBox}>
-                              <FileText size={24} color={colors.primary} strokeWidth={2} />
-                            </View>
-                          )}
-                          <View style={styles.docExtBadge}>
-                            <Text style={styles.docExtBadgeText}>
-                              {extBadge === 'pdf' ? 'PDF' : extBadge === 'vid' ? 'VID' : 'IMG'}
-                            </Text>
-                          </View>
+                          <Image
+                            source={{ uri: doc.file_url ?? doc.url }}
+                            style={styles.docPreviewImage}
+                            resizeMode="cover"
+                          />
                         </Pressable>
-                        <Text style={styles.docCaption} numberOfLines={1}>
+                      ) : (
+                        <View style={styles.docPreviewFallback}>
+                          <FileText size={28} color={colors.primary} strokeWidth={2} />
+                          <Text style={styles.docPreviewExtText}>
+                            {ext.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.docCardFooter}>
+                        <Text style={styles.docCaptionText} numberOfLines={2}>
                           {doc.caption || 'Dokumentasi Rapat'}
                         </Text>
-                        {docDate ? (
-                          <Text style={styles.docDateText} numberOfLines={1}>
-                            {docDate}
-                          </Text>
-                        ) : null}
-                        <View style={styles.docFooterRow}>
+                        <View style={styles.docActionRow}>
                           <Pressable
                             onPress={() => {
-                              if (extBadge === 'img') {
-                                setZoomDoc({ ...doc, url: docUrl });
-                              } else if (docUrl) {
-                                void Linking.openURL(docUrl);
+                              if (isImage) setZoomDoc(doc);
+                              else if (doc.file_url ?? doc.url) {
+                                void Linking.openURL((doc.file_url ?? doc.url)!);
                               }
                             }}
-                            style={({ pressed }) => [styles.docActionBtn, pressed && styles.pressed]}
+                            style={({ pressed }) => [
+                              styles.docActionBtn,
+                              pressed && styles.pressed,
+                            ]}
                             accessibilityRole="button"
-                            accessibilityLabel="Pratinjau dokumentasi"
                           >
                             <Eye size={13} color={colors.primary} strokeWidth={2} />
                             <Text style={styles.docActionText}>Pratinjau</Text>
                           </Pressable>
+
                           <Pressable
                             onPress={() => void handleDownloadDocumentation(doc)}
-                            style={({ pressed }) => [styles.docActionBtn, pressed && styles.pressed]}
+                            style={({ pressed }) => [
+                              styles.docActionBtn,
+                              pressed && styles.pressed,
+                            ]}
                             accessibilityRole="button"
-                            accessibilityLabel="Unduh dokumentasi"
                           >
                             <Download size={13} color={colors.primary} strokeWidth={2} />
                             <Text style={styles.docActionText}>Unduh</Text>
                           </Pressable>
                         </View>
                       </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View style={styles.emptyInfoRow}>
-                  <Info size={18} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={styles.emptyItalicText}>
-                    Belum ada foto dokumentasi yang diunggah untuk agenda ini.
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* PENUTUP & VERIFIKASI TANDA TANGAN DIGITAL (show.blade.php:508-597) */}
-            {(() => {
-              const findSigner = (
-                targetId?: number | string | null,
-                targetName?: string | null,
-              ): SignerAttendanceRecord | undefined => {
-                if (targetId !== null && targetId !== undefined) {
-                  const byId = signerAttendances.find((a) => a.userId === String(targetId));
-                  if (byId) return byId;
-                }
-                if (targetName && targetName.trim().length > 0) {
-                  const norm = targetName.trim().toLowerCase();
-                  return signerAttendances.find((a) => a.name.trim().toLowerCase() === norm);
-                }
-                return undefined;
-              };
-              const pimpinanAtt = findSigner(meeting?.leaderId, meeting?.leader);
-              const notulisAtt = findSigner(meeting?.notulisId, meeting?.notulis);
-              const renderSignerBox = (
-                roleTitle: string,
-                assignedName: string,
-                fallbackNip: string | null | undefined,
-                att?: SignerAttendanceRecord,
-              ) => (
-                <View style={styles.signerCard}>
-                  <Text style={styles.signerRoleLabel}>{roleTitle}</Text>
-                  <Text style={styles.signerNameText}>{assignedName || 'Belum ditugaskan'}</Text>
-                  <Text style={styles.signerNipText}>
-                    NIP: {att?.nip || fallbackNip || '-'}
-                  </Text>
-                  <View style={styles.signerSigBox}>
-                    {att ? (
-                      <AuthMediaThumbnail
-                        attendanceId={att.id}
-                        rawUrl={att.signatureUrl}
-                        mediaType="signature"
-                        style={styles.signerSigImg}
-                        fallback={
-                          <Text style={styles.signerEmptyText}>Tanda tangan terverifikasi</Text>
-                        }
-                      />
-                    ) : (
-                      <Text style={styles.signerEmptyText}>Belum melakukan presensi</Text>
-                    )}
-                  </View>
-                  <View
-                    style={[
-                      styles.signerStatusPill,
-                      att ? styles.signerStatusValid : styles.signerStatusWait,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.signerStatusText,
-                        att ? styles.signerStatusTextValid : styles.signerStatusTextWait,
-                      ]}
-                    >
-                      {att
-                        ? `Hadir (${att.signedAt ? formatWaktuWIB(att.signedAt) : 'Tercatat'})`
-                        : 'Belum Melakukan Presensi'}
-                    </Text>
-                  </View>
-                </View>
-              );
-              return (
-                <View style={styles.panelCard}>
-                  <View style={styles.sectionHeaderRow}>
-                    <View style={styles.iconCircle}>
-                      <ShieldCheck size={18} color={colors.primary} strokeWidth={2} />
-                    </View>
-                    <View style={styles.flexOne}>
-                      <Text style={styles.panelTitle}>Penutup & Verifikasi Tanda Tangan</Text>
-                      <Text style={styles.panelSubtitle}>
-                        Pengesahan digital Berita Acara oleh Pimpinan & Notulis Rapat
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.closingNoteText}>
-                    Demikian berita acara dan notulensi rapat kedinasan ini disusun secara sah melalui sistem SIPERAPAT LLDIKTI Wilayah X.
-                  </Text>
-                  <View style={styles.signersGrid}>
-                    {renderSignerBox(
-                      'Pemimpin Rapat',
-                      meeting?.leader || '-',
-                      rawAgenda?.pimpinan?.nip,
-                      pimpinanAtt,
-                    )}
-                    {renderSignerBox(
-                      'Notulis Rapat',
-                      meeting?.notulis || '-',
-                      rawAgenda?.notulis?.nip,
-                      notulisAtt,
-                    )}
-                  </View>
-                </View>
-              );
-            })()}
-          </View>
-        ) : null}
-
-        {/* SECTION: TARGET PARTISIPAN RAPAT (show.blade.php:397-445) */}
-        {meeting ? (
-          <View style={styles.panelCard}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.iconCircle}>
-                <Users size={18} color={colors.primary} strokeWidth={2} />
-              </View>
-              <View style={styles.flexOne}>
-                <Text style={styles.panelTitle}>Target Partisipan Rapat</Text>
-                <Text style={styles.panelSubtitle}>
-                  Sasaran unit kerja atau pegawai ASN yang diundang
-                </Text>
-              </View>
-            </View>
-            {meeting.targetType === 'selected_users' ? (
-              <View style={styles.targetListWrap}>
-                <View style={styles.targetBannerNeutral}>
-                  <Text style={styles.targetBannerText}>
-                    Khusus Pegawai ASN Tertentu ({meeting.invitedUsers?.length ?? meeting.totalInvited ?? 0} Pegawai)
-                  </Text>
-                </View>
-                {(meeting.invitedUsers ?? []).map((u) => {
-                  const isSelf = user?.id && String(u.id) === String(user.id);
-                  return (
-                    <View
-                      key={u.id}
-                      style={[styles.targetUserRow, isSelf && styles.targetUserRowSelf]}
-                    >
-                      <View style={styles.targetUserHeader}>
-                        <Text style={styles.targetUserName}>{u.name}</Text>
-                        {isSelf ? (
-                          <View style={styles.selfBadge}>
-                            <Text style={styles.selfBadgeText}>(Anda)</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={styles.targetUserMeta}>
-                        NIP: {u.nip || '-'} • {u.unit || 'Pusat'}
-                      </Text>
                     </View>
                   );
                 })}
               </View>
-            ) : meeting.isAllUnits || meeting.targetType === 'all_units' ? (
-              <View style={styles.targetBannerEmerald}>
-                <CheckCircle2 size={16} color={colors.onSuccessContainer} strokeWidth={2} />
-                <Text style={styles.targetBannerEmeraldText}>
-                  Terbuka untuk Seluruh Unit Kerja LLDIKTI Wilayah X
-                </Text>
-              </View>
             ) : (
-              <View style={styles.targetChipsWrap}>
-                {(meeting.unitsList ?? []).length > 0 ? (
-                  meeting.unitsList!.map((unit) => (
-                    <View key={unit.id} style={styles.targetUnitChip}>
-                      <Text style={styles.targetUnitChipText}>
-                        {unit.kode_unit} — {unit.nama_unit}
-                      </Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.emptyItalicText}>
-                    {meeting.targetAudience || 'Unit kerja terpilih'}
-                  </Text>
-                )}
-              </View>
-            )}
-          </View>
-        ) : null}
-
-        {/* SECTION: SURAT EDARAN RAPAT */}
-        {(() => {
-          const suratEdaranMeta = rawAgenda?.surat_edaran ?? meeting?.suratEdaran;
-          const resolvedEdaranUrl =
-            resolveSuratEdaranUrl(
-              suratEdaranMeta?.stream_url ?? suratEdaranMeta?.url ?? meeting?.invitationPdfUrl,
-            ) ?? meeting?.invitationPdfUrl;
-          const badgeLabel = suratEdaranMeta?.is_digital
-            ? 'SURAT DIGITAL'
-            : suratEdaranMeta?.is_image
-            ? 'GAMBAR'
-            : 'PDF';
-          return (
-            <View style={styles.panelCard}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.iconCircle}>
-                  <Mail size={18} color={colors.primary} strokeWidth={2} />
+              <View style={styles.circularDashedEmpty}>
+                <View style={styles.circularEmptyCircle}>
+                  <ImageIcon size={18} color={colors.textMuted} strokeWidth={2} />
                 </View>
-                <View style={styles.flexOne}>
-                  <Text style={styles.panelTitle}>Surat Edaran Rapat</Text>
-                  <Text style={styles.panelSubtitle}>
-                    Naskah Surat Dinas & Dokumen Pemanggilan Peserta
-                  </Text>
-                </View>
-                {resolvedEdaranUrl ? (
-                  <View style={styles.edaranTypeBadge}>
-                    <Text style={styles.edaranTypeBadgeText}>{badgeLabel}</Text>
-                  </View>
+                <Text style={styles.circularEmptyText}>
+                  Belum ada foto dokumentasi yang diunggah untuk agenda ini.
+                </Text>
+                {canManageMinutesFlag ? (
+                  <Pressable
+                    disabled={isUploadingPhoto}
+                    onPress={() => void handleUploadDocumentationPhoto()}
+                    style={({ pressed }) => [
+                      styles.circularSecondaryBtn,
+                      pressed && styles.pressed,
+                    ]}
+                    accessibilityRole="button"
+                  >
+                    <Plus size={14} color={colors.onSurface} strokeWidth={2} />
+                    <Text style={styles.circularSecondaryBtnText}>
+                      {isUploadingPhoto
+                        ? 'Mengunggah...'
+                        : 'Unggah Foto Dokumentasi Pertama'}
+                    </Text>
+                  </Pressable>
                 ) : null}
               </View>
-
-              {seConfig ? (
-                <View style={styles.seConfigCard}>
-                  {seConfig.nomor_surat ? (
-                    <Text style={styles.seConfigRow}>
-                      Nomor Surat: <Text style={styles.seConfigStrong}>{seConfig.nomor_surat}</Text>
-                    </Text>
-                  ) : null}
-                  {seConfig.perihal ? (
-                    <Text style={styles.seConfigRow}>
-                      Perihal: <Text style={styles.seConfigStrong}>{seConfig.perihal}</Text>
-                    </Text>
-                  ) : null}
-                  {seConfig.tanggal_surat ? (
-                    <Text style={styles.seConfigRow}>
-                      Tanggal Surat: <Text style={styles.seConfigStrong}>{seConfig.tanggal_surat}</Text>
-                    </Text>
-                  ) : null}
-                  {seConfig.tujuan_surat ? (
-                    <Text style={styles.seConfigRow}>
-                      Tujuan: <Text style={styles.seConfigStrong}>{seConfig.tujuan_surat}</Text>
-                    </Text>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {resolvedEdaranUrl && meeting ? (
-                <View style={styles.edaranContent}>
-                  <Pressable
-                    onPress={handlePreviewSuratEdaran}
-                    style={({ pressed }) => [styles.edaranDocPreview, pressed && styles.pressed]}
-                    accessibilityLabel="Lihat dokumen surat edaran rapat"
-                  >
-                    <View
-                      style={[
-                        styles.edaranPdfBadge,
-                        suratEdaranMeta?.is_image
-                          ? styles.edaranBadgeInfo
-                          : styles.edaranBadgePdf,
-                      ]}
-                    >
-                      {suratEdaranMeta?.is_image ? (
-                        <ImageIcon size={20} color={colors.primary} strokeWidth={2} />
-                      ) : (
-                        <FileText size={20} color={colors.error} strokeWidth={2} />
-                      )}
-                    </View>
-                    <View style={styles.flexOne}>
-                      <Text style={styles.edaranDocName} numberOfLines={1} ellipsizeMode="tail">
-                        Surat-Edaran_{meeting.code || 'Agenda'}.
-                        {suratEdaranMeta?.extension ||
-                          (suratEdaranMeta?.is_image ? 'jpg' : 'pdf')}
-                      </Text>
-                      <Text style={styles.edaranDocMeta}>
-                        Dokumen Resmi LLDIKTI Wilayah X • Ketuk untuk melihat
-                      </Text>
-                    </View>
-                    <View style={styles.edaranStatusBadge}>
-                      <Text style={styles.edaranStatusText}>Tersedia</Text>
-                    </View>
-                  </Pressable>
-
-                  <View style={styles.edaranBtnGroup}>
-                    <View style={styles.edaranSplitRow}>
-                      <Button
-                        title="Lihat Surat Edaran"
-                        onPress={handlePreviewSuratEdaran}
-                        variant="primary"
-                        size="md"
-                        style={styles.flexOne}
-                        icon={<Eye size={18} color={colors.onPrimary} strokeWidth={2} />}
-                      />
-                      <Button
-                        title={isDownloadingEdaran ? 'Mengunduh...' : 'Unduh'}
-                        onPress={() => void handleDownloadSuratEdaran()}
-                        disabled={isDownloadingEdaran}
-                        variant="outline"
-                        size="md"
-                        icon={<Download size={18} color={colors.primary} strokeWidth={2} />}
-                      />
-                    </View>
-                    {userCanManageSuratEdaran ? (
-                      <Button
-                        title="Ganti Berkas Surat Edaran"
-                        onPress={() => void handlePickSuratEdaran()}
-                        disabled={isUploadingEdaran}
-                        variant="outline"
-                        size="md"
-                        fullWidth
-                        icon={<CloudUpload size={18} color={colors.primary} strokeWidth={2} />}
-                      />
-                    ) : null}
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.edaranContent}>
-                  <View style={styles.edaranEmptyBox}>
-                    <Info size={20} color={colors.textMuted} strokeWidth={2} />
-                    <View style={styles.flexOne}>
-                      <Text style={styles.edaranEmptyTitle}>Berkas Belum Dilampirkan</Text>
-                      <Text style={styles.edaranEmptySub}>
-                        {userCanManageSuratEdaran
-                          ? 'Unggah berkas surat edaran resmi (PDF atau gambar).'
-                          : 'Sekretariat LLDIKTI X belum mengunggah dokumen surat edaran.'}
-                      </Text>
-                    </View>
-                  </View>
-                  {userCanManageSuratEdaran ? (
-                    <Button
-                      title="Unggah Surat Edaran (PDF/Gambar)"
-                      onPress={() => void handlePickSuratEdaran()}
-                      disabled={isUploadingEdaran}
-                      variant="primary"
-                      size="md"
-                      fullWidth
-                      icon={<CloudUpload size={18} color={colors.onPrimary} strokeWidth={2} />}
-                    />
-                  ) : null}
-                </View>
-              )}
-            </View>
-          );
-        })()}
-
-        {/* SECTION: EKSPOR DOKUMEN RAPAT */}
-        <View style={styles.panelCard}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.iconCircle}>
-              <Download size={18} color={colors.primary} strokeWidth={2} />
-            </View>
-            <View style={styles.flexOne}>
-              <Text style={styles.panelTitle}>Ekspor Dokumen Rapat</Text>
-              <Text style={styles.panelSubtitle}>
-                Unduh berita acara dan berkas rekapitulasi resmi
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.baActionGrid}>
-            <Button
-              title="Unduh Berita Acara (PDF)"
-              onPress={() => void handleExport('pdf')}
-              disabled={Boolean(exporting)}
-              isLoading={exporting === 'pdf'}
-              variant="primary"
-              size="md"
-              fullWidth
-              icon={<FileText size={18} color={colors.onPrimary} strokeWidth={2} />}
-            />
-            <Button
-              title="Unduh Risalah Sidang (DOCX)"
-              onPress={() => void handleExport('word')}
-              disabled={Boolean(exporting)}
-              isLoading={exporting === 'word'}
-              variant="outline"
-              size="md"
-              fullWidth
-              icon={<FileText size={18} color={colors.primary} strokeWidth={2} />}
-            />
-            <Pressable
-              onPress={() => void handleExport('csv')}
-              style={({ pressed }) => [styles.excelBtn, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Unduh Tabulasi Kehadiran Excel"
-            >
-              <FileSpreadsheet size={16} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.excelBtnText}>Unduh Tabulasi Kehadiran (Excel)</Text>
-            </Pressable>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -2172,7 +2036,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         meetingCode={meeting?.code}
         meetingDate={`${meeting?.date} • ${meeting?.startTime}`}
         mimeType={meeting?.suratEdaran?.is_image ? 'image/jpeg' : 'application/pdf'}
-        canManage={userCanManageSuratEdaran}
+        canManage={canManageCircular}
         onReplaceFile={() => void handlePickSuratEdaran()}
       />
 
@@ -2191,7 +2055,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         onPickDifferentFile={() => void handlePickSuratEdaran()}
       />
 
-      {/* MODAL 3: Tugaskan Peran (Pimpinan & Notulis) */}
+      {/* MODAL 3: Tugaskan Pemimpin & Notulis (1:1 show.blade.php:733-809) */}
       <Modal
         visible={isRolesModalVisible}
         transparent
@@ -2201,7 +2065,17 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.rolesModalCard}>
             <View style={styles.rolesModalHeader}>
-              <Text style={styles.panelTitle}>Tugaskan Pemimpin & Notulis</Text>
+              <View style={styles.rolesHeaderTitleRow}>
+                <View style={styles.rolesHeaderIconBox}>
+                  <Users size={18} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+                <View style={styles.flexOne}>
+                  <Text style={styles.rolesModalTitle}>Tugaskan Pemimpin & Notulis</Text>
+                  <Text style={styles.rolesModalSubtitle}>
+                    Penugasan peran resmi rapat kedinasan SIPERAPAT
+                  </Text>
+                </View>
+              </View>
               <Pressable
                 onPress={() => setIsRolesModalVisible(false)}
                 style={styles.zoomCloseBtn}
@@ -2211,11 +2085,30 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 <X size={20} color={colors.onSurface} strokeWidth={2} />
               </Pressable>
             </View>
+
             <View style={styles.rolesModalBody}>
-              <Text style={styles.roleFieldLabel}>Pemimpin Rapat</Text>
+              {/* Hybrid Assignment Info Box (show.blade.php:757-765) */}
+              <View style={styles.hybridInfoBox}>
+                <Info size={16} color={colors.infoText} strokeWidth={2} />
+                <View style={styles.flexOne}>
+                  <Text style={styles.hybridInfoTitle}>
+                    Sistem Penugasan Fleksibel (Hybrid)
+                  </Text>
+                  <Text style={styles.hybridInfoDesc}>
+                    Anda dapat menugaskan Pegawai ASN dari lintas unit kerja sebagai
+                    Pemimpin Rapat maupun Notulis. Pegawai yang ditugaskan akan otomatis
+                    memperoleh hak akses kelola notulensi selama rapat berlangsung.
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.roleFieldLabel}>
+                Pemimpin Rapat (Penanggung Jawab Acara)
+              </Text>
               <Pressable
                 onPress={() => setRolePickerTarget('leader')}
                 style={({ pressed }) => [styles.roleSelectorBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
               >
                 <User size={16} color={colors.primary} strokeWidth={2} />
                 <Text style={styles.roleSelectorText} numberOfLines={1}>
@@ -2223,10 +2116,13 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 </Text>
               </Pressable>
 
-              <Text style={[styles.roleFieldLabel, styles.roleFieldGap]}>Notulis Rapat</Text>
+              <Text style={[styles.roleFieldLabel, styles.roleFieldGap]}>
+                Notulis Rapat (Pencatat Notulensi & Dokumentasi)
+              </Text>
               <Pressable
                 onPress={() => setRolePickerTarget('notulis')}
                 style={({ pressed }) => [styles.roleSelectorBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
               >
                 <NotebookPen size={16} color={colors.primary} strokeWidth={2} />
                 <Text style={styles.roleSelectorText} numberOfLines={1}>
@@ -2234,6 +2130,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 </Text>
               </Pressable>
             </View>
+
             <View style={styles.rolesModalFooter}>
               <Button
                 title="Batal"
@@ -2271,7 +2168,108 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         }}
       />
 
-      {/* MODAL 4: Documentation Zoom */}
+      {/* MODAL 4: Edit Notulensi & Unggah Foto Dokumentasi */}
+      <Modal
+        visible={isEditingMinutes}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsEditingMinutes(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.rolesModalCard}>
+            <View style={styles.rolesModalHeader}>
+              <View style={styles.rolesHeaderTitleRow}>
+                <View style={styles.rolesHeaderIconBox}>
+                  <NotebookPen size={18} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+                <View style={styles.flexOne}>
+                  <Text style={styles.rolesModalTitle}>Kelola Notulensi & Dokumentasi</Text>
+                  <Text style={styles.rolesModalSubtitle}>
+                    Perbarui pembahasan, kesimpulan, dan foto dokumentasi rapat
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                onPress={() => setIsEditingMinutes(false)}
+                style={styles.zoomCloseBtn}
+                accessibilityRole="button"
+              >
+                <X size={20} color={colors.onSurface} strokeWidth={2} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.minutesModalScroll}>
+              <View style={styles.rolesModalBody}>
+                <Text style={styles.roleFieldLabel}>Pembahasan Jalannya Rapat</Text>
+                <TextInput
+                  multiline
+                  textAlignVertical="top"
+                  value={minutesDraft}
+                  onChangeText={setMinutesDraft}
+                  editable={!isSavingMinutes}
+                  placeholder="Tuliskan jalannya rapat dan dinamika pembahasan secara lengkap..."
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.minutesModalInput}
+                />
+
+                <Text style={[styles.roleFieldLabel, styles.roleFieldGap]}>
+                  Keputusan & Tindak Lanjut (Kesimpulan)
+                </Text>
+                <TextInput
+                  multiline
+                  textAlignVertical="top"
+                  value={conclusionDraft}
+                  onChangeText={setConclusionDraft}
+                  editable={!isSavingMinutes}
+                  placeholder="Tuliskan poin keputusan, arahan pimpinan, PIC, dan tenggat waktu..."
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.minutesModalInput}
+                />
+
+                <View style={styles.uploadPhotoModalRow}>
+                  <Pressable
+                    disabled={isUploadingPhoto}
+                    onPress={() => void handleUploadDocumentationPhoto()}
+                    style={({ pressed }) => [
+                      styles.circularSecondaryBtn,
+                      pressed && styles.pressed,
+                    ]}
+                    accessibilityRole="button"
+                  >
+                    <Camera size={15} color={colors.onSurface} strokeWidth={2} />
+                    <Text style={styles.circularSecondaryBtnText}>
+                      {isUploadingPhoto
+                        ? 'Mengunggah Foto...'
+                        : '+ Tambah Foto Dokumentasi dari Galeri'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.rolesModalFooter}>
+              <Button
+                title="Batal"
+                variant="outline"
+                size="md"
+                onPress={() => setIsEditingMinutes(false)}
+                disabled={isSavingMinutes}
+                style={styles.flexOne}
+              />
+              <Button
+                title={isSavingMinutes ? 'Menyimpan...' : 'Simpan Notulensi'}
+                variant="primary"
+                size="md"
+                isLoading={isSavingMinutes}
+                onPress={() => void handleSaveMinutes()}
+                style={styles.flexTwo}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 5: Documentation Zoom */}
       <Modal
         visible={Boolean(zoomDoc)}
         transparent
@@ -2281,7 +2279,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.rolesModalCard}>
             <View style={styles.rolesModalHeader}>
-              <Text style={styles.panelTitle} numberOfLines={1}>
+              <Text style={styles.rolesModalTitle} numberOfLines={1}>
                 {zoomDoc?.caption || 'Dokumentasi Rapat'}
               </Text>
               <Pressable
@@ -2303,7 +2301,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           </View>
         </View>
       </Modal>
-      {/* MODAL 5: Participant Biometric & Signature Evidence */}
+
+      {/* MODAL 6: Participant Biometric & Signature Evidence */}
       <EvidenceViewerModal
         visible={Boolean(evidenceParticipant)}
         onClose={() => setEvidenceParticipant(null)}
@@ -2323,1070 +2322,1203 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  flexOne: { flex: 1, minWidth: 0 },
-  flexTwo: { flex: 2, minWidth: 0 },
-  pressed: { opacity: 0.78 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  flexOne: {
+    flex: 1,
+    minWidth: 0,
+  },
+  flexTwo: {
+    flex: 2,
+    minWidth: 0,
+  },
+  pressed: {
+    opacity: 0.8,
+  },
+  scrollContent: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
 
-  heroBanner: {
+  // 1. Dark Hero Card (show.blade.php:10-253)
+  heroCard: {
     backgroundColor: colors.primaryDarkest,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.primaryContainer,
-    gap: spacing.xs + 2,
-  },
-  heroTopBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  heroBackBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    minWidth: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-    paddingHorizontal: spacing.sm + 2,
-    borderRadius: rounded.md,
-    backgroundColor: colors.primaryContainer,
+    borderRadius: rounded.xl,
+    padding: 20,
     borderWidth: 1,
-    borderColor: colors.textMuted,
+    borderColor: colors.primary,
+    gap: 12,
   },
-  heroBackText: {
-    ...typography.labelMd,
+  heroTitle: {
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 18,
+    lineHeight: 25,
+    color: colors.onPrimary,
+    includeFontPadding: false,
+  },
+  heroMetaList: {
+    gap: 8,
+  },
+  heroMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  heroMetaText: {
+    flex: 1,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.onPrimaryContainer,
+    includeFontPadding: false,
+  },
+  heroMetaWhiteBold: {
     fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
   },
-  heroCodeRow: {
+  heroToolbarDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.primary,
+    paddingTop: 14,
+    marginTop: 4,
+    gap: 10,
+  },
+  heroToolbarRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     flexWrap: 'wrap',
-    gap: spacing.xs + 2,
+    alignItems: 'center',
+    gap: 8,
   },
-  heroCode: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoBold,
+  heroActionsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  heroBtnDark: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBtnDarkText: {
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.onPrimaryContainer,
+    includeFontPadding: false,
+  },
+  heroBtnWhiteText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.onPrimary,
+    includeFontPadding: false,
+  },
+  heroBtnBlue: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.infoText,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBtnAmber: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.warning,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBtnGreen: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.successLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBtnRed: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.error,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBtnDisabled: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    opacity: 0.65,
+  },
+  heroBtnDisabledText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textMuted,
+    includeFontPadding: false,
+  },
+  capBadgeBlue: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  capBadgeBlueText: {
+    fontFamily: fontFamilies.sansBold,
     fontSize: 11,
-    color: colors.borderStrong,
-    backgroundColor: colors.primaryContainer,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: rounded.sm,
+    lineHeight: 15,
+    color: colors.infoText,
+    includeFontPadding: false,
   },
-  capacityPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.primaryContainer,
+  capBadgeAmber: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.warningContainer,
     borderWidth: 1,
-    borderColor: colors.textMuted,
+    borderColor: colors.warningBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  capacityPillText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onPrimary,
+  capBadgeAmberText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.onWarningContainer,
+    includeFontPadding: false,
   },
-  heroTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansExtraBold,
-    fontSize: 17,
-    lineHeight: 23,
-    color: colors.onPrimary,
+  capBadgeSlate: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  heroMetaGrid: { gap: 4 },
-  heroMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
-  heroMetaText: {
-    ...typography.bodySm,
+  capBadgeSlateText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.onPrimaryContainer,
+    includeFontPadding: false,
+  },
+  earliestStartHint: {
     fontFamily: fontFamilies.sansMedium,
-    color: colors.borderStrong,
-    flex: 1,
-  },
-  heroPeopleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: 2 },
-  heroPersonItem: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
-  heroPersonText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansRegular,
-    color: colors.borderStrong,
-  },
-  heroPersonBold: { fontFamily: fontFamilies.sansBold, color: colors.onPrimary },
-
-  scrollContent: { padding: spacing.md, gap: spacing.md },
-
-  managementGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs + 2 },
-  actionBtnNeutral: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    flexGrow: 1,
-  },
-  actionBtnNeutralText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.primary,
-  },
-  actionBtnDanger: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    borderRadius: rounded.md,
-    backgroundColor: colors.errorContainer,
-    borderWidth: 1,
-    borderColor: colors.errorBorder,
-    flexGrow: 1,
-  },
-  actionBtnDangerText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.error,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.warningLight,
+    includeFontPadding: false,
   },
 
-  zoomCard: {
+  // 2. Metadata Info Bar 3 Kolom (show.blade.php:256-271)
+  metaInfoBar: {
     ...cardSurface,
-    borderRadius: rounded.xl,
-    borderColor: colors.borderStrong,
-    padding: spacing.md,
+    padding: 14,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm,
+    gap: 10,
   },
-  zoomLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1, minWidth: 0 },
+  metaInfoCol: {
+    flex: 1,
+    minWidth: 90,
+    gap: 2,
+  },
+  metaInfoDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.borderSubtle,
+  },
+  metaInfoLabel: {
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  metaInfoMonoValue: {
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  metaInfoBoldValue: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+
+  // 3. Tautan Pertemuan Daring
+  zoomCard: {
+    ...cardSurface,
+    padding: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  zoomLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    minWidth: 180,
+  },
   zoomIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: rounded.md,
-    backgroundColor: colors.primary,
+    width: 40,
+    height: 40,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primaryDarkest,
     alignItems: 'center',
     justifyContent: 'center',
   },
   zoomTitle: {
-    ...typography.labelMd,
     fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.onSurface,
+    includeFontPadding: false,
   },
   zoomUrlText: {
-    ...typography.bodySm,
     fontFamily: fontFamilies.monoRegular,
     fontSize: 11,
-    color: colors.textMuted,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    includeFontPadding: false,
   },
   zoomOpenBtn: {
     minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: spacing.md,
-    borderRadius: rounded.md,
-    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primaryDarkest,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   zoomOpenText: {
-    ...typography.labelMd,
     fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.onPrimary,
+    includeFontPadding: false,
   },
 
-  panelCard: {
+  // Shared Web Panel Card
+  webPanel: {
     ...cardSurface,
-    borderRadius: rounded.xl,
-    borderColor: colors.borderStrong,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  panelTitle: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  panelSubtitle: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansRegular,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-
-  metricsGrid: { flexDirection: 'row', gap: spacing.sm },
-  metricCol: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: rounded.md,
-    padding: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  metricLabel: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansMedium,
-    color: colors.textMuted,
-    marginBottom: 4,
-  },
-  metricValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
-  metricValue: {
-    ...typography.headlineLg,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 20,
-    color: colors.onSurface,
-  },
-  metricValueSuccess: { color: colors.success },
-  metricValueError: { color: colors.error },
-  metricUnit: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansRegular,
-    color: colors.textMuted,
-  },
-  progressSection: { gap: 4 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  progressLabel: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansMedium,
-    color: colors.textMuted,
-  },
-  progressValue: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoBold,
-    color: colors.onSurface,
-  },
-  progressBarBg: {
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.surfaceContainer,
     overflow: 'hidden',
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: colors.success,
-    borderRadius: 4,
+  webPanelToolbar: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.surfaceSoft,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  webPanelTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  webPanelTitle: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  webCountPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  webCountPillText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  webPanelBody: {
+    padding: 16,
+    gap: 14,
+  },
+  webPanelFooter: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceSoft,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  toolbarOutlineBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  toolbarOutlineBtnText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.onSurface,
+    includeFontPadding: false,
   },
 
-  tabBarWrapper: { borderBottomWidth: 1, borderBottomColor: colors.borderSubtle },
-  tabScrollContainer: { flexDirection: 'row', gap: spacing.xs + 2 },
-  tabBtn: {
-    minHeight: MIN_TOUCH_TARGET,
+  // 4. Panel Peserta Hadir
+  attendeeSubBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceSoft,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  attendeeSubPills: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: spacing.sm + 4,
-    borderBottomWidth: 2.5,
-    borderBottomColor: 'transparent',
   },
-  tabBtnActive: { borderBottomColor: colors.primary },
-  tabBtnText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansMedium,
-    color: colors.textMuted,
-  },
-  tabBtnTextActive: {
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-  tabBadge: {
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabBadgePrimary: { backgroundColor: colors.primary },
-  tabBadgeDanger: { backgroundColor: colors.error },
-  tabBadgeInactive: { backgroundColor: colors.surfaceContainer },
-  tabBadgeText: { ...typography.labelSm, fontFamily: fontFamilies.sansBold, fontSize: 10 },
-  tabBadgeTextOnDark: { color: colors.onPrimary },
-  tabBadgeTextInactive: { color: colors.textMuted },
-
-  filterSection: { gap: spacing.sm },
-  searchBox: {
-    minHeight: MIN_TOUCH_TARGET,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceCard,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm + 4,
-    gap: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansRegular,
-    color: colors.onSurface,
-    paddingVertical: spacing.xs + 2,
-  },
-  pokjaChipsRow: { flexDirection: 'row', gap: spacing.xs + 2 },
-  pokjaChip: {
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    borderRadius: rounded.full,
-    borderWidth: 1,
-  },
-  pokjaChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  pokjaChipInactive: { backgroundColor: colors.surfaceCard, borderColor: colors.borderStrong },
-  pokjaChipText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansMedium,
-    color: colors.textSecondary,
-  },
-  pokjaChipTextActive: {
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onPrimary,
-  },
-
-  participantFeed: { gap: spacing.xs + 2 },
-  participantCard: {
-    ...cardSurface,
-    borderRadius: rounded.lg,
-    borderColor: colors.borderStrong,
-    padding: spacing.sm + 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm + 2,
-  },
-  pAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  pName: {
-    ...typography.labelLg,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 13,
-    color: colors.onSurface,
-  },
-  pRole: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansRegular,
-    fontSize: 11.5,
-    color: colors.textMuted,
-  },
-  pStatusBadge: {
+  hadirDarkPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: rounded.sm,
+    backgroundColor: colors.primaryDarkest,
+  },
+  hadirDarkPillText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.onPrimary,
+    includeFontPadding: false,
+  },
+  absenNeutralPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  absenNeutralPillText: {
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  subBarLinkBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  subBarLinkText: {
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  attendeeListBody: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  attendeeCompactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    gap: 10,
+  },
+  attendeeCompactRowLast: {
+    borderBottomWidth: 0,
+  },
+  attendeeCompactLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  attendeeAvatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: rounded.full,
+    backgroundColor: colors.primaryDarkest,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attendeeAvatarImg: {
+    width: 32,
+    height: 32,
+    borderRadius: rounded.full,
+  },
+  attendeeInitialsText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.onPrimary,
+    includeFontPadding: false,
+  },
+  attendeeCompactName: {
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  attendeeCompactUnit: {
+    fontFamily: fontFamilies.monoRegular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  attendeeCameraBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyBoxSimple: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  emptyBoxSimpleText: {
+    fontFamily: fontFamilies.sansRegular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textMuted,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+
+  // 5. Panel Surat Edaran / Undangan
+  circularTypeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: rounded.full,
     borderWidth: 1,
   },
-  pStatusBadgeValid: {
-    backgroundColor: colors.successContainer,
-    borderColor: colors.successBorder,
+  circularTypeBadgeBlue: {
+    backgroundColor: colors.infoBg,
+    borderColor: colors.infoBorder,
   },
-  pStatusBadgeWait: {
+  circularTypeBadgeRose: {
     backgroundColor: colors.errorContainer,
     borderColor: colors.errorBorder,
   },
-  pStatusText: { ...typography.labelSm, fontFamily: fontFamilies.sansBold, fontSize: 10 },
-  pStatusTextValid: { color: colors.onSuccessContainer },
-  pStatusTextWait: { color: colors.onErrorContainer },
-  pMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5, marginTop: 4 },
-  pMetaText: { ...typography.bodySm, fontFamily: fontFamilies.sansRegular, fontSize: 11, color: colors.textMuted },
-  pMetaValueMono: { ...typography.labelMono, fontFamily: fontFamilies.monoSemiBold, fontSize: 10.5, color: colors.onSurface },
-  pMetaDot: { ...typography.labelSm, color: colors.borderStrong },
-
-  minutesSectionContainer: { gap: spacing.sm },
-  roleBannerContainer: {
-    ...cardSurface,
-    borderRadius: rounded.xl,
-    borderColor: colors.infoBorder,
-    backgroundColor: colors.infoBg,
-    padding: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm + 2,
-  },
-  roleBannerIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: rounded.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  roleBannerNotulisIcon: { backgroundColor: colors.surfaceCard },
-  roleBannerLeaderIcon: { backgroundColor: colors.warningContainer },
-  roleBannerTitle: {
-    ...typography.labelLg,
+  circularTypeBadgeText: {
     fontFamily: fontFamilies.sansBold,
-    fontSize: 13,
-    color: colors.onSurface,
+    fontSize: 10,
+    lineHeight: 14,
+    includeFontPadding: false,
   },
-  roleBannerSubtitle: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansRegular,
-    fontSize: 11.5,
-    color: colors.textSecondary,
-    marginTop: 2,
+  circularTypeBadgeTextBlue: {
+    color: colors.infoText,
   },
-  minutesSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  minutesHeaderBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.sm + 4,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
+  circularTypeBadgeTextRose: {
+    color: colors.onErrorContainer,
   },
-  minutesHeaderEditText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-  minutesHeaderCancelText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.textMuted,
-  },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: rounded.full,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconCircleSuccess: { backgroundColor: colors.successContainer },
-  divider: { height: 1, backgroundColor: colors.borderSubtle },
-  minutesInput: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansRegular,
-    minHeight: 110,
-    maxHeight: 220,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    padding: spacing.md,
-    color: colors.onSurface,
-    backgroundColor: colors.background,
-  },
-  emptyInfoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
-  emptyItalicText: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansRegular,
-    fontStyle: 'italic',
-    color: colors.textMuted,
-    flex: 1,
-  },
-  minutesActionRow: { flexDirection: 'row', gap: spacing.sm },
-
-  docsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  docCard: {
-    width: '48.5%',
+  digitalMetaBox: {
+    padding: 14,
     borderRadius: rounded.lg,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
     backgroundColor: colors.surfaceSoft,
-    overflow: 'hidden',
-  },
-  docThumb: { width: '100%', height: 100, backgroundColor: colors.surfaceContainer },
-  docCaption: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSurface,
-    padding: spacing.xs + 2,
-    backgroundColor: colors.surfaceCard,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-  },
-
-  edaranContent: { gap: spacing.sm },
-  edaranDocPreview: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.background,
-    padding: spacing.sm + 2,
-    borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: colors.borderStrong,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  edaranPdfBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: rounded.sm,
+  digitalMetaLeft: {
+    flex: 1,
+    gap: 3,
+  },
+  digitalMetaTitle: {
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  digitalMetaLine: {
+    fontFamily: fontFamilies.sansRegular,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  digitalMetaStrong: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  digitalMetaIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primaryDarkest,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  edaranBadgeInfo: { backgroundColor: colors.infoBg },
-  edaranBadgePdf: { backgroundColor: colors.errorContainer },
-  edaranDocName: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSurface,
+  circularActionsStack: {
+    gap: 8,
   },
-  edaranDocMeta: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansRegular,
-    color: colors.textMuted,
-  },
-  edaranStatusBadge: {
-    backgroundColor: colors.successContainer,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: rounded.full,
-  },
-  edaranStatusText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSuccessContainer,
-  },
-  edaranBtnGroup: { gap: spacing.xs + 2 },
-  edaranEmptyBox: {
+  circularPrimaryBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primaryDarkest,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.background,
-    padding: spacing.sm + 4,
-    borderRadius: rounded.md,
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  circularPrimaryBtnText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.onPrimary,
+    includeFontPadding: false,
+  },
+  circularSecondaryRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  circularSecondaryBtn: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
     borderColor: colors.borderStrong,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  circularSecondaryBtnText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  circularDashedEmpty: {
+    paddingVertical: 22,
+    paddingHorizontal: 16,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
     borderStyle: 'dashed',
-  },
-  edaranEmptyTitle: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSurface,
-  },
-  edaranEmptySub: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansRegular,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-
-  baActionGrid: { gap: spacing.xs + 2 },
-  excelBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surfaceSoft,
-  },
-  excelBtnText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.primary,
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: colors.scrimNeutralTop,
-    justifyContent: 'center',
-    padding: spacing.md,
-  },
-  rolesModalCard: {
-    ...cardSurface,
-    borderRadius: rounded.xl,
-    borderColor: colors.borderStrong,
-    overflow: 'hidden',
-  },
-  rolesModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  rolesModalBody: { padding: spacing.md },
-  roleFieldLabel: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-    marginBottom: 6,
-  },
-  roleFieldGap: { marginTop: spacing.md },
-  roleSelectorBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surfaceCard,
-  },
-  roleSelectorText: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansMedium,
-    color: colors.onSurface,
-    flex: 1,
-  },
-  rolesModalFooter: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    padding: spacing.md,
-    backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-  },
-  zoomCloseBtn: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  zoomFullImage: {
-    width: '100%',
-    height: 360,
-    backgroundColor: colors.surfaceSoft,
-  },
-  myAttendedBanner: {
-    ...cardSurface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    padding: spacing.sm + 4,
-    borderRadius: rounded.lg,
-    backgroundColor: colors.successContainer,
-    borderColor: colors.successBorder,
-  },
-  myAttendedBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flex: 1,
-    minWidth: 0,
-  },
-  myAttendedBannerTitle: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSuccessContainer,
-  },
-  myAttendedBannerSub: {
-    ...typography.labelSm,
-    color: colors.onSuccessContainer,
-  },
-  myAttendedReceiptBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    minWidth: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: spacing.sm + 2,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
-  },
-  myAttendedReceiptText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-  personalPresensiCta: {
-    marginBottom: spacing.xs,
-  },
-  statusToolbarCard: {
-    ...cardSurface,
-    borderRadius: rounded.xl,
-    borderColor: colors.borderStrong,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  statusToolbarTitle: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  overdueBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-    padding: spacing.sm,
-    borderRadius: rounded.md,
-    backgroundColor: colors.warningContainer,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-  },
-  overdueBannerText: {
-    ...typography.bodySm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onWarningContainer,
-    flex: 1,
-  },
-  statusToolbarBtns: {
-    gap: spacing.xs + 2,
-  },
-  statusBtnPrimary: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: rounded.md,
-    backgroundColor: colors.primary,
-  },
-  statusBtnSuccess: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: rounded.md,
-    backgroundColor: colors.success,
-  },
-  statusBtnOutline: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-  },
-  statusBtnDisabled: {
-    opacity: 0.5,
-  },
-  statusBtnPrimaryText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onPrimary,
-  },
-  statusBtnOutlineText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-  startWrap: {
-    gap: 6,
-  },
-  startGuardHint: {
-    ...typography.labelSm,
-    color: colors.warning,
-    fontFamily: fontFamilies.sansMedium,
-  },
-  pAvatarBtn: {
-    width: MIN_TOUCH_TARGET,
-    height: MIN_TOUCH_TARGET,
-    borderRadius: rounded.md,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
     borderColor: colors.borderStrong,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
   },
-  pAvatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  pRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  pEvidenceBtn: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  docThumbPress: {
-    position: 'relative',
-  },
-  docNonImgBox: {
-    width: '100%',
-    height: 112,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  docExtBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.primary,
-  },
-  docExtBadgeText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.monoBold,
-    fontSize: 9,
-    color: colors.onPrimary,
-  },
-  docDateText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.monoRegular,
-    fontSize: 10,
-    color: colors.textMuted,
-    paddingHorizontal: spacing.xs,
-  },
-  docFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: spacing.xs,
-  },
-  docActionBtn: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  docActionText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 11,
-    color: colors.primary,
-  },
-  closingNoteText: {
-    ...typography.bodySm,
-    color: colors.textSecondary,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  signersGrid: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-  },
-  signerCard: {
-    padding: spacing.sm + 2,
-    borderRadius: rounded.lg,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    gap: 4,
-  },
-  signerRoleLabel: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  signerNameText: {
-    ...typography.labelLg,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  signerNipText: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoRegular,
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  signerSigBox: {
-    height: 72,
-    marginVertical: spacing.xs,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surfaceCard,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  signerSigImg: {
-    width: '92%',
-    height: 62,
-  },
-  signerEmptyText: {
-    ...typography.labelSm,
-    color: colors.textMuted,
-    fontStyle: 'italic',
-  },
-  signerStatusPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+  circularEmptyCircle: {
+    width: 40,
+    height: 40,
     borderRadius: rounded.full,
-    borderWidth: 1,
+    backgroundColor: colors.surfaceContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  signerStatusValid: {
-    backgroundColor: colors.successContainer,
-    borderColor: colors.successBorder,
+  circularEmptyText: {
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
-  signerStatusWait: {
-    backgroundColor: colors.surfaceSoft,
-    borderColor: colors.borderStrong,
+
+  // 6. Panel Target Partisipan Rapat
+  targetSectionStack: {
+    gap: 10,
   },
-  signerStatusText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 11,
-  },
-  signerStatusTextValid: {
-    color: colors.onSuccessContainer,
-  },
-  signerStatusTextWait: {
-    color: colors.textMuted,
-  },
-  targetListWrap: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    gap: spacing.xs + 2,
-  },
-  targetBannerNeutral: {
-    padding: spacing.sm,
-    borderRadius: rounded.md,
+  targetSelectedHeaderBox: {
+    padding: 12,
+    borderRadius: rounded.lg,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.borderStrong,
-  },
-  targetBannerText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  targetUserRow: {
-    padding: spacing.sm,
-    borderRadius: rounded.md,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    gap: 2,
-  },
-  targetUserRowSelf: {
-    backgroundColor: colors.successContainer,
-    borderColor: colors.successBorder,
-  },
-  targetUserHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.xs,
+    gap: 8,
   },
-  targetUserName: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  targetUserMeta: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoRegular,
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  selfBadge: {
-    paddingHorizontal: spacing.xs + 2,
-    paddingVertical: 2,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.success,
-  },
-  selfBadgeText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onPrimary,
-    fontSize: 10,
-  },
-  targetBannerEmerald: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    padding: spacing.sm + 2,
-    borderRadius: rounded.lg,
-    backgroundColor: colors.successContainer,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
+  targetSelectedHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
-  targetBannerEmeraldText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSuccessContainer,
+    gap: 8,
     flex: 1,
+  },
+  targetDarkCheckCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: rounded.full,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  targetSelectedHeaderTitle: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  targetCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    backgroundColor: colors.primaryDarkest,
+  },
+  targetCountBadgeText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.onPrimary,
+    includeFontPadding: false,
+  },
+  targetUpperCaption: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  targetUsersList: {
+    gap: 6,
+  },
+  targetInvitedRow: {
+    padding: 10,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  targetInvitedAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: rounded.full,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  targetInvitedAvatarText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.onPrimary,
+    includeFontPadding: false,
+  },
+  targetInvitedName: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  targetInvitedSub: {
+    fontFamily: fontFamilies.monoRegular,
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  targetAllUnitsBox: {
+    padding: 12,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  targetAllUnitsText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.onSurface,
+    includeFontPadding: false,
   },
   targetChipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
+    gap: 6,
   },
   targetUnitChip: {
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: rounded.md,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.borderStrong,
   },
   targetUnitChipText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.onSurface,
-  },
-  edaranTypeBadge: {
-    paddingHorizontal: spacing.xs + 2,
-    paddingVertical: 3,
-    borderRadius: rounded.sm,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-  },
-  edaranTypeBadgeText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.monoBold,
-    fontSize: 10,
-    color: colors.primary,
-  },
-  seConfigCard: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: rounded.md,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    gap: 3,
-  },
-  seConfigRow: {
-    ...typography.bodySm,
-    color: colors.textMuted,
-    fontSize: 12,
-  },
-  seConfigStrong: {
     fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11,
+    lineHeight: 15,
     color: colors.onSurface,
+    includeFontPadding: false,
   },
-  edaranSplitRow: {
+
+  // 7. Panel Notulensi Rapat & Signature Verification
+  notulenBlock: {
+    gap: 8,
+  },
+  notulenHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs + 2,
+    gap: 8,
+  },
+  notulenCircleBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: rounded.full,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notulenCircleBadgeText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.onPrimary,
+    includeFontPadding: false,
+  },
+  notulenHeadingText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  notulenContentCard: {
+    padding: 14,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    gap: 4,
+  },
+  emptyItalicText: {
+    fontFamily: fontFamilies.sansRegular,
+    fontStyle: 'italic',
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textMuted,
+    includeFontPadding: false,
+  },
+  penutupMainText: {
+    fontFamily: fontFamilies.sansRegular,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  penutupSubText: {
+    fontFamily: fontFamilies.sansRegular,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  webSigSectionDivider: {
+    marginTop: 6,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  webSigGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  webSigCol: {
+    flex: 1,
+    minWidth: 140,
+    alignItems: 'center',
+  },
+  webSigRoleLabel: {
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    marginBottom: 8,
+    includeFontPadding: false,
+  },
+  webSigCanvasWrap: {
+    height: 76,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  webSigImage: {
+    width: 140,
+    height: 68,
+  },
+  webSigFallbackItalic: {
+    fontFamily: fontFamilies.sansMedium,
+    fontStyle: 'italic',
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.textMuted,
+    includeFontPadding: false,
+  },
+  webSigPendingDashed: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.borderStrong,
+  },
+  webSigPendingText: {
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.textMuted,
+    includeFontPadding: false,
+  },
+  webSigUnderline: {
+    width: '100%',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderStrong,
+    paddingBottom: 4,
+    alignItems: 'center',
+  },
+  webSigPersonName: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.onSurface,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  webSigPersonNip: {
+    fontFamily: fontFamilies.monoRegular,
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+    includeFontPadding: false,
+  },
+  webSigHadirBadge: {
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  webSigHadirBadgeText: {
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.onSuccessContainer,
+    includeFontPadding: false,
+  },
+
+  // 8. Panel Dokumentasi Foto & Lampiran
+  docToolbarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  docsGrid: {
+    gap: 12,
+  },
+  docCard: {
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceSoft,
+    overflow: 'hidden',
+  },
+  docPreviewWrap: {
+    width: '100%',
+    height: 170,
+    backgroundColor: colors.surfaceContainer,
+  },
+  docPreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  docPreviewFallback: {
+    width: '100%',
+    height: 120,
+    backgroundColor: colors.surfaceContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  docPreviewExtText: {
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 11,
+    color: colors.primary,
+    includeFontPadding: false,
+  },
+  docCardFooter: {
+    padding: 12,
+    backgroundColor: colors.surfaceCard,
+    gap: 8,
+  },
+  docCaptionText: {
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  docActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  docActionBtn: {
+    flex: 1,
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  docActionText: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.primary,
+    includeFontPadding: false,
+  },
+
+  // Modals (Tugaskan Peran & Edit Notulensi)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.scrimNeutralTop,
+    justifyContent: 'center',
+    padding: 16,
+  },
+  rolesModalCard: {
+    ...cardSurface,
+    maxHeight: '88%',
+    overflow: 'hidden',
+  },
+  rolesModalHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: colors.surfaceSoft,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  rolesHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  rolesHeaderIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rolesModalTitle: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  rolesModalSubtitle: {
+    fontFamily: fontFamilies.sansRegular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
+  zoomCloseBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: rounded.md,
+  },
+  rolesModalBody: {
+    padding: 16,
+    gap: 8,
+  },
+  hybridInfoBox: {
+    padding: 12,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 6,
+  },
+  hybridInfoTitle: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.infoText,
+    includeFontPadding: false,
+  },
+  hybridInfoDesc: {
+    fontFamily: fontFamilies.sansRegular,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.infoText,
+    marginTop: 2,
+    includeFontPadding: false,
+  },
+  roleFieldLabel: {
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  roleFieldGap: {
+    marginTop: 8,
+  },
+  roleSelectorBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  roleSelectorText: {
+    flex: 1,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  rolesModalFooter: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.surfaceSoft,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  minutesModalScroll: {
+    maxHeight: 420,
+  },
+  minutesModalInput: {
+    minHeight: 110,
+    padding: 12,
+    borderRadius: rounded.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceSoft,
+    fontFamily: fontFamilies.sansRegular,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.onSurface,
+    includeFontPadding: false,
+  },
+  uploadPhotoModalRow: {
+    marginTop: 8,
+  },
+  zoomFullImage: {
+    width: '100%',
+    height: 360,
+    backgroundColor: colors.primaryDarkest,
   },
 });

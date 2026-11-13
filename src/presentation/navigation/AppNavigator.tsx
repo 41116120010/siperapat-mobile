@@ -33,6 +33,7 @@ import { AddUnitScreen } from '../screens/AddUnitScreen';
 import { EditUnitScreen } from '../screens/EditUnitScreen';
 import { UnitDirectoryScreen } from '../screens/UnitDirectoryScreen';
 import { AuditLogScreen } from '../screens/AuditLogScreen';
+import { PersonalActivityLogScreen } from '../screens/PersonalActivityLogScreen';
 import { ReportsScreen } from '../screens/ReportsScreen';
 import { ReportDetailScreen } from '../screens/ReportDetailScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
@@ -204,9 +205,13 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
               triggerPageTransition();
               rootStackNav.replace('Login');
             }}
-            onNavigateAuditLog={(mode) => {
+            onNavigateAuditLog={() => {
               triggerPageTransition();
-              rootStackNav.navigate('AuditLog', mode ? { mode } : undefined);
+              rootStackNav.navigate('AuditLog');
+            }}
+            onNavigatePersonalActivityLog={() => {
+              triggerPageTransition();
+              rootStackNav.navigate('PersonalActivityLog');
             }}
             onNavigatePegawai={() => {
               triggerPageTransition();
@@ -316,7 +321,7 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="Receipt">
         {({ navigation, route }) => (
           <ReceiptScreen
-            attendanceId={route.params.attendanceId}
+            attendanceId={route.params.attendanceId ?? route.params.meetingId ?? ''}
             onBack={() => safeGoBack(navigation, 'MainTabs')}
             onDone={() => navigation.navigate('MainTabs')}
             onViewAgendaDetail={(meetingId) => {
@@ -352,9 +357,12 @@ export const AppNavigator: React.FC = () => {
               triggerPageTransition();
               navigation.navigate('Presensi', { meetingId: id });
             }}
-            onNavigateReceipt={(attendanceId) => {
+            onNavigateReceipt={(id: string, attId?: string) => {
               triggerPageTransition();
-              navigation.navigate('Receipt', { attendanceId });
+              navigation.navigate('Receipt', {
+                meetingId: id,
+                attendanceId: attId ?? id,
+              });
             }}
           />
         )}
@@ -369,9 +377,12 @@ export const AppNavigator: React.FC = () => {
               triggerPageTransition();
               navigation.navigate('Presensi', { meetingId: id });
             }}
-            onNavigateReceipt={(attendanceId) => {
+            onNavigateReceipt={(id: string, attId?: string) => {
               triggerPageTransition();
-              navigation.navigate('Receipt', { attendanceId });
+              navigation.navigate('Receipt', {
+                meetingId: id,
+                attendanceId: attId ?? id,
+              });
             }}
           />
         )}
@@ -466,10 +477,29 @@ export const AppNavigator: React.FC = () => {
       </Stack.Screen>
 
       <Stack.Screen name="AuditLog">
-        {({ navigation, route }) => (
-          <AuditLogScreen
-            mode={route.params?.mode}
+        {({ navigation }) => isAdministrator ? (
+          <AuditLogScreen onBack={() => safeGoBack(navigation, 'MainTabs')} />
+        ) : (
+          <RoleAccessDenied
+            message="Halaman Log Aktivitas Sistem hanya dapat diakses oleh Administrator."
             onBack={() => safeGoBack(navigation, 'MainTabs')}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="PersonalActivityLog">
+        {({ navigation }) => (
+          <PersonalActivityLogScreen
+            onBack={() => safeGoBack(navigation, 'MainTabs')}
+            onNavigateSystemLogs={
+              isAdministrator
+                ? () => {
+                    triggerPageTransition();
+                    navigation.navigate('AuditLog');
+                  }
+                : undefined
+            }
+            onNavigateProfile={() => safeGoBack(navigation, 'MainTabs')}
           />
         )}
       </Stack.Screen>
@@ -514,11 +544,14 @@ export const AppNavigator: React.FC = () => {
   );
 };
 
-const RoleAccessDenied: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+const RoleAccessDenied: React.FC<{ onBack: () => void; message?: string }> = ({
+  onBack,
+  message,
+}) => (
   <View style={styles.deniedContainer}>
     <Text style={styles.deniedTitle}>Akses tidak tersedia</Text>
     <Text style={styles.deniedSubtitle}>
-      Akun Anda tidak memiliki izin untuk membuka halaman ini.
+      {message ?? 'Akun Anda tidak memiliki izin untuk membuka halaman ini.'}
     </Text>
     <Pressable onPress={onBack} accessibilityRole="button" style={styles.deniedButton}>
       <Text style={styles.deniedButtonText}>Kembali</Text>

@@ -38,7 +38,8 @@ import { useFeedbackStore } from '../store/useFeedbackStore';
 
 export interface ProfileScreenProps {
   onLogout: () => void;
-  onNavigateAuditLog: (mode?: 'personal' | 'system') => void;
+  onNavigateAuditLog: () => void;
+  onNavigatePersonalActivityLog?: () => void;
   onNavigatePegawai: () => void;
   onNavigateChangePassword: () => void;
   onNavigateReports?: () => void;
@@ -59,6 +60,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onLogout,
   onNavigateAuditLog,
+  onNavigatePersonalActivityLog,
   onNavigatePegawai,
   onNavigateChangePassword,
   onNavigateReports,
@@ -101,6 +103,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       : user?.role === 'admin'
       ? 'Admin Unit'
       : 'Pegawai Unit';
+
+  const handleOpenPersonalLogs = useCallback(() => {
+    if (onNavigatePersonalActivityLog) {
+      onNavigatePersonalActivityLog();
+      return;
+    }
+    onNavigateAuditLog();
+  }, [onNavigatePersonalActivityLog, onNavigateAuditLog]);
 
   const handleSaveProfile = async () => {
     const trimmedName = nameInput.trim();
@@ -243,7 +253,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         subtitle: 'Rekam jejak audit seluruh pengguna sistem',
         accessibilityLabel: 'Buka Log Aktivitas Sistem',
         Icon: ShieldCheck,
-        onPress: () => onNavigateAuditLog('system'),
+        onPress: onNavigateAuditLog,
       });
     }
 
@@ -253,7 +263,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       subtitle: 'Riwayat aktivitas akun kedinasan Anda',
       accessibilityLabel: 'Buka Log Aktivitas Saya',
       Icon: History,
-      onPress: () => onNavigateAuditLog('personal'),
+      onPress: handleOpenPersonalLogs,
     });
 
     return items;
@@ -264,6 +274,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     onNavigateUnitDirectory,
     onNavigatePegawai,
     onNavigateAuditLog,
+    handleOpenPersonalLogs,
   ]);
 
   return (
@@ -275,12 +286,67 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* 1. Heading & Subtitle (Web SSOT profile/edit.blade.php:4-5) */}
+        {/* Heading & Subtitle (Web SSOT profile/edit.blade.php:4-5) */}
         <View style={styles.titleSection}>
           <Text style={styles.mainTitle}>Pengaturan Profil Akun</Text>
           <Text style={styles.mainSubtitle}>
             Kelola informasi identitas diri, kontak, dan keamanan kata sandi akun Anda
           </Text>
+        </View>
+
+        {/* 1. Profile Summary Panel (URUTAN TERATAS #1 — Putih bersih sesuai profile/edit.blade.php:266-320) */}
+        <View style={styles.summaryPanel}>
+          <View style={styles.summaryTop}>
+            <View style={styles.avatarDarkBox}>
+              <Text style={styles.avatarDarkText}>{initials}</Text>
+            </View>
+            <Text style={styles.summaryName}>{user?.name ?? 'Nama pengguna'}</Text>
+            <View style={styles.emailPill}>
+              <Text style={styles.emailPillText}>
+                {user?.email || (user?.username ? `@${user.username}` : '—')}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryRows}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Hak Akses:</Text>
+              <View
+                style={[
+                  styles.roleBadge,
+                  isAdministrator ? styles.roleBadgeAdmin : styles.roleBadgeLight,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.roleBadgeText,
+                    isAdministrator ? styles.roleBadgeTextAdmin : styles.roleBadgeTextLight,
+                  ]}
+                >
+                  {roleDisplayLabel}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Status Akun:</Text>
+              <View style={styles.accountActivePill}>
+                <Text style={styles.accountActiveText}>Aktif</Text>
+              </View>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Nomor Induk:</Text>
+              <Text style={styles.summaryValueMono}>{user?.nip || '-'}</Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Terdaftar Sejak:</Text>
+              <Text style={styles.summaryValueBold}>
+                {registeredAt ? formatTanggalIndonesia(registeredAt) : '—'}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* 2. Card: Informasi Data Diri (langsung siap edit 1:1 Web) */}
@@ -379,7 +445,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
         </View>
 
-        {/* 3. Card: Perbarui Kata Sandi Akun */}
+        {/* 3. Card: Perbarui Kata Sandi Akun & Jejak Audit */}
         <View style={styles.sectionCard}>
           <View style={styles.cardHeaderRow}>
             <View style={styles.cardHeaderIconBox}>
@@ -406,61 +472,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <ShieldCheck size={16} strokeWidth={2} color={colors.onPrimary} />
             <Text style={styles.changePassBtnText}>Perbarui Kata Sandi</Text>
           </Pressable>
+
+          <Pressable
+            onPress={handleOpenPersonalLogs}
+            style={({ pressed }) => [
+              styles.personalLogOutlineBtn,
+              pressed && styles.itemPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Lihat Log Aktivitas Saya"
+          >
+            <History size={16} strokeWidth={2} color={colors.primary} />
+            <Text style={styles.personalLogOutlineBtnText}>Lihat Log Aktivitas Saya</Text>
+          </Pressable>
         </View>
 
-        {/* 4. Dark Account Summary Card (primaryDarkest) */}
-        <View style={styles.darkSummaryCard}>
-          <View style={styles.darkSummaryTop}>
-            <View style={styles.darkAvatarBox}>
-              <Text style={styles.darkAvatarText}>{initials}</Text>
-            </View>
-            <Text style={styles.darkSummaryName}>{user?.name ?? 'Nama pengguna'}</Text>
-            <View style={styles.darkUsernameBadge}>
-              <Text style={styles.darkUsernameText}>@{user?.username ?? '—'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.darkSummaryRows}>
-            <View style={styles.darkSummaryRow}>
-              <Text style={styles.darkSummaryLabel}>NIP</Text>
-              <Text style={styles.darkSummaryMono}>{user?.nip || 'Tidak tercatat'}</Text>
-            </View>
-
-            <View style={styles.darkSummaryRow}>
-              <Text style={styles.darkSummaryLabel}>Unit Kerja</Text>
-              <Text style={styles.darkSummaryValue} numberOfLines={2}>
-                {user?.unitKerja || 'Tingkat Lembaga'}
-              </Text>
-            </View>
-
-            <View style={styles.darkSummaryRow}>
-              <Text style={styles.darkSummaryLabel}>Peran (Role)</Text>
-              <View style={styles.darkRolePill}>
-                <Text style={styles.darkRolePillText}>{roleDisplayLabel}</Text>
-              </View>
-            </View>
-
-            <View style={styles.darkSummaryRow}>
-              <Text style={styles.darkSummaryLabel}>Status Akun</Text>
-              <View style={styles.accountActivePill}>
-                <Text style={styles.accountActiveText}>Aktif</Text>
-              </View>
-            </View>
-
-            <View style={styles.darkSummaryRow}>
-              <Text style={styles.darkSummaryLabel}>Terdaftar Sejak</Text>
-              <Text style={styles.darkSummaryValue}>
-                {registeredAt ? formatTanggalIndonesia(registeredAt) : '—'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 5. Menu Pengelolaan & Akun sesuai Kebijakan Role Web */}
+        {/* 4. Administrasi & Laporan Kedinasan sesuai Kebijakan Role Web */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderStatic}>
             <Text style={styles.sectionTitle}>
-              {canManageEmployees ? 'Menu Pengelolaan & Akun' : 'Menu Akun'}
+              {canManageEmployees ? 'Administrasi & Laporan Kedinasan' : 'Menu Akun'}
             </Text>
           </View>
 
@@ -489,7 +520,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           })}
         </View>
 
-        {/* 6. Card: Ketentuan Keamanan Akun (edit.blade.php:323-333) */}
+        {/* 5. Card: Ketentuan Keamanan Akun (edit.blade.php:323-333) */}
         <View style={styles.sectionCard}>
           <View style={styles.securityGuideHeader}>
             <Info size={16} strokeWidth={2} color={colors.primary} />
@@ -508,7 +539,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
         </View>
 
-        {/* 7. Tombol Keluar dari Sistem */}
+        {/* 6. Tombol Keluar dari Sistem */}
         <Pressable
           onPress={handleLogout}
           style={({ pressed }) => [
@@ -550,6 +581,129 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     marginTop: 2,
+  },
+  summaryPanel: {
+    ...cardSurface,
+    backgroundColor: colors.surfaceCard,
+    borderRadius: rounded.card,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    padding: 20,
+    gap: spacing.md,
+    overflow: 'hidden',
+  },
+  summaryTop: {
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  avatarDarkBox: {
+    width: 64,
+    height: 64,
+    borderRadius: rounded.xl,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  avatarDarkText: {
+    ...typography.headlineMd,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 22,
+    color: colors.onPrimary,
+  },
+  summaryName: {
+    ...typography.headlineSm,
+    fontFamily: fontFamilies.sansExtraBold,
+    fontSize: 18,
+    color: colors.onSurface,
+    textAlign: 'center',
+  },
+  emailPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: rounded.md,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    maxWidth: '100%',
+  },
+  emailPillText: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoMedium,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  summaryRows: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingTop: spacing.sm + 4,
+    gap: 10,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  summaryLabel: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  summaryValueBold: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 12,
+    color: colors.onSurface,
+    textAlign: 'right',
+    flexShrink: 1,
+  },
+  summaryValueMono: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 12,
+    color: colors.onSurface,
+    textAlign: 'right',
+    flexShrink: 1,
+  },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.sm + 2,
+  },
+  roleBadgeAdmin: {
+    backgroundColor: colors.primary,
+  },
+  roleBadgeLight: {
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  roleBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+  },
+  roleBadgeTextAdmin: {
+    color: colors.onPrimary,
+  },
+  roleBadgeTextLight: {
+    color: colors.onSurface,
+  },
+  accountActivePill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  accountActiveText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.success,
   },
   sectionCard: {
     ...cardSurface,
@@ -662,117 +816,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.onPrimary,
   },
-  darkSummaryCard: {
-    backgroundColor: colors.primaryDarkest,
-    borderRadius: rounded.card,
-    borderWidth: 1,
-    borderColor: colors.primaryContainer,
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  darkSummaryTop: {
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
-  darkAvatarBox: {
-    width: 64,
-    height: 64,
-    borderRadius: rounded.xl,
-    backgroundColor: colors.primaryContainer,
-    borderWidth: 1,
-    borderColor: colors.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  darkAvatarText: {
-    ...typography.headlineMd,
-    fontFamily: fontFamilies.sansExtraBold,
-    fontSize: 20,
-    color: colors.onPrimary,
-  },
-  darkSummaryName: {
-    ...typography.headlineSm,
-    fontFamily: fontFamilies.sansExtraBold,
-    fontSize: 16,
-    color: colors.onPrimary,
-    textAlign: 'center',
-  },
-  darkUsernameBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  personalLogOutlineBtn: {
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: rounded.md,
-    backgroundColor: colors.primaryContainer,
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: colors.secondary,
-  },
-  darkUsernameText: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoMedium,
-    fontSize: 12,
-    color: colors.onPrimaryContainer,
-  },
-  darkSummaryRows: {
-    borderTopWidth: 1,
-    borderTopColor: colors.primaryContainer,
-    paddingTop: spacing.sm + 4,
-    gap: 10,
-  },
-  darkSummaryRow: {
+    borderColor: colors.borderStrong,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: spacing.md,
   },
-  darkSummaryLabel: {
-    ...typography.labelSm,
+  personalLogOutlineBtnText: {
+    ...typography.labelMd,
     fontFamily: fontFamilies.sansBold,
     fontSize: 12,
-    color: colors.secondaryFixedDim,
-  },
-  darkSummaryValue: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 12,
-    color: colors.onPrimary,
-    textAlign: 'right',
-    flexShrink: 1,
-  },
-  darkSummaryMono: {
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoBold,
-    fontSize: 12,
-    color: colors.onPrimary,
-    textAlign: 'right',
-    flexShrink: 1,
-  },
-  darkRolePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: rounded.sm + 2,
-    backgroundColor: colors.primaryContainer,
-    borderWidth: 1,
-    borderColor: colors.secondary,
-  },
-  darkRolePillText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 11,
-    color: colors.onPrimary,
-  },
-  accountActivePill: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: rounded.full,
-    backgroundColor: colors.successContainer,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
-  },
-  accountActiveText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 11,
-    color: colors.onSuccessContainer,
+    color: colors.primary,
   },
   menuNavCard: {
     flexDirection: 'row',

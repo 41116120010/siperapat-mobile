@@ -9,6 +9,7 @@ import {
   Platform,
   TextInput,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
 import {
   Archive,
@@ -199,8 +200,13 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
     return options.some((opt) => opt.title.toLowerCase() === q);
   }, [options, searchQuery]);
 
-  // Pagination calculation
+  // Pagination calculation & responsive sheet sizing
+  const { height: windowHeight } = useWindowDimensions();
   const isPaginated = typeof pageSize === 'number' && pageSize > 0;
+  const isConsistent = Boolean(searchable || isPaginated || consistentHeight);
+  const sheetMaxHeight = Math.max(360, Math.round(windowHeight * 0.84));
+  const sheetConsistentHeight = Math.max(340, Math.round(windowHeight * 0.76));
+  const compactScrollMaxHeight = Math.max(240, Math.round(windowHeight * 0.56));
   const totalItems = filteredOptions.length;
   const totalPages = isPaginated ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1;
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
@@ -220,23 +226,25 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        {/* Backdrop dismiss */}
-        <Pressable
-          style={styles.backdrop}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Tutup jendela pilihan"
-        />
-
         {/* Modal Bottom Sheet Content with Keyboard Avoiding */}
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.keyboardAvoid}
+          pointerEvents="box-none"
         >
+          {/* Backdrop dismiss */}
+          <Pressable
+            style={styles.backdrop}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Tutup jendela pilihan"
+          />
+
           <View
             style={[
               styles.sheetContainer,
-              (searchable || isPaginated || consistentHeight) && styles.sheetContainerConsistent,
+              { maxHeight: sheetMaxHeight },
+              isConsistent ? { height: sheetConsistentHeight } : null,
             ]}
           >
             {/* Sheet Handle */}
@@ -349,7 +357,12 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
               </View>
             ) : (
               <ScrollView
-                style={styles.optionsScrollView}
+                style={[
+                  styles.optionsScrollView,
+                  isConsistent
+                    ? styles.optionsScrollConsistent
+                    : { maxHeight: compactScrollMaxHeight, flexGrow: 0 },
+                ]}
                 contentContainerStyle={styles.optionsList}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
@@ -620,7 +633,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? spacing.xl + 8 : spacing.lg,
-    maxHeight: '80%',
     overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: colors.borderStrong,
@@ -635,10 +647,6 @@ const styles = StyleSheet.create({
         elevation: 0,
       },
     }),
-  },
-  sheetContainerConsistent: {
-    height: '78%',
-    maxHeight: '85%',
   },
   handleBar: {
     width: 36,
@@ -685,7 +693,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainer,
   },
   optionsScrollView: {
+    flexGrow: 0,
+  },
+  optionsScrollConsistent: {
     flex: 1,
+    minHeight: 180,
   },
   optionsList: {
     gap: 8,
@@ -785,6 +797,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   keyboardAvoid: {
+    flex: 1,
     width: '100%',
     justifyContent: 'flex-end',
   },
