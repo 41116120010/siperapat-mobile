@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -30,6 +29,7 @@ import { ApiUnitRecord } from '../../data/datasources/userApi';
 import { Header } from '../components/common/Header';
 import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
@@ -411,9 +411,13 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator
+              bounces={false}
+              overScrollMode="never"
+              nestedScrollEnabled
+              style={styles.tableHorizontalScroll}
               contentContainerStyle={styles.tableScrollContent}
             >
-              <View style={styles.tableInner}>
+              <View style={styles.tableInner} collapsable={false}>
                 {/* Table Header */}
                 <View style={styles.tableHeaderRow}>
                   <View style={[styles.colNo, styles.headerCell]}>
@@ -445,7 +449,7 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
                 {/* Table Body */}
                 {unitsLoading && units.length === 0 ? (
                   <View style={styles.loadingWrap}>
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <TutWuriLoader size="sm" />
                     <Text style={styles.loadingText}>Memuat data unit kerja...</Text>
                   </View>
                 ) : units.length === 0 ? (
@@ -752,13 +756,20 @@ const styles = StyleSheet.create({
     borderColor: colors.borderStrong,
     overflow: 'hidden',
   },
+  tableHorizontalScroll: {
+    width: '100%',
+    backgroundColor: colors.surfaceCard,
+  },
   tableScrollContent: {
     flexGrow: 1,
   },
   tableInner: {
     minWidth: 1093,
+    flexGrow: 1,
+    backgroundColor: colors.surfaceCard,
   },
   tableHeaderRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceSoft,
@@ -784,6 +795,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   tableDataRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceCard,

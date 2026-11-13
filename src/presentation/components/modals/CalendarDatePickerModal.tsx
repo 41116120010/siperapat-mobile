@@ -6,7 +6,10 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Calendar,
   CalendarCheck,
@@ -87,6 +90,12 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
   title = 'Pilih Tanggal Pelaksanaan',
   subtitle = 'Jadwal sidang dan pertemuan kedinasan LLDIKTI Wilayah X',
 }) => {
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const sheetMaxHeight = Math.max(360, Math.round(windowHeight * 0.88));
+  const bodyMaxHeight = Math.max(220, Math.round(windowHeight * 0.72));
+  const sheetBottomPadding = Math.max(insets.bottom + spacing.md, spacing.lg);
+
   const todayKey = useMemo(() => getJakartaDateKey(new Date()), []);
   const effectiveMinDate = minDate ?? todayKey;
 
@@ -272,7 +281,17 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
         />
 
         {/* Modal Bottom Sheet Content */}
-        <View style={styles.sheetContainer}>
+        <View
+          collapsable={false}
+          style={[
+            styles.sheetContainer,
+            {
+              maxHeight: sheetMaxHeight,
+              width: '100%',
+              paddingBottom: sheetBottomPadding,
+            },
+          ]}
+        >
           {/* Sheet Handle */}
           <View style={styles.handleBar} />
 
@@ -298,6 +317,13 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
             </Pressable>
           </View>
 
+          <ScrollView
+            bounces={false}
+            overScrollMode="never"
+            removeClippedSubviews={false}
+            showsVerticalScrollIndicator={false}
+            style={{ maxHeight: bodyMaxHeight, flexGrow: 0 }}
+          >
           {/* Active Date Preview Card */}
           <View style={styles.previewCard}>
             <View style={styles.previewLeft}>
@@ -451,6 +477,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
               );
             })}
           </View>
+          </ScrollView>
 
           {/* Action Footer */}
           <View style={styles.footerRow}>

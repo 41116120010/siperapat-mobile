@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Linking,
   Modal,
@@ -51,6 +50,7 @@ import { Button } from '../components/common/Button';
 import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
 import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import { useAuthStore } from '../store/useAuthStore';
@@ -467,7 +467,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
       <Header />
 
       {loading && !meeting ? (
-        <ActivityIndicator style={styles.loader} color={colors.primary} />
+        <TutWuriLoader size="lg" style={styles.loader} />
       ) : null}
       {error && !meeting ? <ErrorState message={error} onRetry={load} /> : null}
 
@@ -951,7 +951,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                     accessibilityLabel={isEdaranPdf ? 'Unduh PDF' : 'Unduh File'}
                   >
                     {isDownloadingEdaran ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
+                      <TutWuriLoader size="sm" />
                     ) : (
                       <>
                         <Download size={15} color={colors.error} strokeWidth={2} />
@@ -1229,7 +1229,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   flexOne: { flex: 1, minWidth: 0 },
-  loader: { marginTop: spacing.xl },
+  loader: { marginTop: spacing.xl, alignSelf: 'center' },
   pressed: { opacity: 0.78 },
 
   content: { padding: spacing.md, gap: spacing.md },

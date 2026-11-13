@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   ImageStyle,
   Linking,
@@ -56,6 +55,7 @@ import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import { useFeedbackStore } from '../store/useFeedbackStore';
@@ -200,7 +200,7 @@ const BearerImage: React.FC<{
           {fallbackLabel}
         </Text>
       ) : (
-        <ActivityIndicator size="small" color={colors.primary} />
+        <TutWuriLoader size="md" />
       )}
     </View>
   );
@@ -402,7 +402,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
 
       {isLoading ? (
         <View style={styles.loadingState}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <TutWuriLoader size="lg" />
           <Text style={styles.loadingText}>Memuat detail laporan rapat...</Text>
         </View>
       ) : errorMessage || !agenda ? (
@@ -509,7 +509,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                 accessibilityLabel="Unduh PDF"
               >
                 {exportingFormat === 'pdf' ? (
-                  <ActivityIndicator size="small" color={colors.onPrimary} />
+                  <TutWuriLoader size="sm" />
                 ) : (
                   <FileText size={14} strokeWidth={2} color={colors.onPrimary} />
                 )}
@@ -524,7 +524,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                 accessibilityLabel="Unduh Format Word"
               >
                 {exportingFormat === 'word' ? (
-                  <ActivityIndicator size="small" color={colors.onPrimary} />
+                  <TutWuriLoader size="sm" />
                 ) : (
                   <Download size={14} strokeWidth={2} color={colors.onPrimary} />
                 )}
@@ -821,16 +821,20 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
 
             {isAttLoading ? (
               <View style={styles.loadingInline}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <TutWuriLoader size="md" />
                 <Text style={styles.helperSubText}>Memuat halaman presensi...</Text>
               </View>
             ) : (
               <ScrollView
                 horizontal
+                bounces={false}
+                overScrollMode="never"
+                nestedScrollEnabled
                 showsHorizontalScrollIndicator={true}
+                style={styles.tableScrollView}
                 contentContainerStyle={styles.tableScrollContent}
               >
-                <View style={styles.tableInner}>
+                <View style={styles.tableInner} collapsable={false}>
                   <View style={styles.tableColumnHeaderRow}>
                     <Text style={[styles.thCell, { width: ATT_COL_WIDTHS.no }]}>No</Text>
                     <Text style={[styles.thCell, { width: ATT_COL_WIDTHS.pegawai }]}>Pegawai</Text>
@@ -1410,14 +1414,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
+  tableScrollView: {
+    width: '100%',
+    backgroundColor: colors.surfaceCard,
+  },
   tableScrollContent: {
     flexGrow: 1,
   },
   tableInner: {
-    minWidth: ATT_TABLE_MIN_WIDTH,
-    width: '100%',
+    minWidth: ATT_TABLE_MIN_WIDTH + spacing.sm * 2,
+    flexGrow: 1,
+    backgroundColor: colors.surfaceCard,
   },
   tableColumnHeaderRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceContainerLow,
@@ -1434,6 +1444,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   tableBodyRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,

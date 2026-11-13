@@ -7,7 +7,6 @@ import {
   Pressable,
   ScrollView,
   Image,
-  ActivityIndicator,
   Dimensions,
 } from 'react-native';
 import {
@@ -31,6 +30,7 @@ import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
+import { TutWuriLoader } from '../common/TutWuriLoader';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
 import { ApiError } from '../../../data/datasources/apiClient';
@@ -358,7 +358,7 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
             {/* 1. STATE: Preparing / Downloading file */}
             {isPreparing ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
+                <TutWuriLoader size="lg" />
                 <Text style={styles.loadingTitle}>
                   {isImage ? 'Mengunduh Gambar Surat Edaran...' : 'Mempersiapkan Dokumen PDF...'}
                 </Text>

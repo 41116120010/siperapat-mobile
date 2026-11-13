@@ -472,19 +472,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <ShieldCheck size={16} strokeWidth={2} color={colors.onPrimary} />
             <Text style={styles.changePassBtnText}>Perbarui Kata Sandi</Text>
           </Pressable>
-
-          <Pressable
-            onPress={handleOpenPersonalLogs}
-            style={({ pressed }) => [
-              styles.personalLogOutlineBtn,
-              pressed && styles.itemPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Lihat Log Aktivitas Saya"
-          >
-            <History size={16} strokeWidth={2} color={colors.primary} />
-            <Text style={styles.personalLogOutlineBtnText}>Lihat Log Aktivitas Saya</Text>
-          </Pressable>
         </View>
 
         {/* 4. Administrasi & Laporan Kedinasan sesuai Kebijakan Role Web */}
@@ -815,24 +802,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansBold,
     fontSize: 13,
     color: colors.onPrimary,
-  },
-  personalLogOutlineBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    borderRadius: rounded.md,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: spacing.md,
-  },
-  personalLogOutlineBtnText: {
-    ...typography.labelMd,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 12,
-    color: colors.primary,
   },
   menuNavCard: {
     flexDirection: 'row',

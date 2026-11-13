@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -32,6 +31,7 @@ import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/them
 import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { ErrorState } from '../components/common/ErrorState';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
@@ -324,6 +324,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
       <Header
         title={isAdministrator ? 'Kelola Seluruh Pengguna' : adminUnitTitle}
         subtitle="Daftar aparatur dan staf terdaftar di sistem presensi"
+        showBack={Boolean(onBack)}
         onBack={onBack}
       />
 
@@ -495,16 +496,20 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
           <View style={styles.tablePanel}>
             {employeesLoading && employees.length === 0 ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <TutWuriLoader size="md" />
                 <Text style={styles.loadingText}>Memuat daftar pengguna...</Text>
               </View>
             ) : (
               <ScrollView
                 horizontal
+                bounces={false}
+                overScrollMode="never"
+                nestedScrollEnabled
                 showsHorizontalScrollIndicator={true}
+                style={styles.tableScrollView}
                 contentContainerStyle={styles.tableScrollContent}
               >
-                <View style={styles.tableInner}>
+                <View style={styles.tableInner} collapsable={false}>
                   {/* TABLE HEADER */}
                   <View style={styles.tableHeaderRow}>
                     <Text style={[styles.thCell, { width: COL_WIDTHS.no }]}>No</Text>
@@ -961,14 +966,20 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansMedium,
     color: colors.textMuted,
   },
+  tableScrollView: {
+    width: '100%',
+    backgroundColor: colors.surfaceCard,
+  },
   tableScrollContent: {
     flexGrow: 1,
   },
   tableInner: {
-    minWidth: TABLE_MIN_WIDTH,
-    width: '100%',
+    minWidth: TABLE_MIN_WIDTH + spacing.sm * 2,
+    flexGrow: 1,
+    backgroundColor: colors.surfaceCard,
   },
   tableHeaderRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceContainerLow,
@@ -988,6 +999,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   tableRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,

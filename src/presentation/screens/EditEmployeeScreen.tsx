@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -39,6 +38,7 @@ import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/them
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { FeedbackModal } from '../components/modals/FeedbackModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
@@ -301,7 +301,7 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
       <View style={styles.container}>
         <Header title="Edit Data Pengguna" showBack={Boolean(onBack)} onBack={handleBack} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <TutWuriLoader size="lg" />
           <Text style={styles.loadingText}>Memuat data pengguna...</Text>
         </View>
       </View>

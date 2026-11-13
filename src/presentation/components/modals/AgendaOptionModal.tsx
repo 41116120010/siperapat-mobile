@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Archive,
   Award,
@@ -202,11 +203,11 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
 
   // Pagination calculation & responsive sheet sizing
   const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isPaginated = typeof pageSize === 'number' && pageSize > 0;
-  const isConsistent = Boolean(searchable || isPaginated || consistentHeight);
-  const sheetMaxHeight = Math.max(360, Math.round(windowHeight * 0.84));
-  const sheetConsistentHeight = Math.max(340, Math.round(windowHeight * 0.76));
-  const compactScrollMaxHeight = Math.max(240, Math.round(windowHeight * 0.56));
+  const sheetMaxHeight = Math.max(360, Math.round(windowHeight * 0.82));
+  const maxListHeight = Math.max(200, Math.round(windowHeight * 0.56));
+  const sheetBottomPadding = Math.max(insets.bottom + spacing.md, spacing.lg);
   const totalItems = filteredOptions.length;
   const totalPages = isPaginated ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1;
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
@@ -217,6 +218,240 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
     return filteredOptions.slice(startIndex, startIndex + pageSize);
   }, [filteredOptions, isPaginated, safeCurrentPage, pageSize]);
 
+  const shouldScrollList = Boolean(searchable || isPaginated || displayedOptions.length > 6);
+
+  const optionsListContent = (
+    <>
+      {/* Quick Action: Use current searchQuery as custom option */}
+      {allowCustomOption && searchQuery.trim().length > 0 && !hasExactMatch ? (
+        <Pressable
+          onPress={() => handleConfirmCustom(searchQuery.trim())}
+          style={({ pressed }) => [
+            styles.quickCustomCard,
+            pressed && styles.optionCardPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`Gunakan ${searchQuery.trim()} sebagai ${customOptionLabel}`}
+        >
+          <View style={styles.quickCustomIconWrap}>
+            <Plus size={18} color={colors.primary} strokeWidth={2} />
+          </View>
+          <View style={styles.optionTextGroup}>
+            <View style={styles.titleRow}>
+              <Text style={styles.quickCustomTitle} numberOfLines={1}>
+                Gunakan "{searchQuery.trim()}"
+              </Text>
+              <View style={styles.badgePillCustom}>
+                <Text style={styles.badgePillCustomText}>+ Kustom</Text>
+              </View>
+            </View>
+            <Text style={styles.quickCustomSubtitle}>
+              Jadikan sebagai {customOptionLabel.toLowerCase()} baru
+            </Text>
+          </View>
+          <ChevronRight size={16} color={colors.primary} strokeWidth={2} />
+        </Pressable>
+      ) : null}
+
+      {displayedOptions.map((option) => {
+        const isSelected = option.id === selectedId;
+        const OptionIcon = resolveOptionIcon(option.icon);
+        return (
+          <Pressable
+            key={option.id}
+            onPress={() => {
+              onSelect(option);
+              onClose();
+            }}
+            style={({ pressed }) => [
+              styles.optionCard,
+              isSelected ? styles.optionCardActive : styles.optionCardInactive,
+              pressed && styles.optionCardPressed,
+            ]}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: isSelected }}
+          >
+            {/* Left Icon (if provided) */}
+            {OptionIcon ? (
+              <View
+                style={[
+                  styles.iconWrap,
+                  isSelected ? styles.iconWrapActive : styles.iconWrapInactive,
+                ]}
+              >
+                <OptionIcon
+                  size={18}
+                  color={isSelected ? colors.primary : colors.textSecondary}
+                  strokeWidth={2}
+                />
+              </View>
+            ) : null}
+
+            {/* Texts */}
+            <View style={styles.optionTextGroup}>
+              <View style={styles.titleRow}>
+                <Text
+                  style={[
+                    styles.optionTitle,
+                    isSelected && styles.optionTitleActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {option.title}
+                </Text>
+                {option.badge ? (
+                  <View style={styles.badgePill}>
+                    <Text style={styles.badgePillText}>
+                      {option.badge}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              {option.subtitle ? (
+                <Text style={styles.optionSubtitle} numberOfLines={2}>
+                  {option.subtitle}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Radio Indicator */}
+            <View
+              style={[
+                styles.radioCircle,
+                isSelected ? styles.radioCircleActive : styles.radioCircleInactive,
+              ]}
+            >
+              {isSelected ? <View style={styles.radioInner} /> : null}
+            </View>
+          </Pressable>
+        );
+      })}
+
+      {/* Dedicated Manual / Custom Option Card at the end */}
+      {allowCustomOption ? (
+        <View style={styles.manualCustomSection}>
+          {!isCustomExpanded ? (
+            <Pressable
+              onPress={() => setIsCustomExpanded(true)}
+              style={({ pressed }) => [
+                styles.manualCustomTrigger,
+                selectedId === 'custom' && styles.manualCustomTriggerSelected,
+                pressed && styles.optionCardPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Tentukan ${customOptionLabel} kustom`}
+            >
+              <View
+                style={[
+                  styles.iconWrap,
+                  selectedId === 'custom' ? styles.iconWrapActive : styles.manualCustomIconWrap,
+                ]}
+              >
+                <Pencil
+                  size={18}
+                  color={selectedId === 'custom' ? colors.primary : colors.secondary}
+                  strokeWidth={2}
+                />
+              </View>
+              <View style={styles.optionTextGroup}>
+                <View style={styles.titleRow}>
+                  <Text
+                    style={[
+                      styles.optionTitle,
+                      selectedId === 'custom' && styles.optionTitleActive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {selectedId === 'custom' && customInitialValue
+                      ? `${customInitialValue}`
+                      : `Tulis ${customOptionLabel} Kustom...`}
+                  </Text>
+                  <View style={styles.badgePillCustom}>
+                    <Text style={styles.badgePillCustomText}>
+                      {selectedId === 'custom' ? 'Terpilih' : 'Manual'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.optionSubtitle} numberOfLines={1}>
+                  {selectedId === 'custom' && customInitialValue
+                    ? 'Opsi kustom saat ini aktif • Ketuk untuk ubah'
+                    : 'Input langsung jika opsi yang dicari tidak tersedia'}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.radioCircle,
+                  selectedId === 'custom' ? styles.radioCircleActive : styles.radioCircleInactive,
+                ]}
+              >
+                {selectedId === 'custom' ? <View style={styles.radioInner} /> : null}
+              </View>
+            </Pressable>
+          ) : (
+            <View style={styles.inlineCustomCard}>
+              <View style={styles.inlineCustomHeader}>
+                <View style={styles.inlineCustomHeaderLeft}>
+                  <NotebookPen size={18} color={colors.primary} strokeWidth={2} />
+                  <Text style={styles.inlineCustomHeaderText}>
+                    Input {customOptionLabel} Kustom
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setIsCustomExpanded(false)}
+                  style={styles.inlineCloseBtn}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tutup form input kustom"
+                >
+                  <X size={18} color={colors.textSecondary} strokeWidth={2} />
+                </Pressable>
+              </View>
+              <TextInput
+                style={styles.inlineCustomInput}
+                placeholder={
+                  customOptionPlaceholder ?? `Ketik nama ${customOptionLabel.toLowerCase()}...`
+                }
+                placeholderTextColor={colors.textMuted}
+                value={customInputValue}
+                onChangeText={setCustomInputValue}
+                returnKeyType="done"
+                onSubmitEditing={() => handleConfirmCustom()}
+                autoFocus
+              />
+              <View style={styles.inlineCustomActions}>
+                <Pressable
+                  onPress={() => setIsCustomExpanded(false)}
+                  style={({ pressed }) => [
+                    styles.inlineCancelBtn,
+                    pressed && styles.inlineBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Batal input kustom"
+                >
+                  <Text style={styles.inlineCancelBtnText}>Batal</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleConfirmCustom()}
+                  disabled={!customInputValue.trim()}
+                  style={({ pressed }) => [
+                    styles.inlineConfirmBtn,
+                    !customInputValue.trim() && styles.inlineConfirmBtnDisabled,
+                    pressed && styles.inlineBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Gunakan ${customOptionLabel}`}
+                >
+                  <Check size={16} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.inlineConfirmBtnText}>Gunakan Opsi</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+        </View>
+      ) : null}
+    </>
+  );
+
   return (
     <Modal
       visible={visible}
@@ -226,43 +461,44 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        {/* Modal Bottom Sheet Content with Keyboard Avoiding */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.keyboardAvoid}
-          pointerEvents="box-none"
-        >
-          {/* Backdrop dismiss */}
-          <Pressable
-            style={styles.backdrop}
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Tutup jendela pilihan"
-          />
+        {/* Backdrop dismiss directly inside overlay */}
+        <Pressable
+          style={styles.backdrop}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Tutup jendela pilihan"
+        />
 
-          <View
-            style={[
-              styles.sheetContainer,
-              { maxHeight: sheetMaxHeight },
-              isConsistent ? { height: sheetConsistentHeight } : null,
-            ]}
-          >
-            {/* Sheet Handle */}
-            <View style={styles.handleBar} />
+        {/* Modal Bottom Sheet Content (KeyboardAvoidingView only on iOS) */}
+        {(() => {
+          const sheetNode = (
+            <View
+              collapsable={false}
+              style={[
+                styles.sheetContainer,
+                {
+                  maxHeight: sheetMaxHeight,
+                  width: '100%',
+                  paddingBottom: sheetBottomPadding,
+                },
+              ]}
+            >
+              {/* Sheet Handle */}
+              <View style={styles.handleBar} />
 
-            {/* Header */}
-            <View style={styles.headerRow}>
-              <View style={styles.headerTextGroup}>
-                <Text style={styles.headerTitle}>{title}</Text>
-                {subtitle ? (
-                  <Text style={styles.headerSubtitle}>{subtitle}</Text>
-                ) : null}
-              </View>
-              <Pressable
-                onPress={onClose}
-                style={({ pressed }) => [
-                  styles.closeButton,
-                  pressed && styles.closeButtonPressed,
+              {/* Header */}
+              <View style={styles.headerRow}>
+                <View style={styles.headerTextGroup}>
+                  <Text style={styles.headerTitle}>{title}</Text>
+                  {subtitle ? (
+                    <Text style={styles.headerSubtitle}>{subtitle}</Text>
+                  ) : null}
+                </View>
+                <Pressable
+                  onPress={onClose}
+                  style={({ pressed }) => [
+                    styles.closeButton,
+                    pressed && styles.closeButtonPressed,
                 ]}
                 hitSlop={4}
                 accessibilityRole="button"
@@ -355,246 +591,23 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                   <Text style={styles.resetSearchButtonText}>Reset Pencarian</Text>
                 </Pressable>
               </View>
-            ) : (
+            ) : shouldScrollList ? (
               <ScrollView
-                style={[
-                  styles.optionsScrollView,
-                  isConsistent
-                    ? styles.optionsScrollConsistent
-                    : { maxHeight: compactScrollMaxHeight, flexGrow: 0 },
-                ]}
+                style={[styles.optionsScrollView, { maxHeight: maxListHeight }]}
                 contentContainerStyle={styles.optionsList}
-                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                overScrollMode="never"
+                bounces={false}
+                removeClippedSubviews={false}
                 keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={true}
               >
-                {/* Quick Action: Use current searchQuery as custom option */}
-                {allowCustomOption && searchQuery.trim().length > 0 && !hasExactMatch ? (
-                  <Pressable
-                    onPress={() => handleConfirmCustom(searchQuery.trim())}
-                    style={({ pressed }) => [
-                      styles.quickCustomCard,
-                      pressed && styles.optionCardPressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Gunakan ${searchQuery.trim()} sebagai ${customOptionLabel}`}
-                  >
-                    <View style={styles.quickCustomIconWrap}>
-                      <Plus size={18} color={colors.primary} strokeWidth={2} />
-                    </View>
-                    <View style={styles.optionTextGroup}>
-                      <View style={styles.titleRow}>
-                        <Text style={styles.quickCustomTitle} numberOfLines={1}>
-                          Gunakan "{searchQuery.trim()}"
-                        </Text>
-                        <View style={styles.badgePillCustom}>
-                          <Text style={styles.badgePillCustomText}>+ Kustom</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.quickCustomSubtitle}>
-                        Jadikan sebagai {customOptionLabel.toLowerCase()} baru
-                      </Text>
-                    </View>
-                    <ChevronRight size={16} color={colors.primary} strokeWidth={2} />
-                  </Pressable>
-                ) : null}
-
-                {displayedOptions.map((option) => {
-                  const isSelected = option.id === selectedId;
-                  const OptionIcon = resolveOptionIcon(option.icon);
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => {
-                        onSelect(option);
-                        onClose();
-                      }}
-                      style={({ pressed }) => [
-                        styles.optionCard,
-                        isSelected ? styles.optionCardActive : styles.optionCardInactive,
-                        pressed && styles.optionCardPressed,
-                      ]}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: isSelected }}
-                    >
-                      {/* Left Icon (if provided) */}
-                      {OptionIcon ? (
-                        <View
-                          style={[
-                            styles.iconWrap,
-                            isSelected ? styles.iconWrapActive : styles.iconWrapInactive,
-                          ]}
-                        >
-                          <OptionIcon
-                            size={18}
-                            color={isSelected ? colors.primary : colors.textSecondary}
-                            strokeWidth={2}
-                          />
-                        </View>
-                      ) : null}
-
-                      {/* Texts */}
-                      <View style={styles.optionTextGroup}>
-                        <View style={styles.titleRow}>
-                          <Text
-                            style={[
-                              styles.optionTitle,
-                              isSelected && styles.optionTitleActive,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {option.title}
-                          </Text>
-                          {option.badge ? (
-                            <View style={styles.badgePill}>
-                              <Text style={styles.badgePillText}>
-                                {option.badge}
-                              </Text>
-                            </View>
-                          ) : null}
-                        </View>
-                        {option.subtitle ? (
-                          <Text style={styles.optionSubtitle} numberOfLines={2}>
-                            {option.subtitle}
-                          </Text>
-                        ) : null}
-                      </View>
-
-                      {/* Radio Indicator */}
-                      <View
-                        style={[
-                          styles.radioCircle,
-                          isSelected ? styles.radioCircleActive : styles.radioCircleInactive,
-                        ]}
-                      >
-                        {isSelected ? <View style={styles.radioInner} /> : null}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-
-                {/* Dedicated Manual / Custom Option Card at the end */}
-                {allowCustomOption ? (
-                  <View style={styles.manualCustomSection}>
-                    {!isCustomExpanded ? (
-                      <Pressable
-                        onPress={() => setIsCustomExpanded(true)}
-                        style={({ pressed }) => [
-                          styles.manualCustomTrigger,
-                          selectedId === 'custom' && styles.manualCustomTriggerSelected,
-                          pressed && styles.optionCardPressed,
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Tentukan ${customOptionLabel} kustom`}
-                      >
-                        <View
-                          style={[
-                            styles.iconWrap,
-                            selectedId === 'custom' ? styles.iconWrapActive : styles.manualCustomIconWrap,
-                          ]}
-                        >
-                          <Pencil
-                            size={18}
-                            color={selectedId === 'custom' ? colors.primary : colors.secondary}
-                            strokeWidth={2}
-                          />
-                        </View>
-                        <View style={styles.optionTextGroup}>
-                          <View style={styles.titleRow}>
-                            <Text
-                              style={[
-                                styles.optionTitle,
-                                selectedId === 'custom' && styles.optionTitleActive,
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {selectedId === 'custom' && customInitialValue
-                                ? `${customInitialValue}`
-                                : `Tulis ${customOptionLabel} Kustom...`}
-                            </Text>
-                            <View style={styles.badgePillCustom}>
-                              <Text style={styles.badgePillCustomText}>
-                                {selectedId === 'custom' ? 'Terpilih' : 'Manual'}
-                              </Text>
-                            </View>
-                          </View>
-                          <Text style={styles.optionSubtitle} numberOfLines={1}>
-                            {selectedId === 'custom' && customInitialValue
-                              ? 'Opsi kustom saat ini aktif • Ketuk untuk ubah'
-                              : 'Input langsung jika opsi yang dicari tidak tersedia'}
-                          </Text>
-                        </View>
-                        <View
-                          style={[
-                            styles.radioCircle,
-                            selectedId === 'custom' ? styles.radioCircleActive : styles.radioCircleInactive,
-                          ]}
-                        >
-                          {selectedId === 'custom' ? <View style={styles.radioInner} /> : null}
-                        </View>
-                      </Pressable>
-                    ) : (
-                      <View style={styles.inlineCustomCard}>
-                        <View style={styles.inlineCustomHeader}>
-                          <View style={styles.inlineCustomHeaderLeft}>
-                            <NotebookPen size={18} color={colors.primary} strokeWidth={2} />
-                            <Text style={styles.inlineCustomHeaderText}>
-                              Input {customOptionLabel} Kustom
-                            </Text>
-                          </View>
-                          <Pressable
-                            onPress={() => setIsCustomExpanded(false)}
-                            style={styles.inlineCloseBtn}
-                            hitSlop={6}
-                            accessibilityRole="button"
-                            accessibilityLabel="Tutup form input kustom"
-                          >
-                            <X size={18} color={colors.textSecondary} strokeWidth={2} />
-                          </Pressable>
-                        </View>
-                        <TextInput
-                          style={styles.inlineCustomInput}
-                          placeholder={
-                            customOptionPlaceholder ?? `Ketik nama ${customOptionLabel.toLowerCase()}...`
-                          }
-                          placeholderTextColor={colors.textMuted}
-                          value={customInputValue}
-                          onChangeText={setCustomInputValue}
-                          returnKeyType="done"
-                          onSubmitEditing={() => handleConfirmCustom()}
-                          autoFocus
-                        />
-                        <View style={styles.inlineCustomActions}>
-                          <Pressable
-                            onPress={() => setIsCustomExpanded(false)}
-                            style={({ pressed }) => [
-                              styles.inlineCancelBtn,
-                              pressed && styles.inlineBtnPressed,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Batal input kustom"
-                          >
-                            <Text style={styles.inlineCancelBtnText}>Batal</Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => handleConfirmCustom()}
-                            disabled={!customInputValue.trim()}
-                            style={({ pressed }) => [
-                              styles.inlineConfirmBtn,
-                              !customInputValue.trim() && styles.inlineConfirmBtnDisabled,
-                              pressed && styles.inlineBtnPressed,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Gunakan ${customOptionLabel}`}
-                          >
-                            <Check size={16} color={colors.onPrimary} strokeWidth={2} />
-                            <Text style={styles.inlineConfirmBtnText}>Gunakan Opsi</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                ) : null}
+                {optionsListContent}
               </ScrollView>
+            ) : (
+              <View style={styles.optionsList} collapsable={false}>
+                {optionsListContent}
+              </View>
             )}
 
             {/* Sticky Pagination Controls outside ScrollView */}
@@ -611,7 +624,22 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
               </View>
             ) : null}
           </View>
-        </KeyboardAvoidingView>
+          );
+
+          return Platform.OS === 'ios' ? (
+            <KeyboardAvoidingView
+              behavior="padding"
+              style={styles.keyboardAvoid}
+              pointerEvents="box-none"
+            >
+              {sheetNode}
+            </KeyboardAvoidingView>
+          ) : (
+            <View style={styles.keyboardAvoid} pointerEvents="box-none">
+              {sheetNode}
+            </View>
+          );
+        })()}
       </View>
     </Modal>
   );
@@ -693,11 +721,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainer,
   },
   optionsScrollView: {
+    width: '100%',
     flexGrow: 0,
-  },
-  optionsScrollConsistent: {
-    flex: 1,
-    minHeight: 180,
+    flexShrink: 1,
   },
   optionsList: {
     gap: 8,
@@ -839,10 +865,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainer,
   },
   emptyContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.xl,
     paddingHorizontal: spacing.md,
     gap: 6,
   },

@@ -3,12 +3,11 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   Text,
   Share,
   Pressable,
 } from 'react-native';
-import { CheckCircle2, Clock, Share2 } from 'lucide-react-native';
+import { Clock, Share2 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
@@ -17,6 +16,7 @@ import { Header } from '../components/common/Header';
 import { PerforatedTicket } from '../components/receipt/PerforatedTicket';
 import { ErrorState } from '../components/common/ErrorState';
 import { Button } from '../components/common/Button';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { useAttendanceStore } from '../store/useAttendanceStore';
 import { Attendance } from '../../domain/entities/types';
 import { formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFormatter';
@@ -24,7 +24,7 @@ import { formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFor
 interface ReceiptScreenProps {
   attendanceId: string;
   onBack: () => void;
-  onDone: () => void;
+  onDone?: () => void;
   onViewAgendaDetail?: (meetingId?: string) => void;
 }
 
@@ -144,18 +144,11 @@ export const ReceiptScreen: React.FC<ReceiptScreenProps> = ({
                 fullWidth
                 style={styles.actionButton}
               />
-              <Button
-                title="Selesai & Kembali"
-                variant="primary"
-                onPress={onDone}
-                icon={<CheckCircle2 size={18} color={colors.onPrimary} strokeWidth={2} />}
-                fullWidth
-              />
             </View>
           </>
         ) : isLoadingReceipt ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <TutWuriLoader size="lg" />
             <Text style={styles.loadingTitle}>Memuat Tanda Terima Resmi</Text>
             <Text style={styles.loadingSubtitle}>
               Menghubungkan ke server LLDIKTI Wilayah X...

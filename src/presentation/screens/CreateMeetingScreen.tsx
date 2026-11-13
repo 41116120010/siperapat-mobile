@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -53,6 +52,7 @@ import { resolveFileMimeType, UploadFileRef } from '../../data/datasources/agend
 import { toIsoDateTime } from '../../data/mappers/apiMappers';
 import { MeetingType } from '../../domain/entities/types';
 import { Header } from '../components/common/Header';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { CalendarDatePickerModal, getJakartaDateKey } from '../components/modals/CalendarDatePickerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
@@ -970,7 +970,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
 
               {isUserCandidatesLoading ? (
                 <View style={styles.candidateStateBox}>
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <TutWuriLoader size="md" />
                   <Text style={styles.candidateStateText}>Memuat daftar pegawai ASN...</Text>
                 </View>
               ) : userCandidatesError ? (

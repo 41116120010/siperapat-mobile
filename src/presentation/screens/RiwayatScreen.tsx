@@ -373,8 +373,16 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
           />
         ) : (
           <View style={styles.tablePanel}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-              <View style={styles.tableWrapper}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={true}
+              bounces={false}
+              overScrollMode="never"
+              nestedScrollEnabled
+              style={styles.tableHorizontalScroll}
+              contentContainerStyle={styles.tableScrollContent}
+            >
+              <View style={styles.tableWrapper} collapsable={false}>
                 {/* Table Header */}
                 <View style={styles.tableHeaderRow}>
                   <View style={[styles.cellNo, styles.headerCell]}>
@@ -726,10 +734,20 @@ const styles = StyleSheet.create({
     ...cardSurface,
     overflow: 'hidden',
   },
+  tableHorizontalScroll: {
+    width: '100%',
+    backgroundColor: colors.surfaceCard,
+  },
+  tableScrollContent: {
+    flexGrow: 1,
+  },
   tableWrapper: {
     minWidth: 815,
+    flexGrow: 1,
+    backgroundColor: colors.surfaceCard,
   },
   tableHeaderRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceSoft,
@@ -755,6 +773,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   tableBodyRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,

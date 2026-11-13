@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import {
   Calendar,
   Check,
@@ -22,6 +22,7 @@ import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/t
 import { formatWaktuWIB, formatTanggalIndonesia } from '../../../core/utils/dateFormatter';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
 import { EvidenceViewerModal } from '../modals/EvidenceViewerModal';
+import { TutWuriLoader } from '../common/TutWuriLoader';
 import { resolveAttendanceMediaUrl } from '../../../core/utils/mediaUrl';
 
 export interface PerforatedTicketProps {
@@ -303,7 +304,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
                 />
               ) : activeSelfie && !isSelfieReadyToRender ? (
                 <View style={styles.evidencePlaceholder}>
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <TutWuriLoader size="md" />
                 </View>
               ) : (
                 <View style={styles.evidencePlaceholder}>
@@ -339,7 +340,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
                 />
               ) : activeSignature && !isSignatureReadyToRender ? (
                 <View style={styles.signaturePlaceholder}>
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <TutWuriLoader size="md" />
                 </View>
               ) : (
                 <View style={styles.signaturePlaceholder}>

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -61,6 +60,7 @@ import { toIsoDateTime } from '../../data/mappers/apiMappers';
 import { Meeting, MeetingType } from '../../domain/entities/types';
 import { Header } from '../components/common/Header';
 import { ErrorState } from '../components/common/ErrorState';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import {
   CalendarDatePickerModal,
@@ -737,7 +737,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
           onBack={onBack}
         />
         <View style={styles.centerStateContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <TutWuriLoader size="lg" />
           <Text style={styles.initLoadingTitle}>Memuat Data Agenda Rapat...</Text>
           <Text style={styles.initLoadingSub}>
             Mengambil data terkini dari server kedinasan LLDIKTI Wilayah X.
@@ -1148,7 +1148,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
 
               {isUserCandidatesLoading ? (
                 <View style={styles.candidateStateBox}>
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <TutWuriLoader size="md" />
                   <Text style={styles.candidateStateText}>Memuat daftar pegawai ASN...</Text>
                 </View>
               ) : userCandidatesError ? (
@@ -1363,7 +1363,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                   accessibilityLabel="Unduh surat edaran saat ini"
                 >
                   {isDownloadingEdaran ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <TutWuriLoader size="sm" />
                   ) : (
                     <>
                       <Download size={15} color={colors.primary} strokeWidth={2} />
@@ -1547,7 +1547,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             ]}
           >
             {isLoading ? (
-              <ActivityIndicator size="small" color={colors.onPrimary} />
+              <TutWuriLoader size="sm" />
             ) : (
               <CheckCircle2 size={17} color={colors.onPrimary} strokeWidth={2} />
             )}

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -47,6 +46,7 @@ import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { CalendarDatePickerModal } from '../components/modals/CalendarDatePickerModal';
 import { useAuthStore } from '../store/useAuthStore';
@@ -457,7 +457,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
       >
         {isInitialLoading ? (
           <View style={styles.loadingCard}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <TutWuriLoader size="lg" />
             <Text style={styles.loadingText}>
               Memuat statistik dan rekapitulasi laporan...
             </Text>
@@ -835,7 +835,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   accessibilityLabel="Unduh Rekap CSV / Excel"
                 >
                   {isExportingSummaryCsv ? (
-                    <ActivityIndicator size="small" color={colors.onPrimary} />
+                    <TutWuriLoader size="sm" />
                   ) : (
                     <FileSpreadsheet size={15} strokeWidth={2} color={colors.onPrimary} />
                   )}
@@ -857,7 +857,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
               {isListLoading ? (
                 <View style={styles.loadingCardInline}>
-                  <ActivityIndicator size="small" color={colors.primary} />
+                  <TutWuriLoader size="md" />
                   <Text style={styles.loadingText}>Memuat halaman agenda...</Text>
                 </View>
               ) : agendas.length === 0 ? (
@@ -873,10 +873,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               ) : (
                 <ScrollView
                   horizontal
+                  bounces={false}
+                  overScrollMode="never"
+                  nestedScrollEnabled
                   showsHorizontalScrollIndicator={true}
+                  style={styles.tableScrollView}
                   contentContainerStyle={styles.tableScrollContent}
                 >
-                  <View style={styles.tableInner}>
+                  <View style={styles.tableInner} collapsable={false}>
                     {/* Column Header Row */}
                     <View style={styles.tableColumnHeaderRow}>
                       <Text style={[styles.thCell, { width: COL_WIDTHS.agenda }]}>
@@ -979,7 +983,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                               accessibilityLabel={`Unduh PDF ${agenda.judul_rapat}`}
                             >
                               {isPdfBusy ? (
-                                <ActivityIndicator size="small" color={colors.error} />
+                                <TutWuriLoader size="sm" />
                               ) : (
                                 <FileText size={13} strokeWidth={2} color={colors.error} />
                               )}
@@ -994,7 +998,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                               accessibilityLabel={`Unduh Word ${agenda.judul_rapat}`}
                             >
                               {isWordBusy ? (
-                                <ActivityIndicator size="small" color={colors.infoText} />
+                                <TutWuriLoader size="sm" />
                               ) : (
                                 <Download size={13} strokeWidth={2} color={colors.infoText} />
                               )}
@@ -1478,14 +1482,20 @@ const styles = StyleSheet.create({
   emptyBox: {
     padding: spacing.md,
   },
+  tableScrollView: {
+    width: '100%',
+    backgroundColor: colors.surfaceCard,
+  },
   tableScrollContent: {
     flexGrow: 1,
   },
   tableInner: {
-    minWidth: TABLE_MIN_WIDTH,
-    width: '100%',
+    minWidth: TABLE_MIN_WIDTH + spacing.sm * 2,
+    flexGrow: 1,
+    backgroundColor: colors.surfaceCard,
   },
   tableColumnHeaderRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceContainerLow,
@@ -1505,6 +1515,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   tableRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,

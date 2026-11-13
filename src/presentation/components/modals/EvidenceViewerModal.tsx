@@ -7,7 +7,6 @@ import {
   Pressable,
   ScrollView,
   Image,
-  ActivityIndicator,
   Dimensions,
 } from 'react-native';
 import {
@@ -28,6 +27,7 @@ import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
+import { TutWuriLoader } from '../common/TutWuriLoader';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
 import { formatTanggalIndonesia, formatWaktuWIB } from '../../../core/utils/dateFormatter';
@@ -371,7 +371,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
 
                 {isLoadingMedia ? (
                   <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+                    <TutWuriLoader size="lg" />
                     <Text style={styles.loadingText}>Menyiapkan berkas terotentikasi...</Text>
                   </View>
                 ) : null}

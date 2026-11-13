@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  ActivityIndicator,
   View,
   Text,
   StyleSheet,
@@ -27,6 +26,7 @@ import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import {
   AgendaOptionModal,
   AgendaOption,
@@ -472,7 +472,7 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
             </View>
           ) : isLoading ? (
             <View style={styles.skeletonContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
+              <TutWuriLoader size="lg" />
             </View>
           ) : logs.length === 0 ? (
             <View style={styles.emptyWrap}>
@@ -485,8 +485,16 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
               />
             </View>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator>
-              <View style={styles.tableInner}>
+            <ScrollView
+              horizontal
+              bounces={false}
+              overScrollMode="never"
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator
+              style={styles.tableScrollView}
+              contentContainerStyle={styles.tableScrollContent}
+            >
+              <View style={styles.tableInner} collapsable={false}>
                 {/* 5-Column Header */}
                 <View style={styles.tableHeaderRow}>
                   <Text style={[styles.thCell, styles.colNo]}>No</Text>
@@ -909,10 +917,20 @@ const styles = StyleSheet.create({
     color: colors.onPrimary,
     includeFontPadding: false,
   },
+  tableScrollView: {
+    width: '100%',
+    backgroundColor: colors.surfaceCard,
+  },
+  tableScrollContent: {
+    flexGrow: 1,
+  },
   tableInner: {
-    minWidth: 785,
+    minWidth: 809,
+    flexGrow: 1,
+    backgroundColor: colors.surfaceCard,
   },
   tableHeaderRow: {
+    width: '100%',
     flexDirection: 'row',
     backgroundColor: colors.surfaceSoft,
     borderBottomWidth: 1,
@@ -931,6 +949,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   tableDataRow: {
+    width: '100%',
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,

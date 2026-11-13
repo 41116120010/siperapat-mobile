@@ -6,7 +6,10 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CheckCircle2,
   Clock,
@@ -60,6 +63,12 @@ export const MeetingFilterModal: React.FC<MeetingFilterModalProps> = ({
   onApply,
   onReset,
 }) => {
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const sheetMaxHeight = Math.max(360, Math.round(windowHeight * 0.88));
+  const bodyMaxHeight = Math.max(220, Math.round(windowHeight * 0.72));
+  const sheetBottomPadding = Math.max(insets.bottom + spacing.md, spacing.lg);
+
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>(currentStatus);
   const [selectedOrder, setSelectedOrder] = useState<FilterOrder>(currentOrder);
 
@@ -99,7 +108,17 @@ export const MeetingFilterModal: React.FC<MeetingFilterModalProps> = ({
         />
 
         {/* Modal Bottom Sheet Content */}
-        <View style={styles.sheetContainer}>
+        <View
+          collapsable={false}
+          style={[
+            styles.sheetContainer,
+            {
+              maxHeight: sheetMaxHeight,
+              width: '100%',
+              paddingBottom: sheetBottomPadding,
+            },
+          ]}
+        >
           {/* Sheet Handle */}
           <View style={styles.handleBar} />
 
@@ -124,6 +143,13 @@ export const MeetingFilterModal: React.FC<MeetingFilterModalProps> = ({
             </Pressable>
           </View>
 
+          <ScrollView
+            bounces={false}
+            overScrollMode="never"
+            removeClippedSubviews={false}
+            showsVerticalScrollIndicator={false}
+            style={{ maxHeight: bodyMaxHeight, flexGrow: 0 }}
+          >
           {/* Section: Status Rapat */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>STATUS PELAKSANAAN</Text>
@@ -197,6 +223,7 @@ export const MeetingFilterModal: React.FC<MeetingFilterModalProps> = ({
               })}
             </View>
           </View>
+          </ScrollView>
 
           {/* Footer Action Buttons */}
           <View style={styles.footerRow}>

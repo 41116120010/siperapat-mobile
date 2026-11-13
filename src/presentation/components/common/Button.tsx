@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Pressable,
   Text,
-  ActivityIndicator,
   StyleSheet,
   ViewStyle,
   TextStyle,
@@ -11,6 +10,7 @@ import {
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
+import { TutWuriLoader } from './TutWuriLoader';
 
 export interface ButtonProps {
   title: string;
@@ -119,11 +119,7 @@ export const Button: React.FC<ButtonProps> = ({
       accessibilityState={{ disabled: isButtonDisabled }}
     >
       {isLoading ? (
-        <ActivityIndicator
-          size="small"
-          color={getTextColor()}
-          style={styles.spinner}
-        />
+        <TutWuriLoader size="sm" style={styles.spinner} />
       ) : (
         <View style={styles.contentRow}>
           {icon ? <View style={styles.iconContainer}>{icon}</View> : null}

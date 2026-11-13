@@ -6,7 +6,10 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Calendar,
   CalendarRange,
@@ -122,6 +125,12 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
   onApply,
   onReset,
 }) => {
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const sheetMaxHeight = Math.max(360, Math.round(windowHeight * 0.88));
+  const bodyMaxHeight = Math.max(220, Math.round(windowHeight * 0.72));
+  const sheetBottomPadding = Math.max(insets.bottom + spacing.md, spacing.lg);
+
   const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>(currentPeriod);
   const [selectedType, setSelectedType] = useState<HistoryMeetingType>(currentType);
 
@@ -163,7 +172,17 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
         />
 
         {/* Modal Bottom Sheet Content */}
-        <View style={styles.sheetContainer}>
+        <View
+          collapsable={false}
+          style={[
+            styles.sheetContainer,
+            {
+              maxHeight: sheetMaxHeight,
+              width: '100%',
+              paddingBottom: sheetBottomPadding,
+            },
+          ]}
+        >
           {/* Drag Handle */}
           <View style={styles.handleBar} />
 
@@ -188,6 +207,13 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
             </Pressable>
           </View>
 
+          <ScrollView
+            bounces={false}
+            overScrollMode="never"
+            removeClippedSubviews={false}
+            showsVerticalScrollIndicator={false}
+            style={{ maxHeight: bodyMaxHeight, flexGrow: 0 }}
+          >
           {/* Section: Periode Bulan */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>PERIODE TANGGAL / BULAN</Text>
@@ -261,6 +287,7 @@ export const DateFilterModal: React.FC<DateFilterModalProps> = ({
               })}
             </View>
           </View>
+          </ScrollView>
 
           {/* Footer Action Buttons */}
           <View style={styles.footerRow}>

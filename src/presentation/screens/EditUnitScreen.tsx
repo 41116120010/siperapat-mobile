@@ -7,7 +7,6 @@ import {
   Pressable,
   Platform,
   KeyboardAvoidingView,
-  ActivityIndicator,
 } from 'react-native';
 import {
   AlertCircle,
@@ -29,6 +28,7 @@ import { userApi } from '../../data/datasources/userApi';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { FeedbackModal } from '../components/modals/FeedbackModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 
@@ -187,7 +187,7 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
           onBack={handleBack}
         />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <TutWuriLoader size="lg" />
           <Text style={styles.loadingText}>Memuat data unit kerja...</Text>
         </View>
       </View>
