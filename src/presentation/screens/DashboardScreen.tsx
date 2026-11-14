@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  RefreshControl,
   Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,6 +24,10 @@ import { Header } from '../components/common/Header';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
+import {
+  TutWuriRefreshBanner,
+  useTutWuriRefreshControl,
+} from '../components/common/TutWuriRefresh';
 import { useAuthStore } from '../store/useAuthStore';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
@@ -199,21 +202,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     }
   }, []);
 
+  const isRefreshing = isLoading && meetings.length > 0;
+  const refreshControl = useTutWuriRefreshControl(isRefreshing, () => {
+    void loadDashboardWithMeta();
+  });
+
   return (
     <View style={styles.container}>
       <Header />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading && meetings.length > 0}
-            onRefresh={loadDashboardWithMeta}
-            colors={[colors.primary]}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.scrollWrapper}>
+        <TutWuriRefreshBanner refreshing={isRefreshing} />
+
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={refreshControl}
+          showsVerticalScrollIndicator={false}
+        >
         {/* Title Section (Web SSOT dashboard.blade.php:4-5) */}
         <View style={styles.titleSection}>
           <Text style={styles.mainTitle}>Dashboard Utama</Text>
@@ -387,7 +392,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             ) : null}
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <SuratEdaranViewerModal
         visible={selectedDocument !== null}
@@ -410,6 +416,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    overflow: 'hidden',
+  },
+  scrollWrapper: {
+    flex: 1,
+    overflow: 'hidden',
   },
   scrollContent: {
     padding: spacing.md,

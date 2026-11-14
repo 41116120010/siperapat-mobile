@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
-  RefreshControl,
   ScrollView,
   ScrollViewInstance,
   StyleSheet,
@@ -9,8 +8,6 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import {
   BarChart3,
   Building2,
@@ -20,7 +17,6 @@ import {
   ClipboardCheck,
   Download,
   Eye,
-  FileSpreadsheet,
   FileText,
   Filter,
   RotateCcw,
@@ -47,6 +43,10 @@ import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import {
+  TutWuriRefreshBanner,
+  useTutWuriRefreshControl,
+} from '../components/common/TutWuriRefresh';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { CalendarDatePickerModal } from '../components/modals/CalendarDatePickerModal';
 import { useAuthStore } from '../store/useAuthStore';
@@ -132,19 +132,7 @@ function formatMeetingTypeLabel(tipe: ApiAgendaDto['tipe_rapat']): string {
   }
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Respons berkas rekap tidak dapat dibaca.'));
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      const comma = result.indexOf(',');
-      if (comma < 0) reject(new Error('Format berkas CSV tidak valid.'));
-      else resolve(result.slice(comma + 1));
-    };
-    reader.readAsDataURL(blob);
-  });
-}
+const PARTICIPATION_PER_PAGE = 5;
 
 export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   onBack,
@@ -152,7 +140,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 }) => {
   const navigation = useNavigation<any>();
   const { showToast } = useFeedbackStore();
-  const isAdministrator = useAuthStore((state) => state.user?.role === 'administrator');
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdministrator = currentUser?.role === 'administrator';
   const { allUnits, fetchAllUnits } = useEmployeeStore();
   const exportRepoRef = useRef(new AgendaExportRepository());
   const scrollViewRef = useRef<ScrollViewInstance | null>(null);
@@ -168,6 +157,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const [activeDropdown, setActiveDropdown] = useState<'none' | 'status' | 'format' | 'unit'>('none');
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [unitPage, setUnitPage] = useState(1);
+  const [memberPage, setMemberPage] = useState(1);
   const [summary, setSummary] = useState<ApiReportSummaryDto | null>(null);
   const [agendas, setAgendas] = useState<ApiAgendaDto[]>([]);
   const [pagination, setPagination] = useState<ApiPaginationMeta>({
@@ -281,6 +272,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
         ]);
 
         setSummary(summaryRes.data);
+        setUnitPage(1);
+        setMemberPage(1);
         setAgendas(agendasRes.data ?? []);
         setPagination(
           agendasRes.meta ?? {
@@ -354,27 +347,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     if (isExportingSummaryCsv) return;
     setIsExportingSummaryCsv(true);
     try {
-      const result = await reportApi.exportSummaryCsv(activeApiFilters);
-      const directory = FileSystem.cacheDirectory;
-      if (!directory) {
-        throw new Error('Penyimpanan sementara perangkat tidak tersedia.');
-      }
-      const filename =
-        result.filename ||
-        `SIPERAPAT_rekap-laporan-${new Date().toISOString().slice(0, 10)}.csv`;
-      const safeFilename = filename.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
-      const uri = `${directory}${safeFilename}`;
-      const base64 = await blobToBase64(result.blob);
-      await FileSystem.writeAsStringAsync(uri, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      if (!(await Sharing.isAvailableAsync())) {
-        throw new Error('Fitur berbagi file tidak tersedia pada perangkat ini.');
-      }
-      await Sharing.shareAsync(uri, {
-        mimeType: result.contentType ?? 'text/csv',
-        dialogTitle: 'Bagikan Rekapitulasi Laporan CSV',
-      });
+      const safeFilename = await exportRepoRef.current.downloadSummaryCsvAndShare(
+        activeApiFilters,
+      );
       showToast({
         type: 'success',
         message: `Berkas ${safeFilename} siap dibagikan.`,
@@ -432,6 +407,24 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     ? Math.max(0, summary.completed_agendas - summary.count_with_notulen)
     : 0;
 
+  const unitStats = summary?.unit_stats ?? [];
+  const unitLastPage = Math.max(1, Math.ceil(unitStats.length / PARTICIPATION_PER_PAGE));
+  const safeUnitPage = Math.min(unitPage, unitLastPage);
+  const pagedUnitStats = unitStats.slice(
+    (safeUnitPage - 1) * PARTICIPATION_PER_PAGE,
+    safeUnitPage * PARTICIPATION_PER_PAGE,
+  );
+
+  const memberStats = summary?.member_stats ?? [];
+  const memberLastPage = Math.max(1, Math.ceil(memberStats.length / PARTICIPATION_PER_PAGE));
+  const safeMemberPage = Math.min(memberPage, memberLastPage);
+  const pagedMemberStats = memberStats.slice(
+    (safeMemberPage - 1) * PARTICIPATION_PER_PAGE,
+    safeMemberPage * PARTICIPATION_PER_PAGE,
+  );
+
+  const refreshControl = useTutWuriRefreshControl(isRefreshing, handleRefresh);
+
   return (
     <View style={styles.root}>
       <Header
@@ -441,20 +434,16 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
         onBack={onBack}
       />
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
-      >
+      <View style={styles.scrollWrapper}>
+        <TutWuriRefreshBanner refreshing={isRefreshing} />
+
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+        >
         {isInitialLoading ? (
           <View style={styles.loadingCard}>
             <TutWuriLoader size="lg" />
@@ -632,64 +621,131 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </View>
             </View>
 
-            {summary && summary.unit_stats.length > 0 ? (
+            {summary && (isAdministrator || unitStats.length > 0) ? (
               <View style={styles.sectionCard}>
-                <View style={styles.sectionHeaderRow}>
-                  <Building2 size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.sectionTitle}>Partisipasi Per Unit Kerja</Text>
+                <View style={styles.participationToolbar}>
+                  <View style={styles.participationToolbarLeft}>
+                    <Building2 size={18} color={colors.primary} strokeWidth={2} />
+                    <Text style={styles.sectionTitle} numberOfLines={1}>
+                      Partisipasi Per Unit Kerja
+                    </Text>
+                  </View>
+                  <Text style={styles.participationTotalLabel}>
+                    {summary.total_attendances} Total Hadir
+                  </Text>
                 </View>
-                <View style={styles.participationList}>
-                  {summary.unit_stats.map((unit) => (
-                    <View key={unit.unit_id} style={styles.participationRow}>
-                      <View style={styles.unitCodeBadge}>
-                        <Text style={styles.unitCodeText}>{unit.kode_unit}</Text>
-                      </View>
-                      <View style={styles.participationMeta}>
-                        <Text style={styles.participationName} numberOfLines={1}>
-                          {unit.nama_unit}
-                        </Text>
-                        <Text style={styles.participationSub}>
-                          {unit.total_users} pegawai terdaftar
-                        </Text>
-                      </View>
-                      <View style={styles.emeraldPill}>
-                        <Text style={styles.emeraldPillText}>
-                          {unit.attendances_count} hadir
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
+
+                {pagedUnitStats.length > 0 ? (
+                  <View style={styles.participationProgressList}>
+                    {pagedUnitStats.map((unit) => {
+                      const percent = Math.min(
+                        100,
+                        Math.round(
+                          (unit.attendances_count / Math.max(1, summary.total_attendances)) * 100,
+                        ),
+                      );
+                      return (
+                        <View key={unit.unit_id} style={styles.participationProgressItem}>
+                          <View style={styles.participationProgressTop}>
+                            <Text style={styles.participationName} numberOfLines={1}>
+                              {unit.kode_unit} • {unit.nama_unit}
+                            </Text>
+                            <Text style={styles.participationCountMono}>
+                              {unit.attendances_count} Hadir
+                            </Text>
+                          </View>
+                          <View style={styles.participationBarTrack}>
+                            <View
+                              style={[
+                                styles.participationBarFill,
+                                { width: `${percent}%` },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={styles.participationEmptyText}>
+                    Belum ada data partisipasi unit kerja.
+                  </Text>
+                )}
+
+                {unitLastPage > 1 ? (
+                  <PaginationBar
+                    currentPage={safeUnitPage}
+                    lastPage={unitLastPage}
+                    total={unitStats.length}
+                    label="Unit Kerja"
+                    onPageChange={setUnitPage}
+                    containerStyle={styles.participationPagination}
+                  />
+                ) : null}
               </View>
             ) : null}
 
-            {summary &&
-            summary.unit_stats.length === 0 &&
-            summary.member_stats.length > 0 ? (
+            {summary && !isAdministrator && unitStats.length === 0 ? (
               <View style={styles.sectionCard}>
-                <View style={styles.sectionHeaderRow}>
-                  <Users size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.sectionTitle}>Partisipasi Pegawai di Unit</Text>
+                <View style={styles.participationToolbar}>
+                  <View style={styles.participationToolbarLeft}>
+                    <Users size={18} color={colors.primary} strokeWidth={2} />
+                    <Text style={styles.sectionTitle} numberOfLines={1}>
+                      Partisipasi Pegawai di Unit
+                    </Text>
+                  </View>
+                  <Text style={styles.participationTotalLabel} numberOfLines={1}>
+                    {currentUser?.unitKerja || `${summary.total_attendances} Total Hadir`}
+                  </Text>
                 </View>
-                <View style={styles.participationList}>
-                  {summary.member_stats.map((member) => (
-                    <View key={member.user_id} style={styles.participationRow}>
-                      <View style={styles.participationMeta}>
-                        <Text style={styles.participationName} numberOfLines={1}>
-                          {member.name}
-                        </Text>
-                        <Text style={styles.participationSub} numberOfLines={1}>
-                          {member.jabatan || member.nip || 'Pegawai ASN'}
-                        </Text>
-                      </View>
-                      <View style={styles.emeraldPill}>
-                        <Text style={styles.emeraldPillText}>
-                          {member.attendances_count} hadir
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
+
+                {pagedMemberStats.length > 0 ? (
+                  <View style={styles.participationProgressList}>
+                    {pagedMemberStats.map((member) => {
+                      const percent = Math.min(
+                        100,
+                        Math.round(
+                          (member.attendances_count / Math.max(1, summary.total_attendances)) * 100,
+                        ),
+                      );
+                      return (
+                        <View key={member.user_id} style={styles.participationProgressItem}>
+                          <View style={styles.participationProgressTop}>
+                            <Text style={styles.participationName} numberOfLines={1}>
+                              {member.name}
+                            </Text>
+                            <Text style={styles.participationCountMono}>
+                              {member.attendances_count} Hadir
+                            </Text>
+                          </View>
+                          <View style={styles.participationBarTrack}>
+                            <View
+                              style={[
+                                styles.participationBarFill,
+                                { width: `${percent}%` },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={styles.participationEmptyText}>
+                    Belum ada data pegawai di unit ini.
+                  </Text>
+                )}
+
+                {memberLastPage > 1 ? (
+                  <PaginationBar
+                    currentPage={safeMemberPage}
+                    lastPage={memberLastPage}
+                    total={memberStats.length}
+                    label="Pegawai"
+                    onPageChange={setMemberPage}
+                    containerStyle={styles.participationPagination}
+                  />
+                ) : null}
               </View>
             ) : null}
 
@@ -837,7 +893,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   {isExportingSummaryCsv ? (
                     <TutWuriLoader size="sm" />
                   ) : (
-                    <FileSpreadsheet size={15} strokeWidth={2} color={colors.onPrimary} />
+                    <Download size={15} strokeWidth={2} color={colors.onSurface} />
                   )}
                   <Text style={styles.csvExportBtnText}>Unduh Rekap CSV / Excel</Text>
                 </Pressable>
@@ -1036,7 +1092,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
             </View>
           </>
         )}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* DATE PICKER MODAL */}
       <CalendarDatePickerModal
@@ -1099,6 +1156,11 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  scrollWrapper: {
+    flex: 1,
+    overflow: 'hidden',
   },
   scrollView: {
     flex: 1,
@@ -1315,45 +1377,80 @@ const styles = StyleSheet.create({
   },
 
   /* Participation */
-  participationList: {
-    gap: spacing.xs + 2,
-  },
-  participationRow: {
+  participationToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    borderRadius: rounded.md,
-    padding: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+    paddingBottom: spacing.xs + 4,
   },
-  unitCodeBadge: {
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.sm,
-    paddingHorizontal: spacing.xs + 3,
-    paddingVertical: 3,
+  participationToolbarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    flex: 1,
+    minWidth: 0,
   },
-  unitCodeText: {
+  participationTotalLabel: {
     ...typography.labelMono,
     fontFamily: fontFamilies.monoBold,
-    color: colors.primary,
+    fontSize: 12,
+    color: colors.textSecondary,
+    flexShrink: 1,
+    textAlign: 'right',
   },
-  participationMeta: {
-    flex: 1,
-    gap: 1,
+  participationProgressList: {
+    gap: spacing.sm + 2,
+  },
+  participationProgressItem: {
+    gap: 6,
+  },
+  participationProgressTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   participationName: {
     ...typography.labelMd,
     fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
+    flex: 1,
+    minWidth: 0,
   },
-  participationSub: {
+  participationCountMono: {
+    ...typography.labelMono,
+    fontFamily: fontFamilies.monoBold,
+    fontSize: 12,
+    color: colors.onSurface,
+    flexShrink: 0,
+  },
+  participationBarTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceContainer,
+    overflow: 'hidden',
+  },
+  participationBarFill: {
+    height: '100%',
+    borderRadius: rounded.full,
+    backgroundColor: colors.primary,
+  },
+  participationEmptyText: {
     ...typography.bodySm,
-    fontFamily: fontFamilies.sansRegular,
+    fontFamily: fontFamilies.sansMedium,
     color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
+  },
+  participationPagination: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
   },
 
   /* Filter Form */
@@ -1448,15 +1545,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'flex-start',
     gap: spacing.xs + 2,
-    backgroundColor: colors.success,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
     borderRadius: rounded.md,
     paddingHorizontal: spacing.md,
     minHeight: MIN_TOUCH_TARGET,
   },
   csvExportBtnText: {
     ...typography.labelLg,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onPrimary,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
   },
 
   /* Table Panel */

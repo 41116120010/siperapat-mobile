@@ -755,12 +755,6 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 {selectedUserDetail?.security?.last_password_changed_label || 'Belum pernah dicatat'}
               </Text>
             </View>
-            <View style={styles.auditRow}>
-              <Text style={styles.auditLabel}>Login API Terakhir</Text>
-              <Text style={styles.auditValue}>
-                {selectedUserDetail?.security?.last_api_login_label || 'Belum pernah login API'}
-              </Text>
-            </View>
             <View style={[styles.auditRow, styles.auditRowLast]}>
               <Text style={styles.auditLabel}>Pembaruan Profil Terakhir</Text>
               <Text style={styles.auditValue}>

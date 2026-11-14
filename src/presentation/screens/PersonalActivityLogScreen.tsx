@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  RefreshControl,
   Pressable,
   Modal,
 } from 'react-native';
@@ -27,6 +26,10 @@ import { Input } from '../components/common/Input';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import {
+  TutWuriRefreshBanner,
+  useTutWuriRefreshControl,
+} from '../components/common/TutWuriRefresh';
 import {
   AgendaOptionModal,
   AgendaOption,
@@ -312,17 +315,12 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
         onBack={onBack}
       />
 
+      <TutWuriRefreshBanner refreshing={isRefreshing} />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => fetchPersonalLogs(page, true)}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
+        refreshControl={useTutWuriRefreshControl(isRefreshing, () => fetchPersonalLogs(page, true))}
       >
         {/* User Summary Header Card (1:1 profile/logs.blade.php:10-48) */}
         <View style={styles.userSummaryCard}>
@@ -692,6 +690,7 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    overflow: 'hidden',
     backgroundColor: colors.background,
   },
   scrollView: {

@@ -7,7 +7,6 @@ import {
   ScrollViewInstance,
   TextInput,
   Pressable,
-  RefreshControl,
   Image,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -29,6 +28,10 @@ import { authTokenStore } from '../../data/datasources/authTokenStore';
 import { Header } from '../components/common/Header';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
+import {
+  TutWuriRefreshBanner,
+  useTutWuriRefreshControl,
+} from '../components/common/TutWuriRefresh';
 import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { useAttendanceStore } from '../store/useAttendanceStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -177,11 +180,29 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
   } = useAttendanceStore();
   const [searchInput, setSearchInput] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [evidenceModalState, setEvidenceModalState] = useState<{
     attendance: Attendance;
     tab: 'selfie' | 'signature';
   } | null>(null);
   const scrollViewRef = useRef<ScrollViewInstance | null>(null);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchHistory(1, false, {
+        search: appliedSearch,
+        period: 'all',
+        tipeRapat: 'all',
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchHistory, appliedSearch]);
+
+  const refreshControl = useTutWuriRefreshControl(isRefreshing, () => {
+    void handleRefresh();
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -257,23 +278,15 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
     <View style={styles.container}>
       <Header />
 
-      <ScrollView
-        ref={scrollViewRef}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading}
-            onRefresh={() =>
-              void fetchHistory(1, false, {
-                search: appliedSearch,
-                period: 'all',
-                tipeRapat: 'all',
-              })
-            }
-          />
-        }
-      >
+      <View style={styles.scrollWrapper}>
+        <TutWuriRefreshBanner refreshing={isRefreshing} />
+
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+        >
         {/* Title Section (Web SSOT attendances/history.blade.php:4-5) */}
         <View style={styles.titleSection}>
           <Text style={styles.mainTitle}>Riwayat Kehadiran Rapat</Text>
@@ -595,7 +608,8 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
             ) : null}
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <EvidenceViewerModal
         visible={Boolean(evidenceModalState)}
@@ -622,6 +636,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    overflow: 'hidden',
+  },
+  scrollWrapper: {
+    flex: 1,
+    overflow: 'hidden',
   },
   scrollContent: {
     padding: spacing.md,

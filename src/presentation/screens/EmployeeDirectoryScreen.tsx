@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
-  RefreshControl,
   ScrollView,
   ScrollViewInstance,
   StyleSheet,
@@ -32,6 +31,10 @@ import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { ErrorState } from '../components/common/ErrorState';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import {
+  TutWuriRefreshBanner,
+  useTutWuriRefreshControl,
+} from '../components/common/TutWuriRefresh';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
@@ -319,6 +322,8 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
     });
   };
 
+  const isRefreshing = employeesLoading && currentPage <= 1 && employees.length > 0;
+
   return (
     <View style={styles.root}>
       <Header
@@ -328,18 +333,14 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
         onBack={onBack}
       />
 
+      <TutWuriRefreshBanner refreshing={isRefreshing} />
+
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={employeesLoading && currentPage <= 1}
-            onRefresh={handleRefresh}
-            colors={[colors.primary]}
-          />
-        }
+        refreshControl={useTutWuriRefreshControl(isRefreshing, handleRefresh)}
       >
         {/* STAT CARDS (1:1 users/index.blade.php: Total, Akun Aktif, Akun Non-Aktif) */}
         <View style={styles.statsRow}>
@@ -778,6 +779,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    overflow: 'hidden',
     backgroundColor: colors.surface,
   },
   scrollView: {

@@ -9,7 +9,6 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -17,7 +16,6 @@ import {
   Camera,
   Check,
   CreditCard,
-  ExternalLink,
   Eye,
   EyeOff,
   FileText,
@@ -66,10 +64,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     if (success) {
       onLoginSuccess();
     }
-  };
-
-  const handleHelpdesk = () => {
-    Linking.openURL('tel:0751123456').catch(() => {});
   };
 
   return (
@@ -190,7 +184,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               <View style={styles.labelRow}>
                 <Text style={styles.inputLabel}>Kata Sandi</Text>
                 <Pressable
-                  onPress={onNavigateForgotPassword ?? handleHelpdesk}
+                  onPress={onNavigateForgotPassword}
+                  disabled={!onNavigateForgotPassword}
                   style={styles.forgotLinkButton}
                   accessibilityRole="button"
                   accessibilityLabel="Lupa Kata Sandi"
@@ -261,18 +256,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
           {/* Institutional Footer */}
           <View style={styles.footer}>
-            <View style={styles.helpdeskRow}>
-              <Text style={styles.helpdeskText}>Kendala akun kedinasan? </Text>
-              <Pressable
-                onPress={handleHelpdesk}
-                style={styles.helpdeskLinkWrap}
-                accessibilityRole="button"
-              >
-                <Text style={styles.helpdeskLink}>Hubungi Helpdesk Kepegawaian</Text>
-                <ExternalLink size={12} color={colors.primary} strokeWidth={2} />
-              </Pressable>
-            </View>
-
             <Text style={styles.copyrightText}>
               © 2026 SIPERAPAT - Lembaga Layanan Pendidikan Tinggi (LLDIKTI) Wilayah X.
             </Text>
@@ -471,32 +454,6 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: spacing.lg,
     alignItems: 'center',
-    gap: spacing.xs,
-  },
-  helpdeskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  helpdeskText: {
-    ...typography.bodySm,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  helpdeskLinkWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-  },
-  helpdeskLink: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 12,
-    color: colors.primary,
-    textDecorationLine: 'underline',
   },
   copyrightText: {
     ...typography.labelSm,

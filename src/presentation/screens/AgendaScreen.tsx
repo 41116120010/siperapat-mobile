@@ -7,7 +7,6 @@ import {
   FlatList,
   ScrollView,
   Pressable,
-  RefreshControl,
   Linking,
   ListRenderItem,
 } from 'react-native';
@@ -32,6 +31,7 @@ import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
+import { TutWuriRefreshBanner, useTutWuriRefreshControl } from '../components/common/TutWuriRefresh';
 import { useAuthStore } from '../store/useAuthStore';
 import {
   AgendaStatusFilter,
@@ -121,6 +121,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   const [isUnitModalVisible, setIsUnitModalVisible] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<Meeting | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const flatListRef = useRef<FlatList<Meeting>>(null);
   const committedSearchRef = useRef('');
 
@@ -172,12 +173,17 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
     searchQuery.trim().length > 0 ||
     (isAdministrator && unitFilter !== 'all');
 
-  const handleRefresh = useCallback(() => {
-    void fetchMeetings(1, false, toApiType(typeFilter), {
-      status: statusFilter,
-      search: searchQuery,
-      unitId: isAdministrator ? unitFilter : 'all',
-    });
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchMeetings(1, false, toApiType(typeFilter), {
+        status: statusFilter,
+        search: searchQuery,
+        unitId: isAdministrator ? unitFilter : 'all',
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [fetchMeetings, toApiType, typeFilter, statusFilter, searchQuery, isAdministrator, unitFilter]);
 
   const handleSearchSubmit = useCallback(() => {
@@ -820,31 +826,32 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
     </View>
   );
 
+  const refreshControl = useTutWuriRefreshControl(isRefreshing, () => {
+    void handleRefresh();
+  });
+
   return (
     <View style={styles.container}>
       <Header />
 
-      <FlatList
-        ref={flatListRef}
-        data={meetings}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        keyboardShouldPersistTaps="handled"
-        initialNumToRender={6}
-        maxToRenderPerBatch={8}
-        windowSize={5}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading && meetings.length > 0}
-            onRefresh={handleRefresh}
-            colors={[colors.primary]}
-          />
-        }
-        ListHeaderComponent={listHeader}
-        ListFooterComponent={listFooter}
-        ListEmptyComponent={listEmpty}
-      />
+      <View style={styles.refreshArea}>
+        <TutWuriRefreshBanner refreshing={isRefreshing} />
+        <FlatList
+          ref={flatListRef}
+          data={meetings}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={6}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          refreshControl={refreshControl}
+          ListHeaderComponent={listHeader}
+          ListFooterComponent={listFooter}
+          ListEmptyComponent={listEmpty}
+        />
+      </View>
 
       <AgendaOptionModal
         visible={isFormatModalVisible}
@@ -900,6 +907,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  refreshArea: {
+    flex: 1,
+    overflow: 'hidden',
   },
   listHeader: {
     gap: spacing.sm + 2,

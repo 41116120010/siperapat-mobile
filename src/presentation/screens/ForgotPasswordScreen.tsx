@@ -5,10 +5,10 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  ImageBackground,
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   Clock,
   CreditCard,
-  ExternalLink,
   Info,
   KeyRound,
   LogIn,
@@ -121,63 +120,92 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
     setCooldown(60);
   }, [cooldown, authLoading]);
 
-  const handleHelpdesk = () => {
-    Linking.openURL('tel:0751123456').catch(() => {});
-  };
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.keyboardView}
     >
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          {
-            paddingTop: Math.max(spacing.xl, insets.top + spacing.md),
-            paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.md),
-          },
+          { paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.md) },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Identity & Institutional Header Bar */}
-        <View style={styles.header}>
-          <View style={styles.logoTile}>
-            <Image
-              source={require('../../../assets/images/tut-wuri-handayani.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
-          <Text style={styles.appTitle}>SIPERAPAT</Text>
-          <Text style={styles.appSubtitle}>LLDIKTI WILAYAH X</Text>
-          <Text style={styles.welcomeSubtitle}>
-            {isSubmitted
-              ? 'Tautan Pemulihan Kata Sandi Berhasil Dikirim'
-              : 'Pemulihan Akses Kedinasan Mandiri'}
-          </Text>
+        {/* Dark Slate Hero Header matching LoginScreen & Web .auth-illustration */}
+        <ImageBackground
+          source={require('../../../assets/images/rumah-gadang-bg.jpg')}
+          style={[
+            styles.heroBanner,
+            { paddingTop: Math.max(spacing.xl, insets.top + spacing.md) },
+          ]}
+          resizeMode="cover"
+        >
+          <View style={styles.heroOverlay} pointerEvents="none" />
+          <View style={styles.heroInner}>
+            <View style={styles.heroBrandRow}>
+              <View style={styles.logoTile}>
+                <Image
+                  source={require('../../../assets/images/tut-wuri-handayani.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.heroBrandText}>
+                <Text style={styles.appTitle}>SIPERAPAT</Text>
+                <Text style={styles.appSubtitle}>LLDIKTI WILAYAH X KEMENDIKTISAINTEK</Text>
+              </View>
+            </View>
+            <Text style={styles.welcomeSubtitle}>
+              {isSubmitted
+                ? 'Tautan Pemulihan Kata Sandi Berhasil Dikirim'
+                : 'Pemulihan Akses Kedinasan Mandiri'}
+            </Text>
 
-          {/* 3 Pilar Ringkas Pemulihan Akses (forgot-password.blade.php:30-60) */}
-          <View style={styles.pillarsRow}>
-            <View style={styles.pillarChip}>
-              <ShieldCheck size={13} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.pillarChipText}>Verifikasi Multi-Identifier</Text>
-            </View>
-            <View style={styles.pillarChip}>
-              <Mail size={13} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.pillarChipText}>Pengiriman Tautan Aman</Text>
-            </View>
-            <View style={styles.pillarChip}>
-              <Clock size={13} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.pillarChipText}>Batas Waktu Keamanan 60 Menit</Text>
+            {/* 3 Pilar Ringkas Pemulihan Akses (forgot-password.blade.php:30-60) */}
+            <View style={styles.pillarsList}>
+              <View style={styles.pillarRow}>
+                <View style={styles.pillarIconBox}>
+                  <ShieldCheck size={14} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+                <View style={styles.pillarTextWrap}>
+                  <Text style={styles.pillarTitle}>Verifikasi Multi-Identifier</Text>
+                  <Text style={styles.pillarDesc}>
+                    Sistem otomatis mendeteksi NIP 18 Digit, Username, atau Email Kedinasan.
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.pillarRow}>
+                <View style={styles.pillarIconBox}>
+                  <Mail size={14} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+                <View style={styles.pillarTextWrap}>
+                  <Text style={styles.pillarTitle}>Pengiriman Tautan Aman</Text>
+                  <Text style={styles.pillarDesc}>
+                    Tautan atur ulang terenkripsi dikirim langsung ke email resmi.
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.pillarRow}>
+                <View style={styles.pillarIconBox}>
+                  <Clock size={14} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+                <View style={styles.pillarTextWrap}>
+                  <Text style={styles.pillarTitle}>Batas Waktu Keamanan 60 Menit</Text>
+                  <Text style={styles.pillarDesc}>
+                    Demi keamanan, tautan hanya berlaku selama 60 menit sejak diminta.
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
-        </View>
+        </ImageBackground>
 
-        {/* Main Authentication Bento Card */}
-        <View style={styles.card}>
+        {/* Form Body */}
+        <View style={styles.formSection}>
+          <View style={styles.card}>
           {!isSubmitted ? (
             /* STATE 1: FORMULIR PENGAJUAN PEMULIHAN */
             <>
@@ -325,25 +353,12 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
           )}
         </View>
 
-        {/* Institutional Footer */}
-        <View style={styles.footer}>
-          <View style={styles.helpdeskRow}>
-            <Text style={styles.helpdeskText}>Kendala akun kedinasan? </Text>
-            <Pressable
-              onPress={handleHelpdesk}
-              style={styles.helpdeskLinkWrap}
-              accessibilityRole="button"
-            >
-              <Text style={styles.helpdeskLink}>
-                Hubungi Helpdesk Kepegawaian
-              </Text>
-              <ExternalLink size={12} color={colors.primary} strokeWidth={2} />
-            </Pressable>
+          {/* Institutional Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.copyrightText}>
+              © 2026 SIPERAPAT - Lembaga Layanan Pendidikan Tinggi (LLDIKTI) Wilayah X.
+            </Text>
           </View>
-
-          <Text style={styles.copyrightText}>
-            © 2026 SIPERAPAT - Lembaga Layanan Pendidikan Tinggi (LLDIKTI) Wilayah X.
-          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -357,61 +372,120 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xl,
   },
-  header: {
+  heroBanner: {
+    backgroundColor: colors.primaryDarkest,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    position: 'relative',
+    overflow: 'hidden',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primaryContainer,
+  },
+  heroOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: colors.primary,
+    opacity: 0.84,
+  },
+  heroInner: {
+    zIndex: 1,
+    gap: spacing.md,
+  },
+  heroBrandRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    gap: spacing.sm + 4,
   },
   logoTile: {
-    width: 60,
-    height: 60,
-    borderRadius: rounded.xl,
+    width: 48,
+    height: 48,
+    borderRadius: rounded.lg,
     backgroundColor: colors.surfaceCard,
-    padding: 8,
+    padding: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: colors.borderSubtle,
   },
   logo: {
     width: '100%',
     height: '100%',
   },
+  heroBrandText: {
+    flex: 1,
+  },
   appTitle: {
-    ...typography.headlineLgMobile,
+    ...typography.headlineMd,
     fontFamily: fontFamilies.sansExtraBold,
     fontSize: 22,
-    color: colors.primary,
-    letterSpacing: 1.2,
-    textAlign: 'center',
+    lineHeight: 28,
+    color: colors.onPrimary,
+    letterSpacing: 1,
   },
   appSubtitle: {
     ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    color: colors.textSecondary,
-    letterSpacing: 1,
-    fontSize: 11,
-    textAlign: 'center',
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSplashMuted,
+    letterSpacing: 0.6,
+    fontSize: 10.5,
     marginTop: 2,
-    textTransform: 'uppercase',
   },
   welcomeSubtitle: {
-    ...typography.bodySm,
-    fontSize: 12.5,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginTop: 6,
-    maxWidth: 300,
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 14,
+    color: colors.onPrimary,
+    lineHeight: 20,
+  },
+  pillarsList: {
+    gap: spacing.xs + 2,
+    paddingTop: spacing.xs,
+  },
+  pillarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+  },
+  pillarIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: rounded.sm,
+    backgroundColor: colors.primaryDarkest,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillarTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  pillarTitle: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11,
+    color: colors.onPrimary,
+  },
+  pillarDesc: {
+    ...typography.labelSm,
+    fontSize: 10,
+    color: colors.borderStrong,
+  },
+  formSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
   },
   card: {
     ...cardSurface,
     borderRadius: rounded.xl,
-    borderColor: colors.borderStrong,
     padding: spacing.lg,
     gap: spacing.md,
   },
@@ -599,32 +673,6 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: spacing.lg,
     alignItems: 'center',
-    gap: spacing.xs,
-  },
-  helpdeskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  helpdeskText: {
-    ...typography.bodySm,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  helpdeskLinkWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-  },
-  helpdeskLink: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 12,
-    color: colors.primary,
-    textDecorationLine: 'underline',
   },
   copyrightText: {
     ...typography.labelSm,
@@ -633,29 +681,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: spacing.md,
     lineHeight: 16,
-  },
-  pillarsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  pillarChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    borderRadius: rounded.full,
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  pillarChipText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
   },
 });

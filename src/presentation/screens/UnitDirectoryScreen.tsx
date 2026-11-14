@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
-  RefreshControl,
   ScrollView,
   ScrollViewInstance,
   StyleSheet,
@@ -30,6 +29,10 @@ import { Header } from '../components/common/Header';
 import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import {
+  TutWuriRefreshBanner,
+  useTutWuriRefreshControl,
+} from '../components/common/TutWuriRefresh';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
@@ -290,6 +293,7 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
   );
 
   const startRowNumber = Math.max(0, (Math.max(1, unitsCurrentPage) - 1) * 10);
+  const isRefreshing = unitsLoading && units.length > 0;
 
   return (
     <View style={styles.container}>
@@ -300,18 +304,14 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
         onBack={handleBack}
       />
 
+      <TutWuriRefreshBanner refreshing={isRefreshing} />
+
       <ScrollView
         ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        refreshControl={
-          <RefreshControl
-            refreshing={unitsLoading && units.length > 0}
-            onRefresh={handleRefresh}
-            colors={[colors.primary]}
-          />
-        }
+        refreshControl={useTutWuriRefreshControl(isRefreshing, handleRefresh)}
       >
         {/* Action Bar & Filter 1 Baris (1:1 Web units/index.blade.php:10-43) */}
         <View style={styles.filterPanel}>
@@ -649,6 +649,7 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
     backgroundColor: colors.background,
   },
   scrollContent: {

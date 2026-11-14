@@ -4,7 +4,6 @@ import {
   Linking,
   Modal,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -51,6 +50,7 @@ import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
 import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import { TutWuriRefreshBanner, useTutWuriRefreshControl } from '../components/common/TutWuriRefresh';
 import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import { useAuthStore } from '../store/useAuthStore';
@@ -252,6 +252,18 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
       }));
       mapped.documentations = mappedDocs;
       mapped.hasAttended = Boolean(raw.has_attended || raw.my_attendance);
+      if (
+        (!mapped.invitedUsers || mapped.invitedUsers.length === 0) &&
+        Array.isArray(raw.invited_users) &&
+        raw.invited_users.length > 0
+      ) {
+        mapped.invitedUsers = raw.invited_users.map((u: any) => ({
+          id: String(u.id),
+          name: u.name ?? '',
+          nip: u.nip ?? '',
+          unit: u.unit?.nama_unit ?? u.unit?.kode_unit ?? '',
+        }));
+      }
 
       setRawAgenda(raw);
       setMeeting(mapped);
@@ -461,6 +473,8 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
     (meeting?.minutesHtml && meeting.minutesHtml.trim().length > 0) ||
       (meeting?.summaryHtml && meeting.summaryHtml.trim().length > 0)
   );
+  const isPullRefreshing = loading && meeting !== null;
+  const refreshControl = useTutWuriRefreshControl(isPullRefreshing, load);
 
   return (
     <View style={styles.container}>
@@ -472,16 +486,16 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
       {error && !meeting ? <ErrorState message={error} onRetry={load} /> : null}
 
       {meeting ? (
-        <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg },
-          ]}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={load} colors={[colors.primary]} />
-          }
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.refreshArea}>
+          <TutWuriRefreshBanner refreshing={isPullRefreshing} />
+          <ScrollView
+            contentContainerStyle={[
+              styles.content,
+              { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.lg },
+            ]}
+            refreshControl={refreshControl}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Page Heading & Subtitle (staff_show.blade.php:4-5) */}
           <View style={styles.titleSection}>
             <Text style={styles.pageTitle}>Detail Agenda Rapat</Text>
@@ -1058,7 +1072,8 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
               )}
             </View>
           </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       ) : null}
 
       <SuratEdaranViewerModal
@@ -1228,6 +1243,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  refreshArea: { flex: 1, overflow: 'hidden' },
   flexOne: { flex: 1, minWidth: 0 },
   loader: { marginTop: spacing.xl, alignSelf: 'center' },
   pressed: { opacity: 0.78 },
@@ -1405,8 +1421,10 @@ const styles = StyleSheet.create({
   },
   panelHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: spacing.sm,
+    rowGap: spacing.xs + 4,
+    columnGap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 4,
     backgroundColor: colors.background,
@@ -1419,6 +1437,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.onSurface,
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   panelBody: { padding: spacing.md, gap: spacing.xs + 4 },
   sectionGapTop: { marginTop: spacing.sm },

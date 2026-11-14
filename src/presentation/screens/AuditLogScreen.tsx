@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  RefreshControl,
   Pressable,
   Modal,
 } from 'react-native';
@@ -26,6 +25,10 @@ import { Input } from '../components/common/Input';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import {
+  TutWuriRefreshBanner,
+  useTutWuriRefreshControl,
+} from '../components/common/TutWuriRefresh';
 import {
   AgendaOptionModal,
   AgendaOption,
@@ -336,17 +339,12 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
         onBack={onBack}
       />
 
+      <TutWuriRefreshBanner refreshing={isRefreshing} />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => fetchLogs(page, true)}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
+        refreshControl={useTutWuriRefreshControl(isRefreshing, () => fetchLogs(page, true))}
       >
         {/* Filter & Search Toolbar (1:1 logs/index.blade.php:10-74) */}
         <View style={styles.filterCard}>
@@ -760,6 +758,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    overflow: 'hidden',
     backgroundColor: colors.background,
   },
   scrollView: {

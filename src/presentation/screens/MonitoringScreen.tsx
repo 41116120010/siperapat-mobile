@@ -4,7 +4,6 @@ import {
   Linking,
   Modal,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -62,6 +61,8 @@ import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
+import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import { TutWuriRefreshBanner, useTutWuriRefreshControl } from '../components/common/TutWuriRefresh';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
@@ -297,6 +298,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [agendaError, setAgendaError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<AgendaExportFormat | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [zoomDoc, setZoomDoc] = useState<DocumentationItem | null>(null);
 
   // Role assignment modal state
@@ -395,6 +397,18 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         created_at: doc.created_at ?? null,
       }));
       mapped.suratEdaran = raw.surat_edaran ?? mapped.suratEdaran;
+      if (
+        (!mapped.invitedUsers || mapped.invitedUsers.length === 0) &&
+        Array.isArray(raw.invited_users) &&
+        raw.invited_users.length > 0
+      ) {
+        mapped.invitedUsers = raw.invited_users.map((u: any) => ({
+          id: String(u.id),
+          name: u.name ?? '',
+          nip: u.nip ?? '',
+          unit: u.unit?.nama_unit ?? u.unit?.kode_unit ?? '',
+        }));
+      }
       setRawAgenda(raw);
       setMeeting(mapped);
       setAgendaError(null);
@@ -916,6 +930,26 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   const canStartNow = rawAgenda?.can_start_now ?? true;
   const earliestStartAt = rawAgenda?.earliest_start_at as string | null | undefined;
 
+  const handlePullRefresh = useCallback(async () => {
+    if (!meetingId) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        loadAgendaDetail(),
+        fetchAgendaAttendances(meetingId, attendancePage, false, {
+          status: 'attended',
+          search: searchQuery,
+        }),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [meetingId, loadAgendaDetail, fetchAgendaAttendances, attendancePage, searchQuery]);
+
+  const refreshControl = useTutWuriRefreshControl(isRefreshing, () => {
+    void handlePullRefresh();
+  });
+
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
@@ -926,27 +960,16 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         onBack={onBack}
       />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.xl },
-        ]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading}
-            onRefresh={() => {
-              if (!meetingId) return;
-              void loadAgendaDetail();
-              void fetchAgendaAttendances(meetingId, attendancePage, false, {
-                status: 'attended',
-                search: searchQuery,
-              });
-            }}
-            colors={[colors.primary]}
-          />
-        }
-      >
+      <View style={styles.refreshArea}>
+        <TutWuriRefreshBanner refreshing={isRefreshing} />
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.xl },
+          ]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+        >
         {/* 1. HERO BANNER GELAP (1:1 show.blade.php:10-253) */}
         <View style={styles.heroCard}>
           <Text style={styles.heroTitle}>
@@ -1064,10 +1087,18 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               <Pressable
                 disabled={Boolean(exporting)}
                 onPress={() => void handleExport('pdf')}
-                style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.heroBtnDark,
+                  Boolean(exporting) && styles.heroBtnDisabled,
+                  pressed && !exporting && styles.pressed,
+                ]}
                 accessibilityRole="button"
               >
-                <FileText size={14} color={colors.error} strokeWidth={2} />
+                {exporting === 'pdf' ? (
+                  <TutWuriLoader size="sm" />
+                ) : (
+                  <FileText size={14} color={colors.error} strokeWidth={2} />
+                )}
                 <Text style={styles.heroBtnWhiteText}>
                   {exporting === 'pdf' ? 'Mengekspor...' : 'Ekspor PDF'}
                 </Text>
@@ -1076,10 +1107,18 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               <Pressable
                 disabled={Boolean(exporting)}
                 onPress={() => void handleExport('word')}
-                style={({ pressed }) => [styles.heroBtnDark, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.heroBtnDark,
+                  Boolean(exporting) && styles.heroBtnDisabled,
+                  pressed && !exporting && styles.pressed,
+                ]}
                 accessibilityRole="button"
               >
-                <FileText size={14} color={colors.infoText} strokeWidth={2} />
+                {exporting === 'word' ? (
+                  <TutWuriLoader size="sm" />
+                ) : (
+                  <FileText size={14} color={colors.infoText} strokeWidth={2} />
+                )}
                 <Text style={styles.heroBtnWhiteText}>
                   {exporting === 'word' ? 'Mengekspor...' : 'Ekspor Word'}
                 </Text>
@@ -1916,7 +1955,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                   accessibilityRole="button"
                 >
                   <Plus size={13} color={colors.onSurface} strokeWidth={2} />
-                  <Text style={styles.toolbarOutlineBtnText}>+ Kelola Foto / Notulen</Text>
+                  <Text style={styles.toolbarOutlineBtnText}>Kelola Foto / Notulen</Text>
                 </Pressable>
               ) : null}
               <View style={styles.webCountPill}>
@@ -2023,7 +2062,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
             )}
           </View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* MODAL 1: Surat Edaran Viewer */}
       <SuratEdaranViewerModal
@@ -2324,6 +2364,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  refreshArea: {
+    flex: 1,
+    overflow: 'hidden',
   },
   flexOne: {
     flex: 1,
@@ -2654,15 +2698,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    rowGap: 10,
+    columnGap: 8,
   },
   webPanelTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
+    flexGrow: 1,
   },
   webPanelTitle: {
     fontFamily: fontFamilies.sansBold,
@@ -2670,6 +2718,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.onSurface,
     includeFontPadding: false,
+    flexShrink: 1,
   },
   webCountPill: {
     paddingHorizontal: 10,
@@ -3298,6 +3347,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
+    flexShrink: 0,
   },
   docsGrid: {
     gap: 12,

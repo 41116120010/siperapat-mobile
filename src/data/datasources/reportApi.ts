@@ -1,3 +1,4 @@
+import { requireApiBaseUrl } from '../../core/config/apiConfig';
 import { apiClient, ApiBinaryResponse } from './apiClient';
 import { ApiAgendaDto, ApiEnvelope, ApiPaginated } from './apiTypes';
 
@@ -97,6 +98,14 @@ export const reportApi = {
       `/reports/agendas/${encodeURIComponent(agendaId)}`,
     ),
 
+  exportSummaryCsvUrl: (filters?: ReportFilterParams) =>
+    `${requireApiBaseUrl()}/reports/summary/csv${buildReportQuery(
+      filters as Record<string, string | number | undefined>,
+    )}`,
+
+  exportAgendaUrl: (agendaId: string, format: AgendaExportFormat) =>
+    `${requireApiBaseUrl()}/reports/agendas/${encodeURIComponent(agendaId)}/export/${format}`,
+
   exportSummaryCsv: (filters?: ReportFilterParams) =>
     apiClient.get<ApiBinaryResponse>(
       `/reports/summary/csv${buildReportQuery(filters as Record<string, string | number | undefined>)}`,
@@ -104,5 +113,8 @@ export const reportApi = {
     ),
 
   exportAgenda: (agendaId: string, format: AgendaExportFormat) =>
-    apiClient.get<ApiBinaryResponse>(`/reports/agendas/${encodeURIComponent(agendaId)}/export/${format}`, { responseType: 'binary' }),
+    apiClient.get<ApiBinaryResponse>(
+      `/reports/agendas/${encodeURIComponent(agendaId)}/export/${format}`,
+      { responseType: 'binary' },
+    ),
 };
