@@ -17,7 +17,7 @@ import {
   IBMPlexMono_600SemiBold,
   IBMPlexMono_700Bold,
 } from '@expo-google-fonts/ibm-plex-mono';
-import { AppNavigator } from './src/presentation/navigation/AppNavigator';
+import { AppNavigator, rootNavigationRef } from './src/presentation/navigation/AppNavigator';
 import { colors } from './src/core/theme/colors';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -48,7 +48,7 @@ export default function App() {
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style="dark" />
-      <NavigationContainer>
+      <NavigationContainer ref={rootNavigationRef}>
         <AppNavigator />
       </NavigationContainer>
     </SafeAreaProvider>

@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { BackHandler, Platform, View, Text, StyleSheet, Pressable } from 'react-native';
+import { createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   createBottomTabNavigator,
@@ -39,8 +40,32 @@ import { ReportDetailScreen } from '../screens/ReportDetailScreen';
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import { GlobalFeedbackHost } from '../components/common/GlobalFeedbackHost';
 import { PageTransitionOverlay } from '../components/transitions/PageTransitionOverlay';
-import { triggerPageTransition } from '../store/useTransitionStore';
+import { triggerPageTransition, useTransitionStore } from '../store/useTransitionStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 import { useAuthStore } from '../store/useAuthStore';
+
+export const rootNavigationRef = createNavigationContainerRef<RootStackParamList>();
+
+const ROUTE_FALLBACKS: Record<string, keyof RootStackParamList> = {
+  ForgotPassword: 'Login',
+  EditMeeting: 'Monitoring',
+  AddEmployee: 'EmployeeDirectory',
+  EditEmployee: 'EmployeeDirectory',
+  AddUnit: 'UnitDirectory',
+  EditUnit: 'UnitDirectory',
+  ReportDetail: 'Reports',
+};
+
+const PROTECTED_FORM_ROUTES = new Set<string>([
+  'Presensi',
+  'CreateMeeting',
+  'EditMeeting',
+  'AddEmployee',
+  'EditEmployee',
+  'AddUnit',
+  'EditUnit',
+  'ChangePassword',
+]);
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -258,6 +283,87 @@ export const AppNavigator: React.FC = () => {
   const canManageEmployees = role === 'administrator' || role === 'admin';
   const canManageMeetings = role === 'administrator' || role === 'admin';
   const isAdministrator = role === 'administrator';
+  const lastBackPressAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!rootNavigationRef.isReady()) {
+        return true;
+      }
+
+      // Block Android back navigation while Tut Wuri transition overlay is active
+      if (useTransitionStore.getState().isTransitioning) {
+        return true;
+      }
+
+      // If a global feedback dialog is already active, keep navigation locked until answered
+      const feedback = useFeedbackStore.getState();
+      if (feedback.modalVisible) {
+        return true;
+      }
+
+      const routeName = rootNavigationRef.getCurrentRoute()?.name as
+        | keyof RootStackParamList
+        | keyof MainTabParamList
+        | undefined;
+      if (!routeName || routeName === 'Splash') {
+        return true;
+      }
+
+      // Root screens: double-back exit guard with clear Indonesian notice
+      if (routeName === 'Login' || routeName === 'MainTabs' || routeName === 'Dashboard') {
+        const now = Date.now();
+        if (now - lastBackPressAtRef.current < 2000) {
+          BackHandler.exitApp();
+          return true;
+        }
+        lastBackPressAtRef.current = now;
+        feedback.showToast({
+          type: 'info',
+          message:
+            routeName === 'Login'
+              ? 'Tekan kembali sekali lagi untuk keluar dari aplikasi.'
+              : 'Gunakan tombol/menu di layar atau tekan kembali sekali lagi untuk keluar aplikasi.',
+        });
+        return true;
+      }
+
+      // Secondary bottom tabs route back to Dashboard with Tut Wuri transition
+      if (routeName === 'Riwayat' || routeName === 'Agenda' || routeName === 'Profil') {
+        triggerPageTransition(350);
+        (rootNavigationRef as any).navigate('MainTabs', { screen: 'Dashboard' });
+        return true;
+      }
+
+      const fallbackRoute = ROUTE_FALLBACKS[routeName] ?? 'MainTabs';
+
+      // Forms and Presensi flow require confirmation before navigating back (via Tut Wuri transition)
+      if (PROTECTED_FORM_ROUTES.has(routeName)) {
+        feedback.showModal({
+          type: 'confirm',
+          title: 'Konfirmasi Keluar Halaman',
+          message:
+            routeName === 'Presensi'
+              ? 'Anda sedang berada di halaman presensi rapat. Gunakan opsi kembali pada halaman atau konfirmasi untuk membatalkan proses presensi.'
+              : 'Anda menekan tombol kembali perangkat. Perubahan formulir yang belum disimpan akan dibatalkan. Lanjutkan kembali?',
+          confirmText: 'Ya, Kembali',
+          cancelText: 'Tetap di Halaman',
+          onConfirm: () => safeGoBack(rootNavigationRef, fallbackRoute),
+        });
+        return true;
+      }
+
+      // All other detail/management screens route through safeGoBack + Tut Wuri loading
+      safeGoBack(rootNavigationRef, fallbackRoute);
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   return (
     <>
@@ -266,6 +372,7 @@ export const AppNavigator: React.FC = () => {
       screenOptions={{
         headerShown: false,
         animation: 'fade_from_bottom',
+        gestureEnabled: false,
       }}
     >
       <Stack.Screen name="Splash">

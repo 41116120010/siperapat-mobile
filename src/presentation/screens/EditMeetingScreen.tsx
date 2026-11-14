@@ -1400,14 +1400,14 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                 color={suratEdaranType === 'upload' ? colors.onPrimary : colors.textSecondary}
                 strokeWidth={2}
               />
-              <Text
+              <AutoScrollText
                 style={[
                   styles.edaranSegmentText,
                   suratEdaranType === 'upload' && styles.edaranSegmentTextActive,
                 ]}
               >
                 Unggah Berkas Fisik
-              </Text>
+              </AutoScrollText>
             </Pressable>
             <Pressable
               onPress={() => setSuratEdaranType('digital')}
@@ -1421,14 +1421,14 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                 color={suratEdaranType === 'digital' ? colors.onPrimary : colors.textSecondary}
                 strokeWidth={2}
               />
-              <Text
+              <AutoScrollText
                 style={[
                   styles.edaranSegmentText,
                   suratEdaranType === 'digital' && styles.edaranSegmentTextActive,
                 ]}
               >
-                Buat Surat Digital Langsung
-              </Text>
+                Surat Digital
+              </AutoScrollText>
             </Pressable>
           </View>
 

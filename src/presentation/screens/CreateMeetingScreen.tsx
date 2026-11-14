@@ -1196,14 +1196,14 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 color={suratEdaranType === 'upload' ? colors.onPrimary : colors.textSecondary}
                 strokeWidth={2}
               />
-              <Text
+              <AutoScrollText
                 style={[
                   styles.modeSegmentedText,
                   suratEdaranType === 'upload' && styles.modeSegmentedTextActive,
                 ]}
               >
                 Unggah Berkas Fisik
-              </Text>
+              </AutoScrollText>
             </Pressable>
             <Pressable
               onPress={() => setSuratEdaranType('digital')}
@@ -1217,14 +1217,14 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 color={suratEdaranType === 'digital' ? colors.onPrimary : colors.textSecondary}
                 strokeWidth={2}
               />
-              <Text
+              <AutoScrollText
                 style={[
                   styles.modeSegmentedText,
                   suratEdaranType === 'digital' && styles.modeSegmentedTextActive,
                 ]}
               >
-                Buat Surat Digital Langsung
-              </Text>
+                Surat Digital
+              </AutoScrollText>
             </Pressable>
           </View>
 
@@ -2026,6 +2026,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansBold,
     color: colors.textSecondary,
     textAlign: 'center',
+    flexShrink: 1,
   },
   modeSegmentedTextActive: {
     color: colors.onPrimary,
