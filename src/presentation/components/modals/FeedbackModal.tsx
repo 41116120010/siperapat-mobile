@@ -18,6 +18,7 @@ import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
+import { AutoScrollText } from '../common/AutoScrollText';
 import { FeedbackType } from '../../store/useFeedbackStore';
 
 export interface FeedbackModalProps {
@@ -153,9 +154,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                 {Object.entries(detail).map(([key, val]) => (
                   <View key={key} style={styles.summaryRow}>
                     <Text style={styles.summaryKey}>{key}</Text>
-                    <Text style={styles.summaryVal} numberOfLines={1}>
-                      {val}
-                    </Text>
+                    <AutoScrollText style={styles.summaryVal}>{val}</AutoScrollText>
                   </View>
                 ))}
               </View>
@@ -263,6 +262,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   summaryKey: {
     ...typography.labelSm,
@@ -275,6 +275,9 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: colors.onSurface,
     maxWidth: '65%',
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: 'right',
   },
   actionsContainer: {
     width: '100%',

@@ -21,6 +21,7 @@ import { colors } from '../../core/theme/colors';
 import { typography, fontFamilies } from '../../core/theme/typography';
 import { MIN_TOUCH_TARGET, rounded, cardSurface } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { Input } from '../components/common/Input';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
@@ -36,6 +37,11 @@ import {
 import { CalendarDatePickerModal } from '../components/modals/CalendarDatePickerModal';
 import { activityLogApi, userApi } from '../../data/datasources/userApi';
 import { ApiActivityLogDto, ApiUserDto } from '../../data/datasources/apiTypes';
+import {
+  formatTanggalSingkat,
+  formatWaktuWIB,
+  parseJakartaDate,
+} from '../../core/utils/dateFormatter';
 
 function extractErrorMessage(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
@@ -90,30 +96,10 @@ function formatDateTimeId(isoString?: string | null): {
   if (!isoString) {
     return { dateText: '-', timeText: '-', relativeText: '' };
   }
-  const parsed = new Date(isoString);
+  const parsed = parseJakartaDate(isoString);
   if (Number.isNaN(parsed.getTime())) {
     return { dateText: isoString, timeText: '', relativeText: '' };
   }
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'Mei',
-    'Jun',
-    'Jul',
-    'Agu',
-    'Sep',
-    'Okt',
-    'Nov',
-    'Des',
-  ];
-  const day = String(parsed.getDate()).padStart(2, '0');
-  const month = months[parsed.getMonth()] || '';
-  const year = parsed.getFullYear();
-  const hours = String(parsed.getHours()).padStart(2, '0');
-  const minutes = String(parsed.getMinutes()).padStart(2, '0');
-  const seconds = String(parsed.getSeconds()).padStart(2, '0');
 
   const diffSeconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
   let relativeText = 'Baru saja';
@@ -129,8 +115,8 @@ function formatDateTimeId(isoString?: string | null): {
   }
 
   return {
-    dateText: `${day} ${month} ${year}`,
-    timeText: `${hours}:${minutes}:${seconds} WIB`,
+    dateText: formatTanggalSingkat(parsed),
+    timeText: formatWaktuWIB(parsed),
     relativeText,
   };
 }
@@ -370,15 +356,14 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                 onPress={() => setIsTypeModalOpen(true)}
                 accessibilityRole="button"
               >
-                <Text
+                <AutoScrollText
                   style={[
                     styles.selectButtonText,
                     !selectedType && styles.selectButtonPlaceholder,
                   ]}
-                  numberOfLines={1}
                 >
                   {selectedType || 'Semua Aktivitas'}
-                </Text>
+                </AutoScrollText>
                 <ChevronDown size={16} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
@@ -391,15 +376,14 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                 onPress={() => setIsUserModalOpen(true)}
                 accessibilityRole="button"
               >
-                <Text
+                <AutoScrollText
                   style={[
                     styles.selectButtonText,
                     !selectedUserId && styles.selectButtonPlaceholder,
                   ]}
-                  numberOfLines={1}
                 >
                   {selectedUserLabel}
-                </Text>
+                </AutoScrollText>
                 <ChevronDown size={16} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
@@ -414,15 +398,14 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                 onPress={() => setActiveDatePicker('start')}
                 accessibilityRole="button"
               >
-                <Text
+                <AutoScrollText
                   style={[
                     styles.selectButtonText,
                     !startDate && styles.selectButtonPlaceholder,
                   ]}
-                  numberOfLines={1}
                 >
                   {startDate ? formatDateYmdToId(startDate) : 'Pilih Tanggal'}
-                </Text>
+                </AutoScrollText>
                 <Calendar size={16} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
@@ -435,15 +418,14 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                 onPress={() => setActiveDatePicker('end')}
                 accessibilityRole="button"
               >
-                <Text
+                <AutoScrollText
                   style={[
                     styles.selectButtonText,
                     !endDate && styles.selectButtonPlaceholder,
                   ]}
-                  numberOfLines={1}
                 >
                   {endDate ? formatDateYmdToId(endDate) : 'Pilih Tanggal'}
-                </Text>
+                </AutoScrollText>
                 <Calendar size={16} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
@@ -572,15 +554,15 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                               </Text>
                             </View>
                             <View style={styles.actorInfo}>
-                              <Text style={styles.actorName} numberOfLines={1}>
+                              <AutoScrollText style={styles.actorName}>
                                 {log.user.name}
-                              </Text>
-                              <Text style={styles.actorMeta} numberOfLines={1}>
+                              </AutoScrollText>
+                              <AutoScrollText style={styles.actorMeta}>
                                 NIP: {log.user.nip || '-'}
                                 {log.user.unit?.kode_unit
                                   ? ` • ${log.user.unit.kode_unit}`
                                   : ''}
-                              </Text>
+                              </AutoScrollText>
                             </View>
                           </View>
                         ) : (
@@ -599,11 +581,11 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                             },
                           ]}
                         >
-                          <Text
+                          <AutoScrollText
                             style={[styles.activityTypeBadgeText, { color: badgeTone.text }]}
                           >
                             {log.activity_type}
-                          </Text>
+                          </AutoScrollText>
                         </View>
                       </View>
 
@@ -795,6 +777,7 @@ const styles = StyleSheet.create({
   },
   filterCol: {
     flex: 1,
+    minWidth: 0,
     gap: 6,
   },
   selectButton: {
@@ -811,6 +794,7 @@ const styles = StyleSheet.create({
   },
   selectButtonText: {
     flex: 1,
+    minWidth: 0,
     fontFamily: fontFamilies.sansMedium,
     fontSize: 13,
     lineHeight: 18,
@@ -1055,6 +1039,7 @@ const styles = StyleSheet.create({
   },
   actorInfo: {
     flex: 1,
+    minWidth: 0,
   },
   actorName: {
     fontFamily: fontFamilies.sansSemiBold,
@@ -1062,6 +1047,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: colors.onSurface,
     includeFontPadding: false,
+    minWidth: 0,
   },
   actorMeta: {
     fontFamily: fontFamilies.monoRegular,
@@ -1069,6 +1055,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     color: colors.textSecondary,
     includeFontPadding: false,
+    minWidth: 0,
   },
   actorGuestText: {
     fontFamily: fontFamilies.sansRegular,
@@ -1080,6 +1067,7 @@ const styles = StyleSheet.create({
   },
   activityTypeBadge: {
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: rounded.md,
@@ -1090,6 +1078,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     includeFontPadding: false,
+    flexShrink: 1,
+    minWidth: 0,
   },
   descText: {
     fontFamily: fontFamilies.sansRegular,

@@ -27,6 +27,7 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { MeetingCard } from '../components/cards/MeetingCard';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
@@ -772,9 +773,9 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
             accessibilityRole="button"
             accessibilityLabel="Filter format pelaksanaan"
           >
-            <Text style={styles.filterSelectText} numberOfLines={1}>
+            <AutoScrollText style={styles.filterSelectText}>
               {selectedFormatLabel}
-            </Text>
+            </AutoScrollText>
             <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
           </Pressable>
 
@@ -789,9 +790,9 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
               accessibilityRole="button"
               accessibilityLabel="Filter sasaran unit kerja"
             >
-              <Text style={styles.filterSelectText} numberOfLines={1}>
+              <AutoScrollText style={styles.filterSelectText}>
                 {selectedUnitLabel}
-              </Text>
+              </AutoScrollText>
               <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
             </Pressable>
           ) : null}
@@ -1075,6 +1076,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.onSurface,
     flex: 1,
+    minWidth: 0,
   },
   searchSubmitBtn: {
     alignItems: 'center',

@@ -32,6 +32,7 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
@@ -411,9 +412,9 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
                 accessibilityRole="button"
                 accessibilityLabel="Pilih Peran Pengguna"
               >
-                <Text style={styles.selectorValue} numberOfLines={1}>
+                <AutoScrollText style={styles.selectorValue}>
                   {displayRoleLabel}
-                </Text>
+                </AutoScrollText>
                 <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
               </Pressable>
             </View>
@@ -434,17 +435,17 @@ export const AddEmployeeScreen: React.FC<AddEmployeeScreenProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel="Pilih Unit Kerja Organisasi"
                 >
-                  <Text style={styles.selectorValue} numberOfLines={1}>
+                  <AutoScrollText style={styles.selectorValue}>
                     {displayUnitLabel}
-                  </Text>
+                  </AutoScrollText>
                   <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
                 </Pressable>
               ) : (
                 <View style={styles.lockedFieldBox}>
                   <Building2 size={17} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={styles.lockedFieldText} numberOfLines={1}>
+                  <AutoScrollText style={styles.lockedFieldText}>
                     {displayUnitLabel}
-                  </Text>
+                  </AutoScrollText>
                 </View>
               )}
               {!isAdministrator ? (
@@ -728,6 +729,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansMedium,
     color: colors.onSurface,
     flex: 1,
+    minWidth: 0,
   },
   lockedFieldBox: {
     flexDirection: 'row',
@@ -745,6 +747,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansMedium,
     color: colors.textSecondary,
     flex: 1,
+    minWidth: 0,
   },
   fieldHint: {
     ...typography.bodySm,

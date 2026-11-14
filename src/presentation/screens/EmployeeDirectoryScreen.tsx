@@ -28,6 +28,7 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { ErrorState } from '../components/common/ErrorState';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
@@ -346,9 +347,9 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={styles.statTextCol}>
-              <Text style={styles.statLabel} numberOfLines={1}>
+              <AutoScrollText style={styles.statLabel}>
                 {isAdministrator ? 'Total Pengguna' : 'Pegawai di Unit'}
-              </Text>
+              </AutoScrollText>
               <Text style={styles.statValue}>{totalCount}</Text>
             </View>
             <View style={[styles.statIconBox, styles.statIconNeutral]}>
@@ -358,9 +359,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
 
           <View style={styles.statCard}>
             <View style={styles.statTextCol}>
-              <Text style={styles.statLabel} numberOfLines={1}>
-                Akun Aktif
-              </Text>
+              <AutoScrollText style={styles.statLabel}>Akun Aktif</AutoScrollText>
               <Text style={[styles.statValue, styles.statValueSuccess]}>{activeCount}</Text>
             </View>
             <View style={[styles.statIconBox, styles.statIconSuccess]}>
@@ -370,9 +369,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
 
           <View style={styles.statCard}>
             <View style={styles.statTextCol}>
-              <Text style={styles.statLabel} numberOfLines={1}>
-                Akun Non-Aktif
-              </Text>
+              <AutoScrollText style={styles.statLabel}>Akun Non-Aktif</AutoScrollText>
               <Text style={[styles.statValue, styles.statValueError]}>{inactiveCount}</Text>
             </View>
             <View style={[styles.statIconBox, styles.statIconError]}>
@@ -424,9 +421,9 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                 accessibilityRole="button"
                 accessibilityLabel="Filter Unit Kerja"
               >
-                <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+                <AutoScrollText style={styles.dropdownTriggerText}>
                   {selectedUnitLabel}
-                </Text>
+                </AutoScrollText>
                 <ChevronDown size={15} strokeWidth={2} color={colors.textSecondary} />
               </Pressable>
             ) : null}
@@ -437,9 +434,9 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               accessibilityRole="button"
               accessibilityLabel="Filter Peran"
             >
-              <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+              <AutoScrollText style={styles.dropdownTriggerText}>
                 {selectedRoleLabel}
-              </Text>
+              </AutoScrollText>
               <ChevronDown size={15} strokeWidth={2} color={colors.textSecondary} />
             </Pressable>
 
@@ -449,9 +446,9 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
               accessibilityRole="button"
               accessibilityLabel="Filter Status Akun"
             >
-              <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+              <AutoScrollText style={styles.dropdownTriggerText}>
                 {selectedStatusLabel}
-              </Text>
+              </AutoScrollText>
               <ChevronDown size={15} strokeWidth={2} color={colors.textSecondary} />
             </Pressable>
 
@@ -572,24 +569,24 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                               <Text style={styles.avatarText}>{initials}</Text>
                             </View>
                             <View style={styles.pegawaiTextCol}>
-                              <Text style={styles.pegawaiName} numberOfLines={1}>
+                              <AutoScrollText style={styles.pegawaiName}>
                                 {item.name}
                                 {isSelf ? ' (Anda)' : ''}
-                              </Text>
-                              <Text style={styles.pegawaiEmail} numberOfLines={1}>
+                              </AutoScrollText>
+                              <AutoScrollText style={styles.pegawaiEmail}>
                                 {item.email}
-                              </Text>
+                              </AutoScrollText>
                             </View>
                           </View>
 
                           {/* NIP & Username */}
                           <View style={[styles.tdCell, { width: COL_WIDTHS.nipUsername }]}>
-                            <Text style={styles.nipMono} numberOfLines={1}>
+                            <AutoScrollText style={styles.nipMono}>
                               {item.nip || '-'}
-                            </Text>
-                            <Text style={styles.usernameSub} numberOfLines={1}>
+                            </AutoScrollText>
+                            <AutoScrollText style={styles.usernameSub}>
                               @{cleanUsername || '-'}
-                            </Text>
+                            </AutoScrollText>
                           </View>
 
                           {/* Unit Kerja */}
@@ -597,14 +594,14 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                             {item.unit ? (
                               <View style={styles.unitCol}>
                                 <View style={styles.unitCodePill}>
-                                  <Text style={styles.unitCodePillText} numberOfLines={1}>
+                                  <AutoScrollText style={styles.unitCodePillText}>
                                     {unitMeta?.kode || item.unit}
-                                  </Text>
+                                  </AutoScrollText>
                                 </View>
                                 {unitMeta?.nama ? (
-                                  <Text style={styles.unitNameSub} numberOfLines={1}>
+                                  <AutoScrollText style={styles.unitNameSub}>
                                     {unitMeta.nama}
-                                  </Text>
+                                  </AutoScrollText>
                                 ) : null}
                               </View>
                             ) : (
@@ -624,7 +621,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                                   : styles.roleBadgeStaff,
                               ]}
                             >
-                              <Text
+                              <AutoScrollText
                                 style={[
                                   styles.roleBadgeText,
                                   item.role === 'Administrator'
@@ -635,7 +632,7 @@ export const EmployeeDirectoryScreen: React.FC<EmployeeDirectoryScreenProps> = (
                                 ]}
                               >
                                 {item.role}
-                              </Text>
+                              </AutoScrollText>
                             </View>
                           </View>
 
@@ -811,12 +808,14 @@ const styles = StyleSheet.create({
   },
   statTextCol: {
     flex: 1,
+    minWidth: 0,
   },
   statLabel: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansMedium,
     color: colors.textMuted,
     marginBottom: 2,
+    minWidth: 0,
   },
   statValue: {
     ...typography.headlineMd,
@@ -903,6 +902,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansMedium,
     color: colors.onSurface,
     flexShrink: 1,
+    minWidth: 0,
   },
   filterSecondaryBtn: {
     flexDirection: 'row',
@@ -1043,32 +1043,38 @@ const styles = StyleSheet.create({
   },
   pegawaiTextCol: {
     flex: 1,
+    minWidth: 0,
     gap: 1,
   },
   pegawaiName: {
     ...typography.labelLg,
     fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
+    minWidth: 0,
   },
   pegawaiEmail: {
     ...typography.bodySm,
     fontFamily: fontFamilies.sansRegular,
     color: colors.textMuted,
+    minWidth: 0,
   },
   nipMono: {
     ...typography.labelMono,
     fontFamily: fontFamilies.monoBold,
     color: colors.onSurface,
+    minWidth: 0,
   },
   usernameSub: {
     ...typography.bodySm,
     fontFamily: fontFamilies.sansRegular,
     color: colors.textMuted,
     marginTop: 1,
+    minWidth: 0,
   },
   unitCol: {
     alignItems: 'flex-start',
     gap: 3,
+    minWidth: 0,
   },
   unitCodePill: {
     backgroundColor: colors.surfaceSoft,
@@ -1083,11 +1089,14 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     fontFamily: fontFamilies.sansSemiBold,
     color: colors.textSecondary,
+    flexShrink: 1,
+    minWidth: 0,
   },
   unitNameSub: {
     ...typography.bodySm,
     fontFamily: fontFamilies.sansRegular,
     color: colors.textMuted,
+    minWidth: 0,
   },
   unitCenterText: {
     ...typography.bodySm,
@@ -1097,6 +1106,7 @@ const styles = StyleSheet.create({
   },
   roleBadge: {
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     borderRadius: rounded.full,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
@@ -1117,6 +1127,8 @@ const styles = StyleSheet.create({
   roleBadgeText: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansSemiBold,
+    flexShrink: 1,
+    minWidth: 0,
   },
   roleBadgeTextAdmin: {
     color: colors.onPrimary,

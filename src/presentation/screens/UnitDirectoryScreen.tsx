@@ -25,7 +25,9 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { ApiUnitRecord } from '../../data/datasources/userApi';
+import { formatTanggalNumerik } from '../../core/utils/dateFormatter';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
@@ -73,12 +75,7 @@ function formatCreatedShort(iso?: string | null): string {
   if (match) {
     return `${match[3]}/${match[2]}/${match[1]}`;
   }
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return '-';
-  const day = String(parsed.getDate()).padStart(2, '0');
-  const month = String(parsed.getMonth() + 1).padStart(2, '0');
-  const year = parsed.getFullYear();
-  return `${day}/${month}/${year}`;
+  return formatTanggalNumerik(iso);
 }
 
 export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
@@ -356,9 +353,9 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
               accessibilityRole="button"
               accessibilityLabel="Filter status unit kerja"
             >
-              <Text style={styles.statusSelectText} numberOfLines={1}>
+              <AutoScrollText style={styles.statusSelectText}>
                 {selectedStatusLabel}
-              </Text>
+              </AutoScrollText>
               <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
             </Pressable>
 
@@ -491,9 +488,9 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
 
                         <View style={[styles.colCode, styles.bodyCell]}>
                           <View style={styles.codeBadge}>
-                            <Text style={styles.codeBadgeText} numberOfLines={1}>
+                            <AutoScrollText style={styles.codeBadgeText}>
                               {unit.kode_unit}
-                            </Text>
+                            </AutoScrollText>
                           </View>
                         </View>
 
@@ -560,8 +557,7 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
                             accessibilityRole="button"
                             accessibilityLabel={`${unitActive ? 'Nonaktifkan' : 'Aktifkan'} ${unit.nama_unit}`}
                           >
-                            <Text
-                              numberOfLines={1}
+                            <AutoScrollText
                               style={[
                                 styles.toggleActionText,
                                 unitActive
@@ -570,7 +566,7 @@ export const UnitDirectoryScreen: React.FC<UnitDirectoryScreenProps> = ({
                               ]}
                             >
                               {unitActive ? 'Nonaktifkan' : 'Aktifkan'}
-                            </Text>
+                            </AutoScrollText>
                           </Pressable>
 
                           <Pressable
@@ -715,6 +711,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.onSurface,
     flex: 1,
+    minWidth: 0,
   },
   secondaryBtn: {
     alignItems: 'center',
@@ -849,6 +846,7 @@ const styles = StyleSheet.create({
   },
   codeBadge: {
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: rounded.md,
@@ -861,6 +859,8 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.monoBold,
     fontSize: 11.5,
     color: colors.onSurface,
+    flexShrink: 1,
+    minWidth: 0,
   },
   unitNameText: {
     ...typography.labelMd,
@@ -945,6 +945,8 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   toggleActionBtn: {
+    flex: 1,
+    minWidth: 0,
     minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: 8,
     borderRadius: rounded.md,
@@ -964,6 +966,8 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     fontFamily: fontFamilies.sansBold,
     fontSize: 11,
+    flexShrink: 1,
+    minWidth: 0,
   },
   toggleDeactivateText: {
     color: colors.onWarningContainer,

@@ -27,6 +27,7 @@ import {
   Image as ImageIcon,
   MapPin,
   Maximize2,
+  Monitor,
   NotebookPen,
   Plus,
   ShieldCheck,
@@ -45,6 +46,7 @@ import { apiClient } from '../../data/datasources/apiClient';
 import { authTokenStore } from '../../data/datasources/authTokenStore';
 import { toMeeting } from '../../data/mappers/apiMappers';
 import { Meeting } from '../../domain/entities/types';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { Button } from '../components/common/Button';
 import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
@@ -644,9 +646,9 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                 </View>
                 <View style={styles.flexOne}>
                   <Text style={styles.sectionTitle}>Tautan Pertemuan Daring</Text>
-                  <Text style={styles.zoomUrlText} numberOfLines={1}>
+                  <AutoScrollText style={styles.zoomUrlText}>
                     {meeting.zoomUrl}
-                  </Text>
+                  </AutoScrollText>
                 </View>
               </View>
               <Pressable
@@ -795,14 +797,16 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                           style={styles.docThumb}
                           resizeMode="cover"
                         />
-                        <Text style={styles.docCaption} numberOfLines={1}>
-                          {doc.caption || 'Dokumentasi Rapat'}
-                        </Text>
-                        {docDate ? (
-                          <Text style={styles.docTimestamp} numberOfLines={1}>
-                            {docDate}
-                          </Text>
-                        ) : null}
+                        <View style={styles.docFooterWrap}>
+                          <AutoScrollText style={styles.docCaption}>
+                            {doc.caption || 'Dokumentasi Rapat'}
+                          </AutoScrollText>
+                          {docDate ? (
+                            <AutoScrollText style={styles.docTimestamp}>
+                              {docDate}
+                            </AutoScrollText>
+                          ) : null}
+                        </View>
                       </Pressable>
                     );
                   })}
@@ -983,6 +987,16 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                   </Text>
                 </View>
               )}
+
+              {(suratEdaranMeta?.is_digital || seConfig) ? (
+                <View style={styles.webOnlyNoticeBox}>
+                  <Monitor size={15} color={colors.infoText} strokeWidth={2} />
+                  <Text style={styles.webOnlyNoticeText}>
+                    Pembuatan dan penyuntingan isi naskah surat undangan digital resmi dilakukan
+                    melalui portal Website SIPERAPAT.
+                  </Text>
+                </View>
+              ) : null}
             </View>
           </View>
 
@@ -1215,9 +1229,9 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
         <View style={styles.zoomOverlay}>
           <View style={styles.zoomModalCard}>
             <View style={styles.zoomModalHeader}>
-              <Text style={styles.zoomModalTitle} numberOfLines={1}>
+              <AutoScrollText style={styles.zoomModalTitle} containerStyle={styles.flexOne}>
                 {zoomDoc?.caption || 'Dokumentasi Rapat'}
-              </Text>
+              </AutoScrollText>
               <Pressable
                 onPress={() => setZoomDoc(null)}
                 style={({ pressed }) => [styles.zoomCloseBtn, pressed && styles.pressed]}
@@ -1629,23 +1643,23 @@ const styles = StyleSheet.create({
     height: 110,
     backgroundColor: colors.surfaceContainer,
   },
-  docCaption: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.onSurface,
+  docFooterWrap: {
     padding: spacing.xs + 2,
     backgroundColor: colors.surfaceCard,
     borderTopWidth: 1,
     borderTopColor: colors.borderSubtle,
+    gap: 2,
+  },
+  docCaption: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
   },
   docTimestamp: {
     ...typography.labelSm,
     fontFamily: fontFamilies.monoRegular,
     color: colors.textMuted,
     fontSize: 10,
-    paddingHorizontal: spacing.xs,
-    paddingBottom: spacing.xs,
-    backgroundColor: colors.surfaceCard,
   },
 
   myAttendedWrap: {
@@ -1820,6 +1834,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.infoBg,
     borderWidth: 1,
     borderColor: colors.infoBorder,
+    flexShrink: 0,
   },
   edaranTypeBadgeText: {
     ...typography.labelSm,
@@ -2105,5 +2120,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs + 2,
     ...typography.bodySm,
     color: colors.onSurface,
+  },
+  webOnlyNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs + 2,
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    borderRadius: rounded.md,
+    padding: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  webOnlyNoticeText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.infoText,
+    flex: 1,
+    minWidth: 0,
+    lineHeight: 18,
   },
 });

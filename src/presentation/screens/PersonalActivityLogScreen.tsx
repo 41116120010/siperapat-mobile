@@ -22,6 +22,7 @@ import { colors } from '../../core/theme/colors';
 import { typography, fontFamilies } from '../../core/theme/typography';
 import { MIN_TOUCH_TARGET, rounded, cardSurface } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { Input } from '../components/common/Input';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
@@ -38,6 +39,11 @@ import { CalendarDatePickerModal } from '../components/modals/CalendarDatePicker
 import { activityLogApi } from '../../data/datasources/userApi';
 import { ApiActivityLogDto } from '../../data/datasources/apiTypes';
 import { useAuthStore } from '../store/useAuthStore';
+import {
+  formatTanggalSingkat,
+  formatWaktuWIB,
+  parseJakartaDate,
+} from '../../core/utils/dateFormatter';
 
 function extractErrorMessage(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
@@ -94,30 +100,10 @@ function formatDateTimeId(isoString?: string | null): {
   if (!isoString) {
     return { dateText: '-', timeText: '-', relativeText: '' };
   }
-  const parsed = new Date(isoString);
+  const parsed = parseJakartaDate(isoString);
   if (Number.isNaN(parsed.getTime())) {
     return { dateText: isoString, timeText: '', relativeText: '' };
   }
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'Mei',
-    'Jun',
-    'Jul',
-    'Agu',
-    'Sep',
-    'Okt',
-    'Nov',
-    'Des',
-  ];
-  const day = String(parsed.getDate()).padStart(2, '0');
-  const month = months[parsed.getMonth()] || '';
-  const year = parsed.getFullYear();
-  const hours = String(parsed.getHours()).padStart(2, '0');
-  const minutes = String(parsed.getMinutes()).padStart(2, '0');
-  const seconds = String(parsed.getSeconds()).padStart(2, '0');
 
   const diffSeconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
   let relativeText = 'Baru saja';
@@ -133,8 +119,8 @@ function formatDateTimeId(isoString?: string | null): {
   }
 
   return {
-    dateText: `${day} ${month} ${year}`,
-    timeText: `Pukul ${hours}:${minutes}:${seconds} WIB`,
+    dateText: formatTanggalSingkat(parsed),
+    timeText: `Pukul ${formatWaktuWIB(parsed)}`,
     relativeText,
   };
 }
@@ -383,15 +369,14 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
             onPress={() => setIsTypeModalOpen(true)}
             accessibilityRole="button"
           >
-            <Text
+            <AutoScrollText
               style={[
                 styles.selectButtonText,
                 !selectedType && styles.selectButtonPlaceholder,
               ]}
-              numberOfLines={1}
             >
               {selectedType || 'Semua Jenis Aktivitas'}
-            </Text>
+            </AutoScrollText>
             <ChevronDown size={16} color={colors.textSecondary} strokeWidth={2} />
           </Pressable>
 
@@ -401,15 +386,14 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
               onPress={() => setActiveDatePicker('start')}
               accessibilityRole="button"
             >
-              <Text
+              <AutoScrollText
                 style={[
                   styles.selectButtonText,
                   !startDate && styles.selectButtonPlaceholder,
                 ]}
-                numberOfLines={1}
               >
                 {startDate ? formatDateYmdToId(startDate) : 'Dari Tanggal'}
-              </Text>
+              </AutoScrollText>
               <Calendar size={15} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
 
@@ -420,15 +404,14 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
               onPress={() => setActiveDatePicker('end')}
               accessibilityRole="button"
             >
-              <Text
+              <AutoScrollText
                 style={[
                   styles.selectButtonText,
                   !endDate && styles.selectButtonPlaceholder,
                 ]}
-                numberOfLines={1}
               >
                 {endDate ? formatDateYmdToId(endDate) : 'Sampai Tanggal'}
-              </Text>
+              </AutoScrollText>
               <Calendar size={15} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
@@ -545,11 +528,11 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
                             },
                           ]}
                         >
-                          <Text
+                          <AutoScrollText
                             style={[styles.activityTypeBadgeText, { color: badgeTone.text }]}
                           >
                             {log.activity_type}
-                          </Text>
+                          </AutoScrollText>
                         </View>
                       </View>
 
@@ -813,6 +796,7 @@ const styles = StyleSheet.create({
   },
   selectButtonText: {
     flex: 1,
+    minWidth: 0,
     fontFamily: fontFamilies.sansMedium,
     fontSize: 13,
     lineHeight: 18,
@@ -829,6 +813,7 @@ const styles = StyleSheet.create({
   },
   dateCol: {
     flex: 1,
+    minWidth: 0,
   },
   dateSeparator: {
     fontFamily: fontFamilies.sansBold,
@@ -1010,6 +995,7 @@ const styles = StyleSheet.create({
   },
   activityTypeBadge: {
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: rounded.md,
@@ -1020,6 +1006,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     includeFontPadding: false,
+    flexShrink: 1,
+    minWidth: 0,
   },
   descText: {
     fontFamily: fontFamilies.sansRegular,

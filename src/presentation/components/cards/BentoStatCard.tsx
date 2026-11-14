@@ -12,6 +12,7 @@ import {
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, rounded, spacing } from '../../../core/theme/tokens';
+import { AutoScrollText } from '../common/AutoScrollText';
 
 const LEGACY_STAT_ICONS: Record<string, LucideIcon> = {
   event: Calendar,
@@ -53,9 +54,7 @@ export const BentoStatCard: React.FC<BentoStatCardProps> = ({
   return (
     <View style={styles.card}>
       <View style={styles.labelRow}>
-        <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
-          {label}
-        </Text>
+        <AutoScrollText style={styles.label}>{label}</AutoScrollText>
         {IconComponent ? (
           <IconComponent
             size={14}
@@ -77,16 +76,14 @@ export const BentoStatCard: React.FC<BentoStatCardProps> = ({
         >
           {value}
         </Text>
-        <Text
+        <AutoScrollText
           style={[
             styles.subValue,
-            subValueColor ? { color: subValueColor } : null,
+            subValueColor ? { color: subValueColor } : undefined,
           ]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
         >
           {subValue}
-        </Text>
+        </AutoScrollText>
       </View>
     </View>
   );
@@ -134,10 +131,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.xs,
+    minWidth: 0,
   },
   label: {
     ...typography.labelSm,
     flex: 1,
+    minWidth: 0,
     color: colors.textMuted,
     fontSize: 11,
   },

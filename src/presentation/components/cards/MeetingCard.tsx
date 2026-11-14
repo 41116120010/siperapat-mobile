@@ -13,6 +13,7 @@ import { Meeting } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
+import { AutoScrollText } from '../common/AutoScrollText';
 
 export interface MeetingCardProps {
   meeting: Meeting;
@@ -195,9 +196,9 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
           ]}
         >
           {statusMeta.showLiveDot ? <View style={styles.liveDot} /> : null}
-          <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>
+          <AutoScrollText style={[styles.statusBadgeText, { color: statusMeta.text }]}>
             {statusMeta.label}
-          </Text>
+          </AutoScrollText>
         </View>
 
         {showAttendance ? (
@@ -223,9 +224,7 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
         <View style={styles.metaStack}>
           <View style={styles.metaRow}>
             <Clock size={15} color={colors.textMuted} strokeWidth={2} />
-            <Text style={styles.metaText} numberOfLines={1}>
-              {formattedSchedule}
-            </Text>
+            <AutoScrollText style={styles.metaText}>{formattedSchedule}</AutoScrollText>
           </View>
 
           <View style={styles.metaRow}>
@@ -234,33 +233,29 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({
               <View style={styles.formatBadge}>
                 <Text style={styles.formatBadgeText}>{getFormatLabel(meeting.type)}</Text>
               </View>
-              <Text style={styles.metaText} numberOfLines={1}>
-                {resolvedLocation}
-              </Text>
+              <AutoScrollText style={styles.metaText}>{resolvedLocation}</AutoScrollText>
             </View>
           </View>
 
           <View style={styles.metaRow}>
             <Calendar size={15} color={colors.textMuted} strokeWidth={2} />
-            <Text style={styles.metaText} numberOfLines={1}>
-              {resolvedTarget}
-            </Text>
+            <AutoScrollText style={styles.metaText}>{resolvedTarget}</AutoScrollText>
           </View>
 
           {organizerLabel || roleBadge ? (
             <View style={styles.organizerRow}>
               <View style={styles.organizerLeft}>
                 <Users size={14} color={colors.textMuted} strokeWidth={2} />
-                <Text style={styles.organizerText} numberOfLines={1}>
+                <AutoScrollText style={styles.organizerText}>
                   Oleh:{' '}
                   <Text style={styles.organizerStrong}>
                     {organizerLabel || 'Penyelenggara'}
                   </Text>
-                </Text>
+                </AutoScrollText>
               </View>
               {roleBadge ? (
                 <View style={styles.roleBadge}>
-                  <Text style={styles.roleBadgeText}>{roleBadge}</Text>
+                  <AutoScrollText style={styles.roleBadgeText}>{roleBadge}</AutoScrollText>
                 </View>
               ) : null}
             </View>
@@ -354,6 +349,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: rounded.full,
     borderWidth: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   liveDot: {
     width: 6,
@@ -365,6 +362,8 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     fontFamily: fontFamilies.sansSemiBold,
     fontSize: 11.5,
+    flexShrink: 1,
+    minWidth: 0,
   },
   attendanceBadge: {
     flexDirection: 'row',
@@ -401,6 +400,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minWidth: 0,
   },
   locationRowInner: {
     flexDirection: 'row',
@@ -415,6 +415,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12.5,
     flex: 1,
+    minWidth: 0,
   },
   formatBadge: {
     paddingHorizontal: 6,
@@ -452,6 +453,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansRegular,
     color: colors.textMuted,
     flex: 1,
+    minWidth: 0,
   },
   organizerStrong: {
     fontFamily: fontFamilies.sansBold,
@@ -464,12 +466,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.infoBg,
     borderWidth: 1,
     borderColor: colors.infoBorder,
+    maxWidth: '45%',
+    flexShrink: 0,
   },
   roleBadgeText: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansBold,
     color: colors.infoText,
     fontSize: 10,
+    flexShrink: 1,
+    minWidth: 0,
   },
   cardFooter: {
     flexDirection: 'row',

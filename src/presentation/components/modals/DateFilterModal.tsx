@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
+import { getJakartaCurrentYearMonth } from '../../../core/utils/dateFormatter';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
@@ -71,14 +72,13 @@ function buildDynamicPeriodOptions(
     { id: 'all', label: 'Semua Periode', Icon: CalendarRange },
   ];
 
+  const { year: baseYear, monthIndex: baseMonthIndex } =
+    getJakartaCurrentYearMonth(referenceDate);
+
   for (let offset = 0; offset < 3; offset += 1) {
-    const target = new Date(
-      referenceDate.getFullYear(),
-      referenceDate.getMonth() - offset,
-      1,
-    );
-    const year = target.getFullYear();
-    const monthIndex = target.getMonth();
+    const target = new Date(Date.UTC(baseYear, baseMonthIndex - offset, 15));
+    const year = target.getUTCFullYear();
+    const monthIndex = target.getUTCMonth();
     const periodId = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
     const label =
       offset === 0

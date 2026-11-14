@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { getJakartaDateKey } from '../../core/utils/dateFormatter';
 import { authTokenStore } from '../datasources/authTokenStore';
 import {
   AgendaExportFormat,
@@ -162,7 +163,7 @@ export class AgendaExportRepository {
 
   async downloadSummaryCsvAndShare(filters?: ReportFilterParams): Promise<string> {
     const url = reportApi.exportSummaryCsvUrl(filters);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getJakartaDateKey(new Date());
     return this.downloadBinaryAndShare(url, {
       format: 'csv',
       fallbackFilename: `SIPERAPAT_rekap-laporan-${today}.csv`,

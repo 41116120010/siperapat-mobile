@@ -23,9 +23,11 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { resolveAttendanceMediaUrl } from '../../core/utils/mediaUrl';
+import { formatTanggalWaktuWIB } from '../../core/utils/dateFormatter';
 import { Attendance } from '../../domain/entities/types';
 import { authTokenStore } from '../../data/datasources/authTokenStore';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import {
@@ -132,15 +134,7 @@ interface HistoryRowItem {
 
 function formatAttendanceTimeWIB(timestamp?: string | null): string {
   if (!timestamp) return '-';
-  const d = new Date(timestamp);
-  if (Number.isNaN(d.getTime())) return '-';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss} WIB`;
+  return formatTanggalWaktuWIB(timestamp);
 }
 
 function splitScheduleParts(schedule?: string | null): { date: string; time: string } {
@@ -463,9 +457,9 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
                           {item.meetingType ? (
                             <Text style={styles.agendaDotText}>•</Text>
                           ) : null}
-                          <Text style={styles.agendaRoomText} numberOfLines={1}>
+                          <AutoScrollText style={styles.agendaRoomText}>
                             {item.room}
-                          </Text>
+                          </AutoScrollText>
                         </View>
                       </View>
 
@@ -475,9 +469,9 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
                           {item.scheduleDate}
                         </Text>
                         {item.scheduleTime ? (
-                          <Text style={styles.scheduleTimeText} numberOfLines={1}>
+                          <AutoScrollText style={styles.scheduleTimeText}>
                             {item.scheduleTime}
-                          </Text>
+                          </AutoScrollText>
                         ) : null}
                       </View>
 
@@ -860,6 +854,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     marginTop: 2,
+    minWidth: 0,
   },
   agendaTypeText: {
     ...typography.labelMono,
@@ -878,6 +873,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     flex: 1,
+    minWidth: 0,
   },
   scheduleDateText: {
     ...typography.bodySm,
@@ -891,6 +887,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     marginTop: 2,
+    minWidth: 0,
   },
   timeBadge: {
     flexDirection: 'row',

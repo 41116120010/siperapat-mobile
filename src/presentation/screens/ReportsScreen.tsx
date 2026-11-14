@@ -37,6 +37,7 @@ import {
   ReportFilterParams,
 } from '../../data/datasources/reportApi';
 import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
@@ -626,9 +627,12 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                 <View style={styles.participationToolbar}>
                   <View style={styles.participationToolbarLeft}>
                     <Building2 size={18} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.sectionTitle} numberOfLines={1}>
+                    <AutoScrollText
+                      style={styles.sectionTitle}
+                      containerStyle={styles.sectionTitleFlex}
+                    >
                       Partisipasi Per Unit Kerja
-                    </Text>
+                    </AutoScrollText>
                   </View>
                   <Text style={styles.participationTotalLabel}>
                     {summary.total_attendances} Total Hadir
@@ -647,9 +651,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                       return (
                         <View key={unit.unit_id} style={styles.participationProgressItem}>
                           <View style={styles.participationProgressTop}>
-                            <Text style={styles.participationName} numberOfLines={1}>
+                            <AutoScrollText style={styles.participationName}>
                               {unit.kode_unit} • {unit.nama_unit}
-                            </Text>
+                            </AutoScrollText>
                             <Text style={styles.participationCountMono}>
                               {unit.attendances_count} Hadir
                             </Text>
@@ -690,13 +694,19 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                 <View style={styles.participationToolbar}>
                   <View style={styles.participationToolbarLeft}>
                     <Users size={18} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.sectionTitle} numberOfLines={1}>
+                    <AutoScrollText
+                      style={styles.sectionTitle}
+                      containerStyle={styles.sectionTitleFlex}
+                    >
                       Partisipasi Pegawai di Unit
-                    </Text>
+                    </AutoScrollText>
                   </View>
-                  <Text style={styles.participationTotalLabel} numberOfLines={1}>
+                  <AutoScrollText
+                    style={styles.participationTotalLabel}
+                    containerStyle={styles.participationTotalWrap}
+                  >
                     {currentUser?.unitKerja || `${summary.total_attendances} Total Hadir`}
-                  </Text>
+                  </AutoScrollText>
                 </View>
 
                 {pagedMemberStats.length > 0 ? (
@@ -711,9 +721,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                       return (
                         <View key={member.user_id} style={styles.participationProgressItem}>
                           <View style={styles.participationProgressTop}>
-                            <Text style={styles.participationName} numberOfLines={1}>
+                            <AutoScrollText style={styles.participationName}>
                               {member.name}
-                            </Text>
+                            </AutoScrollText>
                             <Text style={styles.participationCountMono}>
                               {member.attendances_count} Hadir
                             </Text>
@@ -767,15 +777,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     accessibilityLabel="Pilih Dari Tanggal"
                   >
                     <Calendar size={15} strokeWidth={2} color={colors.textMuted} />
-                    <Text
+                    <AutoScrollText
                       style={[
                         styles.dropdownTriggerText,
                         !draftStartDate && styles.dropdownPlaceholderText,
                       ]}
-                      numberOfLines={1}
                     >
                       {draftStartDate || 'Pilih tanggal'}
-                    </Text>
+                    </AutoScrollText>
                   </Pressable>
                 </View>
 
@@ -789,15 +798,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     accessibilityLabel="Pilih Sampai Tanggal"
                   >
                     <Calendar size={15} strokeWidth={2} color={colors.textMuted} />
-                    <Text
+                    <AutoScrollText
                       style={[
                         styles.dropdownTriggerText,
                         !draftEndDate && styles.dropdownPlaceholderText,
                       ]}
-                      numberOfLines={1}
                     >
                       {draftEndDate || 'Pilih tanggal'}
-                    </Text>
+                    </AutoScrollText>
                   </Pressable>
                 </View>
               </View>
@@ -812,9 +820,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     accessibilityRole="button"
                     accessibilityLabel="Pilih Status Rapat"
                   >
-                    <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+                    <AutoScrollText style={styles.dropdownTriggerText}>
                       {selectedStatusLabel}
-                    </Text>
+                    </AutoScrollText>
                     <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
                   </Pressable>
                 </View>
@@ -828,9 +836,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     accessibilityRole="button"
                     accessibilityLabel="Pilih Format Rapat"
                   >
-                    <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+                    <AutoScrollText style={styles.dropdownTriggerText}>
                       {selectedFormatLabel}
-                    </Text>
+                    </AutoScrollText>
                     <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
                   </Pressable>
                 </View>
@@ -845,9 +853,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     accessibilityRole="button"
                     accessibilityLabel="Pilih Unit Kerja"
                   >
-                    <Text style={styles.dropdownTriggerText} numberOfLines={1}>
+                    <AutoScrollText style={styles.dropdownTriggerText}>
                       {selectedUnitLabel}
-                    </Text>
+                    </AutoScrollText>
                     <ChevronDown size={15} strokeWidth={2} color={colors.textMuted} />
                   </Pressable>
                 </View>
@@ -976,14 +984,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                             <Text style={styles.agendaTitleCell} numberOfLines={2}>
                               {agenda.judul_rapat}
                             </Text>
-                            <Text style={styles.agendaScheduleCell} numberOfLines={1}>
+                            <AutoScrollText style={styles.agendaScheduleCell}>
                               {formatTanggalIndonesia(agenda.waktu_mulai)}
                               {agenda.rentang_waktu ? ` · ${agenda.rentang_waktu}` : ''}
-                            </Text>
-                            <Text style={styles.agendaMetaCell} numberOfLines={1}>
+                            </AutoScrollText>
+                            <AutoScrollText style={styles.agendaMetaCell}>
                               {formatMeetingTypeLabel(agenda.tipe_rapat)} •{' '}
                               {agenda.lokasi_ruang || 'Virtual'}
-                            </Text>
+                            </AutoScrollText>
                           </View>
 
                           {/* Peserta */}
@@ -1393,6 +1401,15 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  sectionTitleFlex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  participationTotalWrap: {
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '48%',
+  },
   participationTotalLabel: {
     ...typography.labelMono,
     fontFamily: fontFamilies.monoBold,
@@ -1487,6 +1504,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansMedium,
     color: colors.onSurface,
     flex: 1,
+    minWidth: 0,
   },
   dropdownPlaceholderText: {
     color: colors.textMuted,

@@ -52,6 +52,8 @@ import { resolveFileMimeType, UploadFileRef } from '../../data/datasources/agend
 import { toIsoDateTime } from '../../data/mappers/apiMappers';
 import { MeetingType } from '../../domain/entities/types';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
+import { PaginationBar } from '../components/common/PaginationBar';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { CalendarDatePickerModal, getJakartaDateKey } from '../components/modals/CalendarDatePickerModal';
@@ -72,6 +74,9 @@ type ActiveModalType =
   | 'notulis'
   | 'date'
   | 'venue';
+
+const UNITS_PAGE_SIZE = 6;
+const USERS_PAGE_SIZE = 6;
 
 const CLASSIFICATION_OPTIONS: AgendaOption[] = [
   {
@@ -213,8 +218,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [selectedUnits, setSelectedUnits] = useState<number[]>(
     !isAdministrator && user?.unitId ? [user.unitId] : []
   );
+  const [unitPage, setUnitPage] = useState(1);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userPage, setUserPage] = useState(1);
   const [suratEdaranType, setSuratEdaranType] = useState<'upload' | 'digital'>('upload');
   const [attachedFile, setAttachedFile] = useState<(UploadFileRef & { size: number }) | null>(null);
   const [isViewerModalVisible, setIsViewerModalVisible] = useState(false);
@@ -237,6 +244,18 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     }
   }, [targetType, userCandidates.length, isUserCandidatesLoading, fetchUserCandidates]);
 
+  useEffect(() => {
+    setUserPage(1);
+  }, [userSearchQuery]);
+
+  const allUnits = useMemo(() => formOptions?.units ?? [], [formOptions?.units]);
+  const unitTotalPages = Math.max(1, Math.ceil(allUnits.length / UNITS_PAGE_SIZE));
+  const safeUnitPage = Math.min(Math.max(1, unitPage), unitTotalPages);
+  const paginatedUnits = useMemo(() => {
+    const start = (safeUnitPage - 1) * UNITS_PAGE_SIZE;
+    return allUnits.slice(start, start + UNITS_PAGE_SIZE);
+  }, [allUnits, safeUnitPage]);
+
   const filteredCandidates = useMemo(() => {
     const q = userSearchQuery.trim().toLowerCase();
     if (!q) return userCandidates;
@@ -247,6 +266,22 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         (c.unit ?? '').toLowerCase().includes(q)
     );
   }, [userCandidates, userSearchQuery]);
+
+  const userTotalPages = Math.max(1, Math.ceil(filteredCandidates.length / USERS_PAGE_SIZE));
+  const safeUserPage = Math.min(Math.max(1, userPage), userTotalPages);
+  const paginatedCandidates = useMemo(() => {
+    const start = (safeUserPage - 1) * USERS_PAGE_SIZE;
+    return filteredCandidates.slice(start, start + USERS_PAGE_SIZE);
+  }, [filteredCandidates, safeUserPage]);
+
+  const isLeaderInvited =
+    targetType === 'selected_users' &&
+    Boolean(leaderId) &&
+    selectedUserIds.includes(Number(leaderId));
+  const isNotulisInvited =
+    targetType === 'selected_users' &&
+    Boolean(notulisId) &&
+    selectedUserIds.includes(Number(notulisId));
 
   const selectedClassification = useMemo(() => {
     if (classification === 'custom' && customClassification.trim()) {
@@ -416,7 +451,24 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     customOptionLabel?: string;
     customOptionPlaceholder?: string;
     customInitialValue?: string;
+    prioritizeOptionIds?: Array<number | string>;
+    prioritizeDefaultTab?: 'invited' | 'all';
+    prioritizeTabLabel?: string;
+    allTabLabel?: string;
+    prioritizeBadgeLabel?: string;
   } => {
+    const priorityProps =
+      selectedUserIds.length > 0
+        ? {
+            prioritizeOptionIds: selectedUserIds,
+            prioritizeDefaultTab:
+              targetType === 'selected_users' ? ('invited' as const) : ('all' as const),
+            prioritizeTabLabel: 'Peserta Terpilih',
+            allTabLabel: 'Semua Pegawai',
+            prioritizeBadgeLabel: 'Peserta',
+          }
+        : {};
+
     switch (activeModal) {
       case 'classification':
         return {
@@ -449,6 +501,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           pageSize: 5,
           paginationLabel: 'pimpinan',
           consistentHeight: true,
+          ...priorityProps,
         };
       case 'notulis':
         return {
@@ -467,6 +520,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
           pageSize: 5,
           paginationLabel: 'notulis',
           consistentHeight: true,
+          ...priorityProps,
         };
       case 'venue':
         return {
@@ -573,9 +627,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             >
               <View style={styles.selectorLeft}>
                 <ClassificationIcon size={18} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.selectorValue} numberOfLines={1}>
+                <AutoScrollText style={styles.selectorValue}>
                   {selectedClassification.title}
-                </Text>
+                </AutoScrollText>
               </View>
               <View style={styles.selectorRight}>
                 {selectedClassification.badge ? (
@@ -662,7 +716,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             >
               <View style={styles.selectorLeft}>
                 <Calendar size={18} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.selectorValue}>{date}</Text>
+                <AutoScrollText style={styles.selectorValue}>{date}</AutoScrollText>
               </View>
               <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
             </Pressable>
@@ -709,9 +763,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
               >
                 <View style={styles.selectorLeft}>
                   <DoorOpen size={18} color={colors.primary} strokeWidth={2} />
-                  <Text style={styles.selectorValue} numberOfLines={1}>
+                  <AutoScrollText style={styles.selectorValue}>
                     {venue}
-                  </Text>
+                  </AutoScrollText>
                 </View>
                 <View style={styles.selectorRight}>
                   {venueId === 'custom' ? (
@@ -880,7 +934,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 </Text>
                 <View style={styles.selectionQuickActions}>
                   <Pressable
-                    onPress={() => setSelectedUnits((formOptions?.units ?? []).map((u) => u.id))}
+                    onPress={() => setSelectedUnits(allUnits.map((u) => u.id))}
                     style={styles.quickLinkBtn}
                   >
                     <Text style={styles.quickLinkText}>Pilih Semua</Text>
@@ -891,7 +945,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 </View>
               </View>
               <View style={styles.chipsWrap}>
-                {(formOptions?.units ?? []).map((unit) => {
+                {paginatedUnits.map((unit) => {
                   const selected = selectedUnits.includes(unit.id);
                   return (
                     <Pressable
@@ -902,15 +956,25 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                       {selected ? (
                         <Check size={14} color={colors.onPrimary} strokeWidth={2.5} />
                       ) : null}
-                      <Text
+                      <AutoScrollText
                         style={[styles.unitChipText, selected && styles.unitChipTextSelected]}
                       >
                         {unit.kode_unit} — {unit.nama_unit}
-                      </Text>
+                      </AutoScrollText>
                     </Pressable>
                   );
                 })}
               </View>
+              {allUnits.length > UNITS_PAGE_SIZE ? (
+                <PaginationBar
+                  currentPage={safeUnitPage}
+                  lastPage={unitTotalPages}
+                  total={allUnits.length}
+                  label="unit kerja"
+                  onPageChange={setUnitPage}
+                  containerStyle={styles.inlinePaginationBar}
+                />
+              ) : null}
             </View>
           ) : null}
 
@@ -981,46 +1045,54 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                   </Pressable>
                 </View>
               ) : (
-                <ScrollView
-                  nestedScrollEnabled
-                  style={styles.candidateListScroll}
-                  contentContainerStyle={styles.candidateListContent}
-                >
-                  {filteredCandidates.map((candidate) => {
-                    const numericId = Number(candidate.id);
-                    const isChecked = selectedUserIds.includes(numericId);
-                    return (
-                      <Pressable
-                        key={candidate.id}
-                        onPress={() => toggleUserCandidate(numericId)}
-                        style={[
-                          styles.candidateRow,
-                          isChecked && styles.candidateRowSelected,
-                        ]}
-                      >
-                        {isChecked ? (
-                          <CheckSquare size={18} color={colors.primary} strokeWidth={2} />
-                        ) : (
-                          <Square size={18} color={colors.textMuted} strokeWidth={2} />
-                        )}
-                        <View style={styles.candidateInfo}>
-                          <Text style={styles.candidateName} numberOfLines={1}>
-                            {candidate.name}
-                          </Text>
-                          <Text style={styles.candidateSub} numberOfLines={1}>
-                            {candidate.nip ? `NIP. ${candidate.nip}` : 'NIP tidak tersedia'}
-                            {candidate.unit ? ` • ${candidate.unit}` : ''}
-                          </Text>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                  {filteredCandidates.length === 0 ? (
-                    <Text style={styles.candidateEmptyText}>
-                      Tidak ada pegawai ASN yang cocok dengan pencarian.
-                    </Text>
+                <View style={styles.candidateListBox}>
+                  <View style={styles.candidateListContent}>
+                    {paginatedCandidates.map((candidate) => {
+                      const numericId = Number(candidate.id);
+                      const isChecked = selectedUserIds.includes(numericId);
+                      return (
+                        <Pressable
+                          key={candidate.id}
+                          onPress={() => toggleUserCandidate(numericId)}
+                          style={[
+                            styles.candidateRow,
+                            isChecked && styles.candidateRowSelected,
+                          ]}
+                        >
+                          {isChecked ? (
+                            <CheckSquare size={18} color={colors.primary} strokeWidth={2} />
+                          ) : (
+                            <Square size={18} color={colors.textMuted} strokeWidth={2} />
+                          )}
+                          <View style={styles.candidateInfo}>
+                            <AutoScrollText style={styles.candidateName}>
+                              {candidate.name}
+                            </AutoScrollText>
+                            <AutoScrollText style={styles.candidateSub}>
+                              {candidate.nip ? `NIP. ${candidate.nip}` : 'NIP tidak tersedia'}
+                              {candidate.unit ? ` • ${candidate.unit}` : ''}
+                            </AutoScrollText>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                    {filteredCandidates.length === 0 ? (
+                      <Text style={styles.candidateEmptyText}>
+                        Tidak ada pegawai ASN yang cocok dengan pencarian.
+                      </Text>
+                    ) : null}
+                  </View>
+                  {filteredCandidates.length > USERS_PAGE_SIZE ? (
+                    <PaginationBar
+                      currentPage={safeUserPage}
+                      lastPage={userTotalPages}
+                      total={filteredCandidates.length}
+                      label="pegawai ASN"
+                      onPageChange={setUserPage}
+                      containerStyle={styles.inlinePaginationBar}
+                    />
                   ) : null}
-                </ScrollView>
+                </View>
               )}
             </View>
           ) : null}
@@ -1052,10 +1124,19 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 </Text>
               </View>
               <View style={styles.entityInfo}>
-                <Text style={styles.entityName}>{leaderName || 'Pilih Pimpinan Rapat'}</Text>
-                <Text style={styles.entitySub}>
+                <View style={styles.entityNameRow}>
+                  <AutoScrollText style={styles.entityName}>
+                    {leaderName || 'Pilih Pimpinan Rapat'}
+                  </AutoScrollText>
+                  {isLeaderInvited ? (
+                    <View style={styles.invitedRoleBadge}>
+                      <Text style={styles.invitedRoleBadgeText}>Peserta Terpilih</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <AutoScrollText style={styles.entitySub}>
                   {leaderRole || 'Pimpinan Rapat'} {leaderNip ? `• NIP. ${leaderNip}` : ''}
-                </Text>
+                </AutoScrollText>
               </View>
               <View style={styles.actionPill}>
                 <Text style={styles.actionPillText}>Ganti</Text>
@@ -1074,8 +1155,19 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 <NotebookPen size={18} color={colors.primary} strokeWidth={2} />
               </View>
               <View style={styles.entityInfo}>
-                <Text style={styles.entityName}>{notulisName || 'Pilih Petugas Notulis'}</Text>
-                <Text style={styles.entitySub}>Petugas Notulensi Sidang Kedinasan</Text>
+                <View style={styles.entityNameRow}>
+                  <AutoScrollText style={styles.entityName}>
+                    {notulisName || 'Pilih Petugas Notulis'}
+                  </AutoScrollText>
+                  {isNotulisInvited ? (
+                    <View style={styles.invitedRoleBadge}>
+                      <Text style={styles.invitedRoleBadgeText}>Peserta Terpilih</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <AutoScrollText style={styles.entitySub}>
+                  Petugas Notulensi Sidang Kedinasan
+                </AutoScrollText>
               </View>
               <View style={styles.actionPill}>
                 <Text style={styles.actionPillText}>Pilih</Text>
@@ -1171,9 +1263,9 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                       )}
                     </View>
                     <View style={styles.attachedInfo}>
-                      <Text style={styles.attachedName} numberOfLines={1}>
+                      <AutoScrollText style={styles.attachedName}>
                         {attachedFile.name}
-                      </Text>
+                      </AutoScrollText>
                       <Text style={styles.attachedMeta}>
                         {(attachedFile.size / (1024 * 1024)).toFixed(2)} MB •{' '}
                         {attachedFile.type.startsWith('image/') ? 'Format Gambar' : 'Dokumen PDF'}
@@ -1203,13 +1295,19 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             <View style={styles.digitalNoticeCard}>
               <FilePenLine size={18} color={colors.primary} strokeWidth={2} />
               <View style={styles.digitalNoticeBody}>
-                <Text style={styles.digitalNoticeTitle}>
-                  Naskah Surat Undangan Digital (Kop Resmi LLDIKTI X)
-                </Text>
+                <View style={styles.digitalNoticeHeaderRow}>
+                  <Text style={styles.digitalNoticeTitle}>
+                    Naskah Surat Undangan Digital (Kop Resmi LLDIKTI X)
+                  </Text>
+                  <View style={styles.webOnlyBadge}>
+                    <Text style={styles.webOnlyBadgeText}>Khusus Website (Naskah Digital)</Text>
+                  </View>
+                </View>
                 <Text style={styles.digitalNoticeSub}>
-                  Sistem akan membuat draf surat dinas digital otomatis sesuai judul, jadwal,
-                  lokasi/tautan, dan pimpinan rapat. Penyesuaian isi & nomor surat dapat dilakukan
-                  setelah agenda disimpan.
+                  Pembuatan, penyuntingan isi naskah surat undangan digital (kop resmi & penomoran
+                  dinas), serta edit konfigurasi laporan atau agenda lanjutan hanya dapat dilakukan
+                  melalui portal Website SIPERAPAT. Di aplikasi mobile Anda tetap dapat memilih mode
+                  digital atau mengunggah berkas PDF/gambar fisik.
                 </Text>
               </View>
             </View>
@@ -1286,6 +1384,11 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         customOptionLabel={modalConfig.customOptionLabel}
         customOptionPlaceholder={modalConfig.customOptionPlaceholder}
         customInitialValue={modalConfig.customInitialValue}
+        prioritizeOptionIds={modalConfig.prioritizeOptionIds}
+        prioritizeDefaultTab={modalConfig.prioritizeDefaultTab}
+        prioritizeTabLabel={modalConfig.prioritizeTabLabel}
+        allTabLabel={modalConfig.allTabLabel}
+        prioritizeBadgeLabel={modalConfig.prioritizeBadgeLabel}
         onSelect={handleSelectOption}
         onSelectCustom={handleSelectCustomOption}
       />
@@ -1439,11 +1542,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   entityInfo: { flex: 1, minWidth: 0 },
+  entityNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 0,
+  },
   entityName: {
     ...typography.labelLg,
     fontFamily: fontFamilies.sansBold,
     fontSize: 13.5,
     color: colors.onSurface,
+    flexShrink: 1,
+  },
+  invitedRoleBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    flexShrink: 0,
+  },
+  invitedRoleBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    color: colors.infoText,
   },
   entitySub: {
     ...typography.labelSm,
@@ -1606,6 +1731,7 @@ const styles = StyleSheet.create({
   },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs + 2 },
   unitChip: {
+    maxWidth: '100%',
     minHeight: MIN_TOUCH_TARGET,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1624,6 +1750,7 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     fontFamily: fontFamilies.sansMedium,
     color: colors.textSecondary,
+    flexShrink: 1,
   },
   unitChipTextSelected: {
     fontFamily: fontFamilies.sansBold,
@@ -1826,12 +1953,15 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansBold,
     color: colors.onPrimary,
   },
-  candidateListScroll: {
-    maxHeight: 260,
+  candidateListBox: {
     borderRadius: rounded.md,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     backgroundColor: colors.background,
+    overflow: 'hidden',
+  },
+  inlinePaginationBar: {
+    marginTop: spacing.xs,
   },
   candidateListContent: {
     padding: spacing.xs + 2,
@@ -1910,11 +2040,33 @@ const styles = StyleSheet.create({
     borderColor: colors.infoBorder,
     backgroundColor: colors.infoBg,
   },
-  digitalNoticeBody: { flex: 1, gap: 4 },
+  digitalNoticeBody: { flex: 1, gap: 6, minWidth: 0 },
+  digitalNoticeHeaderRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
   digitalNoticeTitle: {
     ...typography.labelMd,
     fontFamily: fontFamilies.sansBold,
     color: colors.infoText,
+    flexShrink: 1,
+  },
+  webOnlyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+  },
+  webOnlyBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    color: colors.primary,
   },
   digitalNoticeSub: {
     ...typography.bodySm,

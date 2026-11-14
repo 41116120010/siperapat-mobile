@@ -1,3 +1,5 @@
+import { getJakartaCurrentYearMonth } from './dateFormatter';
+
 /**
  * NIP Validator & Formatter for Indonesian Civil Servants (ASN)
  * Format: 18 digits (YYYYMMDD YYYYMM G NNN)
@@ -17,9 +19,9 @@ export const isValidNIP = (nip: string): boolean => {
     return false;
   }
 
-  // Validate birth year reasonableness
+  // Validate birth year reasonableness in Asia/Jakarta
   const birthYear = parseInt(cleaned.substring(0, 4), 10);
-  const currentYear = new Date().getFullYear();
+  const { year: currentYear } = getJakartaCurrentYearMonth();
   if (birthYear < 1945 || birthYear > currentYear - 17) {
     return false;
   }

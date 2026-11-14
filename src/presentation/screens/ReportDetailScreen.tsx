@@ -26,6 +26,7 @@ import {
   Image as ImageIcon,
   Link2,
   MapPin,
+  Monitor,
   PenTool,
   Settings,
   ShieldCheck,
@@ -49,6 +50,7 @@ import {
   reportApi,
 } from '../../data/datasources/reportApi';
 import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
@@ -608,7 +610,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                   <Link2 size={17} strokeWidth={2} color={colors.primary} />
                   <Text style={styles.sectionHeading}>Tautan Pertemuan Daring</Text>
                 </View>
-                <Text style={styles.linkUrlText}>{agenda.link_meeting}</Text>
+                <AutoScrollText style={styles.linkUrlText}>{agenda.link_meeting}</AutoScrollText>
                 <Pressable
                   onPress={() => handleOpenLink(agenda.link_meeting!)}
                   style={({ pressed }) => [styles.primarySmallBtn, pressed && styles.pressed]}
@@ -641,6 +643,15 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                   <FileText size={15} strokeWidth={2} color={colors.primary} />
                   <Text style={styles.secondaryActionBtnText}>Lihat / Bagikan Surat Edaran</Text>
                 </Pressable>
+                {agenda.surat_edaran?.is_digital ? (
+                  <View style={styles.webOnlyNoticeBox}>
+                    <Monitor size={15} strokeWidth={2} color={colors.infoText} />
+                    <Text style={styles.webOnlyNoticeText}>
+                      Pembuatan dan penyuntingan isi naskah surat undangan digital resmi dilakukan
+                      melalui portal Website SIPERAPAT.
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
@@ -672,12 +683,12 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                     <View style={styles.invitedUsersList}>
                       {(agenda.invited_users ?? []).map((u) => (
                         <View key={u.id} style={styles.invitedUserCard}>
-                          <Text style={styles.invitedUserName} numberOfLines={1}>
+                          <AutoScrollText style={styles.invitedUserName}>
                             {u.name}
-                          </Text>
-                          <Text style={styles.invitedUserMeta} numberOfLines={1}>
+                          </AutoScrollText>
+                          <AutoScrollText style={styles.invitedUserMeta}>
                             NIP: {u.nip || '-'} • {u.unit?.kode_unit || 'Pusat'}
-                          </Text>
+                          </AutoScrollText>
                         </View>
                       ))}
                     </View>
@@ -883,6 +894,14 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                   </View>
                 </View>
               </View>
+
+              <View style={styles.webOnlyNoticeBox}>
+                <Monitor size={15} strokeWidth={2} color={colors.infoText} />
+                <Text style={styles.webOnlyNoticeText}>
+                  Penyesuaian format lanjutan dokumen laporan agenda dan naskah surat undangan
+                  digital dapat dilakukan melalui portal Website SIPERAPAT.
+                </Text>
+              </View>
             </View>
 
             {/* 8. TABLE: DAFTAR KEHADIRAN PEGAWAI & VERIFIKASI MEDIA DIGITAL */}
@@ -949,12 +968,12 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                             </View>
 
                             <View style={[styles.tdCell, { width: ATT_COL_WIDTHS.pegawai }]}>
-                              <Text style={styles.attNameText} numberOfLines={1}>
+                              <AutoScrollText style={styles.attNameText}>
                                 {att.user?.name || `Pegawai #${att.user_id}`}
-                              </Text>
-                              <Text style={styles.attNipMono} numberOfLines={1}>
+                              </AutoScrollText>
+                              <AutoScrollText style={styles.attNipMono}>
                                 NIP: {att.user?.nip || '-'}
-                              </Text>
+                              </AutoScrollText>
                             </View>
 
                             <View style={[styles.tdCell, { width: ATT_COL_WIDTHS.unit }]}>
@@ -969,9 +988,9 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                               <Text style={styles.attSignedTimeMono}>
                                 {att.signed_at ? formatWaktuWIB(att.signed_at) : '-'}
                               </Text>
-                              <Text style={styles.attIpMono} numberOfLines={1}>
+                              <AutoScrollText style={styles.attIpMono}>
                                 IP: {att.ip_address || '127.0.0.1'}
-                              </Text>
+                              </AutoScrollText>
                             </View>
 
                             <View style={[styles.tdCell, { width: ATT_COL_WIDTHS.selfie }]}>
@@ -1847,5 +1866,24 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansRegular,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  webOnlyNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs + 2,
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    borderRadius: rounded.md,
+    padding: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  webOnlyNoticeText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.infoText,
+    flex: 1,
+    minWidth: 0,
+    lineHeight: 18,
   },
 });

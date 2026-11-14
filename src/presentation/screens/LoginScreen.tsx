@@ -30,6 +30,7 @@ import { fontFamilies, typography } from '../../core/theme/typography';
 import { MIN_TOUCH_TARGET, cardSurface, rounded, spacing } from '../../core/theme/tokens';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { useAuthStore } from '../store/useAuthStore';
 
 interface LoginScreenProps {
@@ -116,9 +117,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </View>
                 <View style={styles.pillarTextWrap}>
                   <Text style={styles.pillarTitle}>Autentikasi Multi-Identifier</Text>
-                  <Text style={styles.pillarDesc} numberOfLines={1}>
+                  <AutoScrollText style={styles.pillarDesc}>
                     NIP 18 Digit atau Username resmi terdaftar
-                  </Text>
+                  </AutoScrollText>
                 </View>
               </View>
               <View style={styles.pillarRow}>
@@ -127,9 +128,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </View>
                 <View style={styles.pillarTextWrap}>
                   <Text style={styles.pillarTitle}>Presensi Sah & Terverifikasi</Text>
-                  <Text style={styles.pillarDesc} numberOfLines={1}>
+                  <AutoScrollText style={styles.pillarDesc}>
                     Selfie wajah, tanda tangan digital, & stempel waktu
-                  </Text>
+                  </AutoScrollText>
                 </View>
               </View>
               <View style={styles.pillarRow}>
@@ -138,9 +139,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </View>
                 <View style={styles.pillarTextWrap}>
                   <Text style={styles.pillarTitle}>Rekapitulasi Berita Acara Otomatis</Text>
-                  <Text style={styles.pillarDesc} numberOfLines={1}>
+                  <AutoScrollText style={styles.pillarDesc}>
                     Ekspor daftar hadir & notulensi format PDF & Word
-                  </Text>
+                  </AutoScrollText>
                 </View>
               </View>
             </View>

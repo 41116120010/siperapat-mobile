@@ -28,6 +28,7 @@ import { userApi } from '../../data/datasources/userApi';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { FeedbackModal } from '../components/modals/FeedbackModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
@@ -490,17 +491,17 @@ export const EditUnitScreen: React.FC<EditUnitScreenProps> = ({
                     ]}
                   >
                     <View style={styles.unitUserInfo}>
-                      <Text style={styles.unitUserName} numberOfLines={1}>
+                      <AutoScrollText style={styles.unitUserName}>
                         {member.name}
-                      </Text>
-                      <Text style={styles.unitUserNip} numberOfLines={1}>
+                      </AutoScrollText>
+                      <AutoScrollText style={styles.unitUserNip}>
                         NIP: {member.nip || '-'}
-                      </Text>
+                      </AutoScrollText>
                     </View>
                     <View style={styles.unitUserRoleBadge}>
-                      <Text style={styles.unitUserRoleText}>
+                      <AutoScrollText style={styles.unitUserRoleText}>
                         {member.role?.label || member.role?.value || 'Pegawai'}
-                      </Text>
+                      </AutoScrollText>
                     </View>
                   </View>
                 ))}
@@ -852,6 +853,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.borderStrong,
+    flexShrink: 0,
+    maxWidth: '40%',
   },
   unitUserRoleText: {
     ...typography.labelMono,

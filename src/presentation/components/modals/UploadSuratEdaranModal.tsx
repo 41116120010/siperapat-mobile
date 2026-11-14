@@ -21,6 +21,7 @@ import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
+import { AutoScrollText } from '../common/AutoScrollText';
 import { UploadFileRef } from '../../../data/datasources/agendaApi';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -118,9 +119,7 @@ export const UploadSuratEdaranModal: React.FC<UploadSuratEdaranModalProps> = ({
                   </View>
                 )}
                 <View style={styles.fileDetails}>
-                  <Text style={styles.fileName} numberOfLines={1} ellipsizeMode="middle">
-                    {file.name}
-                  </Text>
+                  <AutoScrollText style={styles.fileName}>{file.name}</AutoScrollText>
                   <View style={styles.fileMetaRow}>
                     <View style={styles.badgeFormat}>
                       <Text style={styles.badgeFormatText}>{isImage ? 'GAMBAR' : 'PDF'}</Text>
@@ -290,6 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
     gap: spacing.sm,
   },
   imageThumbnail: {
@@ -308,6 +308,7 @@ const styles = StyleSheet.create({
   },
   fileDetails: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   fileName: {

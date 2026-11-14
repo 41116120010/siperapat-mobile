@@ -28,6 +28,7 @@ import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 import { TutWuriLoader } from '../common/TutWuriLoader';
+import { AutoScrollText } from '../common/AutoScrollText';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
 import { formatTanggalIndonesia, formatWaktuWIB } from '../../../core/utils/dateFormatter';
@@ -280,9 +281,9 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
               </View>
               <View style={styles.headerTitleWrap}>
                 <Text style={styles.headerTitle}>Bukti Kehadiran Sah</Text>
-                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                <AutoScrollText style={styles.headerSubtitle}>
                   {participantName ? `${participantName} • NIP ${participantNip || '—'}` : 'Verifikasi Presensi Kedinasan'}
-                </Text>
+                </AutoScrollText>
               </View>
             </View>
             <Pressable
@@ -417,9 +418,9 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
                 {verificationToken ? (
                   <View style={styles.metaRow}>
                     <Text style={styles.metaLabel}>Nomor Bukti</Text>
-                    <Text style={styles.metaValueMono} numberOfLines={1}>
+                    <AutoScrollText style={styles.metaValueMono}>
                       {verificationToken}
-                    </Text>
+                    </AutoScrollText>
                   </View>
                 ) : null}
 
@@ -526,6 +527,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
     marginRight: spacing.sm,
   },
   headerIconCircle: {
@@ -539,6 +541,7 @@ const styles = StyleSheet.create({
   },
   headerTitleWrap: {
     flex: 1,
+    minWidth: 0,
   },
   headerTitle: {
     ...typography.headlineSm,
@@ -736,6 +739,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textAlign: 'right',
     flex: 1.5,
+    minWidth: 0,
   },
   footer: {
     paddingHorizontal: spacing.lg,

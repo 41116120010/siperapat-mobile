@@ -31,6 +31,7 @@ import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 import { TutWuriLoader } from '../common/TutWuriLoader';
+import { AutoScrollText } from '../common/AutoScrollText';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
 import { authTokenStore } from '../../../data/datasources/authTokenStore';
 import { ApiError } from '../../../data/datasources/apiClient';
@@ -332,12 +333,12 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                 )}
               </View>
               <View style={styles.headerTitleWrap}>
-                <Text style={styles.headerTitle} numberOfLines={1}>
+                <AutoScrollText style={styles.headerTitle}>
                   Surat Edaran Rapat
-                </Text>
-                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                </AutoScrollText>
+                <AutoScrollText style={styles.headerSubtitle}>
                   {meetingTitle || 'Dokumen Kedinasan Resmi LLDIKTI X'}
-                </Text>
+                </AutoScrollText>
               </View>
             </View>
             <Pressable
@@ -421,9 +422,9 @@ export const SuratEdaranViewerModal: React.FC<SuratEdaranViewerModalProps> = ({
                 </ScrollView>
                 <View style={styles.imageMetaBar}>
                   <Info size={14} color={colors.textSecondary} strokeWidth={2} />
-                  <Text style={styles.imageMetaText} numberOfLines={1}>
+                  <AutoScrollText style={styles.imageMetaText}>
                     {resolvedFileName} {formattedSize ? `• ${formattedSize}` : ''}
-                  </Text>
+                  </AutoScrollText>
                 </View>
               </View>
             ) : null}
@@ -577,6 +578,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
     marginRight: spacing.sm,
   },
   headerIconCircle: {
@@ -595,6 +597,7 @@ const styles = StyleSheet.create({
   },
   headerTitleWrap: {
     flex: 1,
+    minWidth: 0,
   },
   headerTitle: {
     ...typography.headlineSm,
@@ -712,10 +715,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     backgroundColor: colors.surfaceSoft,
     borderRadius: rounded.full,
+    maxWidth: '100%',
   },
   imageMetaText: {
     ...typography.labelSm,
     color: colors.textSecondary,
+    flexShrink: 1,
+    minWidth: 0,
   },
 
   // PDF Document Card Styles

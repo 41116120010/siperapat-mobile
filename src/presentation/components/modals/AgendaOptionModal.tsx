@@ -50,6 +50,7 @@ import {
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
+import { AutoScrollText } from '../common/AutoScrollText';
 import { PaginationBar } from '../common/PaginationBar';
 
 const LEGACY_OPTION_ICONS: Record<string, LucideIcon> = {
@@ -113,6 +114,11 @@ interface AgendaOptionModalProps {
   customOptionPlaceholder?: string;
   customInitialValue?: string;
   onSelectCustom?: (customValue: string) => void;
+  prioritizeOptionIds?: Array<number | string>;
+  prioritizeDefaultTab?: 'invited' | 'all';
+  prioritizeTabLabel?: string;
+  allTabLabel?: string;
+  prioritizeBadgeLabel?: string;
 }
 
 export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
@@ -133,12 +139,45 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
   customOptionPlaceholder,
   customInitialValue = '',
   onSelectCustom,
+  prioritizeOptionIds,
+  prioritizeDefaultTab,
+  prioritizeTabLabel = 'Peserta Terpilih',
+  allTabLabel = 'Semua Pegawai',
+  prioritizeBadgeLabel = 'Peserta',
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [customInputValue, setCustomInputValue] = useState(customInitialValue);
   const [isCustomExpanded, setIsCustomExpanded] = useState(false);
+  const [activePriorityTab, setActivePriorityTab] = useState<'invited' | 'all'>('all');
+
+  const prioritizedIdSet = useMemo(() => {
+    const set = new Set<string>();
+    (prioritizeOptionIds ?? []).forEach((id) => {
+      if (id !== null && id !== undefined && String(id).trim() !== '') {
+        set.add(String(id));
+      }
+    });
+    return set;
+  }, [prioritizeOptionIds]);
+
+  const hasPriorityTabs = prioritizedIdSet.size > 0;
+
+  // Ordered options: prioritized candidates float to top in 'Semua' too
+  const orderedOptions = useMemo(() => {
+    if (!hasPriorityTabs) return options;
+    const prioritized: AgendaOption[] = [];
+    const regular: AgendaOption[] = [];
+    for (const opt of options) {
+      if (prioritizedIdSet.has(opt.id)) {
+        prioritized.push(opt);
+      } else {
+        regular.push(opt);
+      }
+    }
+    return [...prioritized, ...regular];
+  }, [options, hasPriorityTabs, prioritizedIdSet]);
 
   // Reset or detect initial page whenever modal opens
   useEffect(() => {
@@ -148,8 +187,17 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
       setCustomInputValue(customInitialValue);
       setIsCustomExpanded(false);
 
+      const initialTab: 'invited' | 'all' =
+        hasPriorityTabs && prioritizeDefaultTab !== 'all' ? 'invited' : 'all';
+      setActivePriorityTab(initialTab);
+
+      const pool =
+        initialTab === 'invited'
+          ? orderedOptions.filter((opt) => prioritizedIdSet.has(opt.id))
+          : orderedOptions;
+
       if (pageSize && pageSize > 0 && selectedId) {
-        const selectedIndex = options.findIndex((opt) => opt.id === selectedId);
+        const selectedIndex = pool.findIndex((opt) => opt.id === selectedId);
         if (selectedIndex >= 0) {
           setCurrentPage(Math.floor(selectedIndex / pageSize) + 1);
           return;
@@ -157,21 +205,46 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
       }
       setCurrentPage(1);
     }
-  }, [visible, options, selectedId, pageSize, customInitialValue]);
+  }, [
+    visible,
+    orderedOptions,
+    selectedId,
+    pageSize,
+    customInitialValue,
+    hasPriorityTabs,
+    prioritizeDefaultTab,
+    prioritizedIdSet,
+  ]);
 
-  // Memoized filter based on searchQuery
+  // Memoized filter based on activePriorityTab + searchQuery
   const filteredOptions = useMemo(() => {
+    const baseList =
+      hasPriorityTabs && activePriorityTab === 'invited'
+        ? orderedOptions.filter((opt) => prioritizedIdSet.has(opt.id))
+        : orderedOptions;
     if (!searchable || !searchQuery.trim()) {
-      return options;
+      return baseList;
     }
     const q = searchQuery.trim().toLowerCase();
-    return options.filter((opt) => {
+    return baseList.filter((opt) => {
       const matchTitle = opt.title.toLowerCase().includes(q);
       const matchSubtitle = opt.subtitle ? opt.subtitle.toLowerCase().includes(q) : false;
       const matchBadge = opt.badge ? opt.badge.toLowerCase().includes(q) : false;
       return matchTitle || matchSubtitle || matchBadge;
     });
-  }, [options, searchable, searchQuery]);
+  }, [
+    orderedOptions,
+    hasPriorityTabs,
+    activePriorityTab,
+    prioritizedIdSet,
+    searchable,
+    searchQuery,
+  ]);
+
+  const handlePriorityTabChange = (nextTab: 'invited' | 'all') => {
+    setActivePriorityTab(nextTab);
+    setCurrentPage(1);
+  };
 
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
@@ -238,16 +311,16 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
           </View>
           <View style={styles.optionTextGroup}>
             <View style={styles.titleRow}>
-              <Text style={styles.quickCustomTitle} numberOfLines={1}>
+              <AutoScrollText style={styles.quickCustomTitle}>
                 Gunakan "{searchQuery.trim()}"
-              </Text>
+              </AutoScrollText>
               <View style={styles.badgePillCustom}>
                 <Text style={styles.badgePillCustomText}>+ Kustom</Text>
               </View>
             </View>
-            <Text style={styles.quickCustomSubtitle}>
+            <AutoScrollText style={styles.quickCustomSubtitle}>
               Jadikan sebagai {customOptionLabel.toLowerCase()} baru
-            </Text>
+            </AutoScrollText>
           </View>
           <ChevronRight size={16} color={colors.primary} strokeWidth={2} />
         </Pressable>
@@ -255,6 +328,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
 
       {displayedOptions.map((option) => {
         const isSelected = option.id === selectedId;
+        const isPrioritized = hasPriorityTabs && prioritizedIdSet.has(option.id);
         const OptionIcon = resolveOptionIcon(option.icon);
         return (
           <Pressable
@@ -290,27 +364,33 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
             {/* Texts */}
             <View style={styles.optionTextGroup}>
               <View style={styles.titleRow}>
-                <Text
+                <AutoScrollText
                   style={[
                     styles.optionTitle,
                     isSelected && styles.optionTitleActive,
                   ]}
-                  numberOfLines={1}
                 >
                   {option.title}
-                </Text>
+                </AutoScrollText>
+                {isPrioritized ? (
+                  <View style={styles.priorityTagPill}>
+                    <AutoScrollText style={styles.priorityTagText}>
+                      {prioritizeBadgeLabel}
+                    </AutoScrollText>
+                  </View>
+                ) : null}
                 {option.badge ? (
                   <View style={styles.badgePill}>
-                    <Text style={styles.badgePillText}>
+                    <AutoScrollText style={styles.badgePillText}>
                       {option.badge}
-                    </Text>
+                    </AutoScrollText>
                   </View>
                 ) : null}
               </View>
               {option.subtitle ? (
-                <Text style={styles.optionSubtitle} numberOfLines={2}>
+                <AutoScrollText style={styles.optionSubtitle}>
                   {option.subtitle}
-                </Text>
+                </AutoScrollText>
               ) : null}
             </View>
 
@@ -355,28 +435,27 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
               </View>
               <View style={styles.optionTextGroup}>
                 <View style={styles.titleRow}>
-                  <Text
+                  <AutoScrollText
                     style={[
                       styles.optionTitle,
                       selectedId === 'custom' && styles.optionTitleActive,
                     ]}
-                    numberOfLines={1}
                   >
                     {selectedId === 'custom' && customInitialValue
                       ? `${customInitialValue}`
                       : `Tulis ${customOptionLabel} Kustom...`}
-                  </Text>
+                  </AutoScrollText>
                   <View style={styles.badgePillCustom}>
                     <Text style={styles.badgePillCustomText}>
                       {selectedId === 'custom' ? 'Terpilih' : 'Manual'}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.optionSubtitle} numberOfLines={1}>
+                <AutoScrollText style={styles.optionSubtitle}>
                   {selectedId === 'custom' && customInitialValue
                     ? 'Opsi kustom saat ini aktif • Ketuk untuk ubah'
                     : 'Input langsung jika opsi yang dicari tidak tersedia'}
-                </Text>
+                </AutoScrollText>
               </View>
               <View
                 style={[
@@ -489,7 +568,7 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
               {/* Header */}
               <View style={styles.headerRow}>
                 <View style={styles.headerTextGroup}>
-                  <Text style={styles.headerTitle}>{title}</Text>
+                  <AutoScrollText style={styles.headerTitle}>{title}</AutoScrollText>
                   {subtitle ? (
                     <Text style={styles.headerSubtitle}>{subtitle}</Text>
                   ) : null}
@@ -552,6 +631,56 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
               </View>
             ) : null}
 
+            {/* Priority Scope Filter Tabs (1:1 asn-role-selector.blade.php) */}
+            {hasPriorityTabs ? (
+              <View style={styles.priorityTabBar}>
+                <Pressable
+                  onPress={() => handlePriorityTabChange('invited')}
+                  style={[
+                    styles.priorityTabBtn,
+                    activePriorityTab === 'invited' && styles.priorityTabBtnActive,
+                  ]}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: activePriorityTab === 'invited' }}
+                >
+                  <AutoScrollText
+                    style={[
+                      styles.priorityTabText,
+                      activePriorityTab === 'invited' && styles.priorityTabTextActive,
+                    ]}
+                  >
+                    {prioritizeTabLabel}
+                  </AutoScrollText>
+                  <View style={styles.priorityTabCountBadge}>
+                    <Text style={styles.priorityTabCountText}>
+                      {orderedOptions.filter((o) => prioritizedIdSet.has(o.id)).length}
+                    </Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  onPress={() => handlePriorityTabChange('all')}
+                  style={[
+                    styles.priorityTabBtn,
+                    activePriorityTab === 'all' && styles.priorityTabBtnActive,
+                  ]}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: activePriorityTab === 'all' }}
+                >
+                  <AutoScrollText
+                    style={[
+                      styles.priorityTabText,
+                      activePriorityTab === 'all' && styles.priorityTabTextActive,
+                    ]}
+                  >
+                    {allTabLabel}
+                  </AutoScrollText>
+                  <View style={styles.priorityTabCountBadge}>
+                    <Text style={styles.priorityTabCountText}>{orderedOptions.length}</Text>
+                  </View>
+                </Pressable>
+              </View>
+            ) : null}
+
             {/* Options List / Empty State */}
             {filteredOptions.length === 0 ? (
               <View style={styles.emptyContainer}>
@@ -573,9 +702,9 @@ export const AgendaOptionModal: React.FC<AgendaOptionModalProps> = ({
                     accessibilityLabel={`Gunakan ${searchQuery.trim()} sebagai ${customOptionLabel}`}
                   >
                     <PlusCircle size={17} color={colors.primary} strokeWidth={2} />
-                    <Text style={styles.emptyCustomButtonText} numberOfLines={1}>
+                    <AutoScrollText style={styles.emptyCustomButtonText}>
                       Gunakan "{searchQuery.trim()}" sebagai {customOptionLabel}
-                    </Text>
+                    </AutoScrollText>
                   </Pressable>
                 ) : null}
                 <Pressable
@@ -695,6 +824,7 @@ const styles = StyleSheet.create({
   },
   headerTextGroup: {
     flex: 1,
+    minWidth: 0,
   },
   headerTitle: {
     ...typography.headlineSm,
@@ -765,18 +895,21 @@ const styles = StyleSheet.create({
   },
   optionTextGroup: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    minWidth: 0,
   },
   optionTitle: {
     ...typography.labelMd,
     fontFamily: fontFamilies.sansSemiBold,
     fontSize: 12.5,
     color: colors.onSurface,
+    flexShrink: 1,
   },
   optionTitleActive: {
     fontFamily: fontFamilies.sansBold,
@@ -788,19 +921,88 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 15,
   },
-  badgePill: {
-    backgroundColor: colors.surfaceSoft,
+  priorityTagPill: {
+    backgroundColor: colors.infoBg,
     paddingHorizontal: 6,
     paddingVertical: 1,
+    borderRadius: rounded.sm,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    flexShrink: 0,
+    maxWidth: '34%',
+  },
+  priorityTagText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 9.5,
+    color: colors.infoText,
+  },
+  badgePill: {
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 7,
+    paddingVertical: 1.5,
     borderRadius: rounded.full,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
+    flexShrink: 0,
+    maxWidth: '46%',
   },
   badgePillText: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansSemiBold,
     fontSize: 9.5,
     color: colors.textSecondary,
+  },
+  priorityTabBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 4,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    marginBottom: spacing.sm,
+  },
+  priorityTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 38,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: rounded.sm,
+  },
+  priorityTabBtnActive: {
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  priorityTabText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    fontSize: 11.5,
+    color: colors.textSecondary,
+    flexShrink: 1,
+  },
+  priorityTabTextActive: {
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  priorityTabCountBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceContainer,
+    flexShrink: 0,
+  },
+  priorityTabCountText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    color: colors.onSurface,
   },
   radioCircle: {
     width: 18,

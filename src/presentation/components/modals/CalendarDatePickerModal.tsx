@@ -19,11 +19,18 @@ import {
   X,
 } from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
+import {
+  formatTanggalIndonesia,
+  getJakartaCurrentYearMonth,
+  getJakartaDateKey,
+  JAKARTA_TIME_ZONE,
+} from '../../../core/utils/dateFormatter';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
 
-export const AGENDA_TIME_ZONE = 'Asia/Jakarta';
+export const AGENDA_TIME_ZONE = JAKARTA_TIME_ZONE;
+export { getJakartaDateKey };
 
 export interface CalendarDatePickerModalProps {
   visible: boolean;
@@ -42,26 +49,9 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
-export function getJakartaDateKey(date: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: AGENDA_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
-  return `${part('year')}-${part('month')}-${part('day')}`;
-}
-
 export function formatIndonesianDate(dateKey: string): string {
   const [year, month, day] = dateKey.split('-').map(Number);
-  return new Intl.DateTimeFormat('id-ID', {
-    timeZone: AGENDA_TIME_ZONE,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+  return formatTanggalIndonesia(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
 function addDaysToKey(dateKey: string, days: number): string {
@@ -100,14 +90,15 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
   const effectiveMinDate = minDate ?? todayKey;
 
   const [tempSelectedDate, setTempSelectedDate] = useState<string>(selectedDate || todayKey);
+  const jakartaNowYM = useMemo(() => getJakartaCurrentYearMonth(new Date()), []);
   const [viewYear, setViewYear] = useState<number>(() => {
     const initial = selectedDate || todayKey;
-    return Number(initial.split('-')[0]) || new Date().getFullYear();
+    return Number(initial.split('-')[0]) || jakartaNowYM.year;
   });
   const [viewMonth, setViewMonth] = useState<number>(() => {
     const initial = selectedDate || todayKey;
     const m = Number(initial.split('-')[1]);
-    return !isNaN(m) ? m - 1 : new Date().getMonth();
+    return !isNaN(m) ? m - 1 : jakartaNowYM.monthIndex;
   });
 
   // Sync state whenever modal is opened
@@ -148,10 +139,10 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
   const calendarCells = useMemo<CalendarCell[]>(() => {
     const cells: CalendarCell[] = [];
 
-    // Days in current, previous, and first day of week
-    const daysInCurrentMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sunday
-    const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+    // Days in current, previous, and first day of week (UTC-safe calendar grid)
+    const daysInCurrentMonth = new Date(Date.UTC(viewYear, viewMonth + 1, 0)).getUTCDate();
+    const firstDayOfWeek = new Date(Date.UTC(viewYear, viewMonth, 1)).getUTCDay(); // 0 = Sunday
+    const daysInPrevMonth = new Date(Date.UTC(viewYear, viewMonth, 0)).getUTCDate();
 
     // 1. Previous month trailing days
     for (let i = firstDayOfWeek - 1; i >= 0; i--) {

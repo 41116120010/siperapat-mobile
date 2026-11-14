@@ -36,6 +36,7 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { Header } from '../components/common/Header';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
@@ -44,6 +45,7 @@ import { FeedbackModal } from '../components/modals/FeedbackModal';
 import { useEmployeeStore } from '../store/useEmployeeStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { cleanNIP, validateNIP } from '../../core/utils/nipValidator';
+import { formatTanggalSingkat } from '../../core/utils/dateFormatter';
 
 interface EditEmployeeScreenProps {
   employeeId: string;
@@ -53,13 +55,7 @@ interface EditEmployeeScreenProps {
 
 function formatIndonesianDate(iso?: string | null): string {
   if (!iso) return '-';
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return '-';
-  return parsed.toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  return formatTanggalSingkat(iso);
 }
 
 export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
@@ -489,9 +485,9 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
               {isEditingSelf ? (
                 <View style={styles.lockedFieldBox}>
                   <Lock size={16} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={styles.lockedFieldText} numberOfLines={1}>
+                  <AutoScrollText style={styles.lockedFieldText}>
                     {displayRoleLabel}
-                  </Text>
+                  </AutoScrollText>
                 </View>
               ) : (
                 <Pressable
@@ -500,9 +496,9 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel="Pilih Peran Pengguna"
                 >
-                  <Text style={styles.selectorValue} numberOfLines={1}>
+                  <AutoScrollText style={styles.selectorValue}>
                     {displayRoleLabel}
-                  </Text>
+                  </AutoScrollText>
                   <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
                 </Pressable>
               )}
@@ -526,17 +522,17 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel="Pilih Unit Kerja Organisasi"
                 >
-                  <Text style={styles.selectorValue} numberOfLines={1}>
+                  <AutoScrollText style={styles.selectorValue}>
                     {displayUnitLabel}
-                  </Text>
+                  </AutoScrollText>
                   <ChevronDown size={18} color={colors.textMuted} strokeWidth={2} />
                 </Pressable>
               ) : (
                 <View style={styles.lockedFieldBox}>
                   <Building2 size={16} color={colors.textMuted} strokeWidth={2} />
-                  <Text style={styles.lockedFieldText} numberOfLines={1}>
+                  <AutoScrollText style={styles.lockedFieldText}>
                     {displayUnitLabel}
-                  </Text>
+                  </AutoScrollText>
                 </View>
               )}
             </View>
@@ -669,9 +665,9 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
                 <Text style={styles.darkUserName} numberOfLines={2}>
                   {name || selectedEmployee.name}
                 </Text>
-                <Text style={styles.darkUserEmail} numberOfLines={1}>
+                <AutoScrollText style={styles.darkUserEmail}>
                   {email || selectedEmployee.email}
-                </Text>
+                </AutoScrollText>
               </View>
             </View>
 
@@ -684,9 +680,9 @@ export const EditEmployeeScreen: React.FC<EditEmployeeScreenProps> = ({
               </View>
               <View style={styles.darkMetaRow}>
                 <Text style={styles.darkMetaLabel}>Unit:</Text>
-                <Text style={styles.darkMetaValue} numberOfLines={1}>
+                <AutoScrollText style={styles.darkMetaValue}>
                   {selectedUnitRecord?.nama_unit || selectedEmployee.unit || 'Pusat / Lembaga'}
-                </Text>
+                </AutoScrollText>
               </View>
               <View style={styles.darkMetaRow}>
                 <Text style={styles.darkMetaLabel}>Peran:</Text>
@@ -923,6 +919,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansMedium,
     color: colors.onSurface,
     flex: 1,
+    minWidth: 0,
   },
   lockedFieldBox: {
     flexDirection: 'row',
@@ -940,6 +937,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansMedium,
     color: colors.textSecondary,
     flex: 1,
+    minWidth: 0,
   },
   fieldHint: {
     ...typography.bodySm,
@@ -1063,6 +1061,7 @@ const styles = StyleSheet.create({
   },
   darkIdentityCol: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   darkUserName: {
@@ -1074,6 +1073,7 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     fontFamily: fontFamilies.sansRegular,
     color: colors.borderSubtle,
+    minWidth: 0,
   },
   darkDivider: {
     height: 1,
@@ -1098,6 +1098,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.sansSemiBold,
     color: colors.onPrimary,
     flexShrink: 1,
+    minWidth: 0,
     textAlign: 'right',
   },
   darkMetaValueMono: {

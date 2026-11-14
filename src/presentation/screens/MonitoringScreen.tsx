@@ -36,6 +36,7 @@ import {
   Info,
   Mail,
   MapPin,
+  Monitor,
   NotebookPen,
   Pencil,
   Play,
@@ -54,8 +55,13 @@ import {
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
-import { formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFormatter';
+import {
+  formatTanggalIndonesia,
+  formatTanggalWaktuWIB,
+  formatWaktuWIB,
+} from '../../core/utils/dateFormatter';
 import { resolveAttendanceMediaUrl, resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
+import { AutoScrollText } from '../components/common/AutoScrollText';
 import { Button } from '../components/common/Button';
 import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
@@ -822,7 +828,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               record.status === 'belum_hadir'
                 ? 'Belum melakukan presensi'
                 : record.timestamp
-                  ? new Date(record.timestamp).toLocaleString('id-ID')
+                  ? formatTanggalWaktuWIB(record.timestamp)
                   : 'Waktu tidak tersedia',
             signedAt: record.timestamp || null,
             location: record.asnUnitKerja || 'LLDIKTI Wilayah X',
@@ -1291,7 +1297,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
             {canManageStatus && rawStatus === 'scheduled' && !canStartNow ? (
               <Text style={styles.earliestStartHint}>
                 Rapat baru dapat dimulai 15 menit sebelum jadwal
-                {earliestStartAt ? ` (${formatWaktuWIB(earliestStartAt)} WIB)` : ''}.
+                {earliestStartAt ? ` (${formatWaktuWIB(earliestStartAt)})` : ''}.
               </Text>
             ) : null}
           </View>
@@ -1301,29 +1307,29 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         <View style={styles.metaInfoBar}>
           <View style={styles.metaInfoCol}>
             <Text style={styles.metaInfoLabel}>MPI No.</Text>
-            <Text style={styles.metaInfoMonoValue} numberOfLines={1}>
+            <AutoScrollText style={styles.metaInfoMonoValue}>
               {rawAgenda?.slug || meeting?.code || '-'}
-            </Text>
+            </AutoScrollText>
           </View>
           <View style={styles.metaInfoDivider} />
           <View style={styles.metaInfoCol}>
             <Text style={styles.metaInfoLabel}>Pemimpin Rapat</Text>
-            <Text style={styles.metaInfoBoldValue} numberOfLines={1}>
+            <AutoScrollText style={styles.metaInfoBoldValue}>
               {rawAgenda?.pimpinan?.name ||
                 rawAgenda?.nama_pimpinan ||
                 meeting?.leader ||
                 '-'}
-            </Text>
+            </AutoScrollText>
           </View>
           <View style={styles.metaInfoDivider} />
           <View style={styles.metaInfoCol}>
             <Text style={styles.metaInfoLabel}>Notulis Rapat</Text>
-            <Text style={styles.metaInfoBoldValue} numberOfLines={1}>
+            <AutoScrollText style={styles.metaInfoBoldValue}>
               {rawAgenda?.notulis?.name ||
                 rawAgenda?.nama_notulis ||
                 meeting?.notulis ||
                 '-'}
-            </Text>
+            </AutoScrollText>
           </View>
         </View>
 
@@ -1336,9 +1342,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               </View>
               <View style={styles.flexOne}>
                 <Text style={styles.zoomTitle}>Tautan Pertemuan Daring</Text>
-                <Text style={styles.zoomUrlText} numberOfLines={1}>
+                <AutoScrollText style={styles.zoomUrlText}>
                   {meeting.zoomUrl}
-                </Text>
+                </AutoScrollText>
               </View>
             </View>
             <Pressable
@@ -1434,12 +1440,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                         )}
                       </View>
                       <View style={styles.flexOne}>
-                        <Text style={styles.attendeeCompactName} numberOfLines={1}>
+                        <AutoScrollText style={styles.attendeeCompactName}>
                           {p.name}
-                        </Text>
-                        <Text style={styles.attendeeCompactUnit} numberOfLines={1}>
+                        </AutoScrollText>
+                        <AutoScrollText style={styles.attendeeCompactUnit}>
                           {p.unit || 'LLDIKTI'}
-                        </Text>
+                        </AutoScrollText>
                       </View>
                     </View>
 
@@ -1529,9 +1535,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 {digitalMeta ? (
                   <View style={styles.digitalMetaBox}>
                     <View style={styles.digitalMetaLeft}>
-                      <Text style={styles.digitalMetaTitle} numberOfLines={1}>
+                      <AutoScrollText style={styles.digitalMetaTitle}>
                         {digitalMeta.perihal || meeting?.title || 'Undangan Rapat'}
-                      </Text>
+                      </AutoScrollText>
                       <Text style={styles.digitalMetaLine}>
                         <Text style={styles.digitalMetaStrong}>Nomor:</Text>{' '}
                         {digitalMeta.nomor_surat || '-'}
@@ -1638,6 +1644,16 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                     ) : null}
                   </View>
                 )}
+
+                {isDigitalCircular ? (
+                  <View style={styles.webOnlyNoticeBox}>
+                    <Monitor size={15} color={colors.infoText} strokeWidth={2} />
+                    <Text style={styles.webOnlyNoticeText}>
+                      Pembuatan dan penyuntingan naskah surat undangan digital resmi dilakukan
+                      melalui portal Website SIPERAPAT.
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             </View>
           );
@@ -1691,13 +1707,13 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                             <Text style={styles.targetInvitedAvatarText}>{uInitials}</Text>
                           </View>
                           <View style={styles.flexOne}>
-                            <Text style={styles.targetInvitedName} numberOfLines={1}>
+                            <AutoScrollText style={styles.targetInvitedName}>
                               {u.name}
-                            </Text>
-                            <Text style={styles.targetInvitedSub} numberOfLines={1}>
+                            </AutoScrollText>
+                            <AutoScrollText style={styles.targetInvitedSub}>
                               NIP: {u.nip || '-'}
                               {u.unit ? ` • ${u.unit}` : ''}
-                            </Text>
+                            </AutoScrollText>
                           </View>
                         </View>
                       );
@@ -1822,7 +1838,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               {att ? (
                 <View style={styles.webSigHadirBadge}>
                   <Text style={styles.webSigHadirBadgeText}>
-                    ✓ Hadir ({att.signedAt ? `${formatWaktuWIB(att.signedAt)} WIB` : 'Tercatat'})
+                    ✓ Hadir ({att.signedAt ? formatWaktuWIB(att.signedAt) : 'Tercatat'})
                   </Text>
                 </View>
               ) : null}
@@ -1931,6 +1947,16 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                     )}
                   </View>
                 </View>
+
+                {(canManageMinutesFlag || canManageStatus) ? (
+                  <View style={styles.webOnlyNoticeBox}>
+                    <Monitor size={15} color={colors.infoText} strokeWidth={2} />
+                    <Text style={styles.webOnlyNoticeText}>
+                      Penyesuaian lanjutan dokumen laporan agenda dan penyuntingan naskah surat
+                      digital dapat dilakukan melalui portal Website SIPERAPAT.
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             </View>
           );
@@ -2150,9 +2176,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 accessibilityRole="button"
               >
                 <User size={16} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.roleSelectorText} numberOfLines={1}>
+                <AutoScrollText style={styles.roleSelectorText}>
                   {selectedLeaderLabel}
-                </Text>
+                </AutoScrollText>
               </Pressable>
 
               <Text style={[styles.roleFieldLabel, styles.roleFieldGap]}>
@@ -2164,9 +2190,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 accessibilityRole="button"
               >
                 <NotebookPen size={16} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.roleSelectorText} numberOfLines={1}>
+                <AutoScrollText style={styles.roleSelectorText}>
                   {selectedNotulisLabel}
-                </Text>
+                </AutoScrollText>
               </Pressable>
             </View>
 
@@ -2279,7 +2305,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                     <Text style={styles.circularSecondaryBtnText}>
                       {isUploadingPhoto
                         ? 'Mengunggah Foto...'
-                        : '+ Tambah Foto Dokumentasi dari Galeri'}
+                        : 'Tambah Foto Dokumentasi dari Galeri'}
                     </Text>
                   </Pressable>
                 </View>
@@ -2318,9 +2344,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.rolesModalCard}>
             <View style={styles.rolesModalHeader}>
-              <Text style={styles.rolesModalTitle} numberOfLines={1}>
+              <AutoScrollText style={styles.rolesModalTitle} containerStyle={styles.flexOne}>
                 {zoomDoc?.caption || 'Dokumentasi Rapat'}
-              </Text>
+              </AutoScrollText>
               <Pressable
                 onPress={() => setZoomDoc(null)}
                 style={styles.zoomCloseBtn}
@@ -2909,6 +2935,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: rounded.full,
     borderWidth: 1,
+    flexShrink: 0,
   },
   circularTypeBadgeBlue: {
     backgroundColor: colors.infoBg,
@@ -2943,6 +2970,7 @@ const styles = StyleSheet.create({
   },
   digitalMetaLeft: {
     flex: 1,
+    minWidth: 0,
     gap: 3,
   },
   digitalMetaTitle: {
@@ -3531,6 +3559,7 @@ const styles = StyleSheet.create({
   },
   roleSelectorText: {
     flex: 1,
+    minWidth: 0,
     fontFamily: fontFamilies.sansSemiBold,
     fontSize: 13,
     lineHeight: 18,
@@ -3570,5 +3599,24 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 360,
     backgroundColor: colors.primaryDarkest,
+  },
+  webOnlyNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs + 2,
+    backgroundColor: colors.infoBg,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    borderRadius: rounded.md,
+    padding: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  webOnlyNoticeText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.infoText,
+    flex: 1,
+    minWidth: 0,
+    lineHeight: 18,
   },
 });

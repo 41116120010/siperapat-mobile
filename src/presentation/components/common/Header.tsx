@@ -5,6 +5,7 @@ import { ChevronLeft } from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { MIN_TOUCH_TARGET, spacing } from '../../../core/theme/tokens';
+import { AutoScrollText } from './AutoScrollText';
 
 export interface HeaderProps {
   title?: string;
@@ -48,18 +49,14 @@ export const Header: React.FC<HeaderProps> = ({
               />
             </Pressable>
             <View style={[styles.textContainer, rightAction ? { paddingRight: MIN_TOUCH_TARGET + 4 } : undefined]}>
-              <Text style={styles.title} numberOfLines={1}>
-                {title}
-              </Text>
+              <AutoScrollText style={styles.title}>{title}</AutoScrollText>
               {subtitle ? (
-                <Text style={styles.subtitle} numberOfLines={1}>
-                  {subtitle}
-                </Text>
+                <AutoScrollText style={styles.subtitle}>{subtitle}</AutoScrollText>
               ) : null}
             </View>
           </View>
         ) : (
-          <View style={styles.centeredBrandContainer}>
+          <View style={[styles.centeredBrandContainer, rightAction ? { paddingHorizontal: MIN_TOUCH_TARGET + 4 } : undefined]}>
             <View style={styles.logoContainer}>
               <Image
                 source={require('../../../../assets/images/tut-wuri-handayani.png')}
@@ -68,12 +65,8 @@ export const Header: React.FC<HeaderProps> = ({
               />
             </View>
             <View style={styles.brandTextContainer}>
-              <Text style={styles.title} numberOfLines={1}>
-                {title}
-              </Text>
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {subtitle}
-              </Text>
+              <AutoScrollText style={styles.title}>{title}</AutoScrollText>
+              <AutoScrollText style={styles.subtitle}>{subtitle}</AutoScrollText>
             </View>
           </View>
         )}
@@ -107,11 +100,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm + 2,
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '100%',
   },
   navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
   },
   logoContainer: {
     width: 36,
@@ -126,6 +123,8 @@ const styles = StyleSheet.create({
   brandTextContainer: {
     alignItems: 'flex-start',
     justifyContent: 'center',
+    flexShrink: 1,
+    minWidth: 0,
   },
   backButton: {
     width: MIN_TOUCH_TARGET,
@@ -141,6 +140,7 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
+    minWidth: 0,
   },
   title: {
     ...typography.headlineSm,
