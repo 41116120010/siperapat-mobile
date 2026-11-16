@@ -12,7 +12,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import {
   BarChart3,
   Building,
-  Calendar,
   Check,
   CheckCircle2,
   CheckSquare,
@@ -20,7 +19,6 @@ import {
   ChevronRight,
   Circle,
   CircleDot,
-  Clock,
   DoorOpen,
   Eye,
   FilePenLine,
@@ -55,6 +53,10 @@ import { Header } from '../components/common/Header';
 import { AutoScrollText } from '../components/common/AutoScrollText';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import {
+  validateWibSchedule,
+  WibScheduleSection,
+} from '../components/forms/WibScheduleSection';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { CalendarDatePickerModal, getJakartaDateKey } from '../components/modals/CalendarDatePickerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
@@ -154,17 +156,6 @@ const VENUE_OPTIONS: AgendaOption[] = [
   },
 ];
 
-function computeDurationLabel(start: string, end: string): string {
-  const s = start.match(/^(\d{1,2})[:.](\d{2})$/);
-  const e = end.match(/^(\d{1,2})[:.](\d{2})$/);
-  if (!s || !e) return 'Estimasi Durasi: Sesuai Jadwal WIB';
-  const diff = Number(e[1]) * 60 + Number(e[2]) - (Number(s[1]) * 60 + Number(s[2]));
-  if (diff <= 0) return 'Estimasi Durasi: —';
-  const h = Math.floor(diff / 60);
-  const m = diff % 60;
-  return `Estimasi Durasi: ${h} Jam ${String(m).padStart(2, '0')} Menit`;
-}
-
 export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   onBack,
   onSuccess,
@@ -204,6 +195,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [dateIso, setDateIso] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
+  const [isUntilFinished, setIsUntilFinished] = useState(false);
   const [venue, setVenue] = useState('Pilih ruang rapat');
   const [venueId, setVenueId] = useState('');
   const [customClassification, setCustomClassification] = useState('');
@@ -350,6 +342,19 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         .showToast({ type: 'warning', message: 'Pilih tanggal rapat terlebih dahulu.' });
       return;
     }
+    const scheduleCheck = validateWibSchedule({
+      dateIso,
+      startTime,
+      endTime,
+      isUntilFinished,
+    });
+    if (!scheduleCheck.valid) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: scheduleCheck.errorMessage || 'Periksa kembali jam mulai dan selesai WIB.',
+      });
+      return;
+    }
     if (formatType !== 'online' && venueId === '') {
       useFeedbackStore
         .getState()
@@ -395,8 +400,10 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         tipe_rapat: formatType,
         lokasi_ruang: formatType === 'online' || venue === 'Pilih ruang rapat' ? null : venue,
         link_meeting: formatType === 'offline' ? null : zoomUrl || null,
-        waktu_mulai: toIsoDateTime(dateIso, startTime),
-        waktu_selesai: endTime.trim() ? toIsoDateTime(dateIso, endTime) : null,
+        waktu_mulai: toIsoDateTime(dateIso, scheduleCheck.normalizedStart),
+        waktu_selesai: scheduleCheck.normalizedEnd
+          ? toIsoDateTime(dateIso, scheduleCheck.normalizedEnd)
+          : null,
         pimpinan_id: leaderId ? Number(leaderId) : null,
         notulis_id: notulisId ? Number(notulisId) : null,
         target_type: targetType,
@@ -706,51 +713,22 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
             </View>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>
-              Waktu Pelaksanaan <Text style={styles.required}>*</Text>
-            </Text>
-            <Pressable
-              onPress={() => setActiveModal('date')}
-              style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
-            >
-              <View style={styles.selectorLeft}>
-                <Calendar size={18} color={colors.primary} strokeWidth={2} />
-                <AutoScrollText style={styles.selectorValue}>{date}</AutoScrollText>
-              </View>
-              <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
-            </Pressable>
-          </View>
-
-          <View style={styles.timeRow}>
-            <View style={styles.timeCol}>
-              <Text style={styles.label}>Mulai (WIB)</Text>
-              <TextInput
-                style={styles.timeInput}
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="09:00"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.timeCol}>
-              <Text style={styles.label}>Selesai (WIB)</Text>
-              <TextInput
-                style={styles.timeInput}
-                value={endTime}
-                onChangeText={setEndTime}
-                placeholder="12:00"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-          </View>
-
-          <View style={styles.durationInline}>
-            <Clock size={15} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.durationInlineText}>
-              {computeDurationLabel(startTime, endTime)}
-            </Text>
-          </View>
+          <WibScheduleSection
+            dateLabel={date}
+            dateIso={dateIso}
+            onPressDate={() => setActiveModal('date')}
+            startTime={startTime}
+            onChangeStartTime={setStartTime}
+            endTime={endTime}
+            onChangeEndTime={setEndTime}
+            isUntilFinished={isUntilFinished}
+            onToggleUntilFinished={(checked) => {
+              setIsUntilFinished(checked);
+              if (!checked && !endTime.trim()) {
+                setEndTime('12:00');
+              }
+            }}
+          />
 
           {formatType !== 'online' ? (
             <View style={styles.fieldGroup}>
@@ -1590,37 +1568,6 @@ const styles = StyleSheet.create({
   actionPillText: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansBold,
-    color: colors.primary,
-  },
-
-  timeRow: { flexDirection: 'row', gap: spacing.sm },
-  timeCol: { flex: 1, gap: spacing.xs + 2 },
-  timeInput: {
-    minHeight: MIN_TOUCH_TARGET,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    paddingHorizontal: spacing.sm + 4,
-    backgroundColor: colors.surfaceCard,
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 14,
-    color: colors.onSurface,
-  },
-  durationInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.xs + 4,
-    borderRadius: rounded.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  durationInlineText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
     color: colors.primary,
   },
 

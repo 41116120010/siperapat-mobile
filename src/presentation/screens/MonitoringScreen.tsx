@@ -56,6 +56,7 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import {
+  formatRentangWaktu,
   formatTanggalIndonesia,
   formatTanggalWaktuWIB,
   formatWaktuWIB,
@@ -998,7 +999,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               <Text style={styles.heroMetaText}>
                 <Text style={styles.heroMetaWhiteBold}>{statusLabelText}</Text>
                 {meeting
-                  ? ` • ${meeting.date} • ${meeting.startTime} - ${meeting.endTime || 'Selesai'} WIB`
+                  ? ` • ${meeting.date} • ${rawAgenda?.rentang_waktu || formatRentangWaktu(meeting.startTime, meeting.endTime)}`
                   : ''}
               </Text>
             </View>

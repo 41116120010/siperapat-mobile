@@ -17,6 +17,7 @@ import {
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
+import { formatRentangWaktu } from '../../core/utils/dateFormatter';
 import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { attendanceApi } from '../../data/datasources/attendanceApi';
 import { ApiAgendaDto } from '../../data/datasources/apiTypes';
@@ -86,7 +87,7 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
   const scheduleDisplay =
     rawAgenda?.jadwal_lengkap ||
     (meeting
-      ? `${meeting.date}, ${meeting.startTime}${meeting.endTime ? ` - ${meeting.endTime} WIB` : ' WIB s.d. Selesai'}`
+      ? `${meeting.date}, ${formatRentangWaktu(meeting.startTime, meeting.endTime)}`
       : '—');
   const locationDisplay =
     rawAgenda?.lokasi_ruang ??

@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   BarChart3,
   Building,
-  Calendar,
   Check,
   CheckCircle2,
   CheckSquare,
@@ -63,6 +62,10 @@ import { AutoScrollText } from '../components/common/AutoScrollText';
 import { ErrorState } from '../components/common/ErrorState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
+import {
+  validateWibSchedule,
+  WibScheduleSection,
+} from '../components/forms/WibScheduleSection';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import {
   CalendarDatePickerModal,
@@ -194,6 +197,8 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   const [dateIso, setDateIso] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
+  const [isUntilFinished, setIsUntilFinished] = useState(false);
+  const [endDateIso, setEndDateIso] = useState<string | null>(null);
 
   const [venue, setVenue] = useState('Pilih ruang rapat');
   const [venueId, setVenueId] = useState('');
@@ -282,8 +287,11 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             setDate(agenda.date);
           }
         }
+        const hasExplicitEndTime = Boolean(raw.waktu_selesai && agenda.endTime);
         setStartTime(agenda.startTime || '09:00');
-        setEndTime(agenda.endTime || '12:00');
+        setEndTime(hasExplicitEndTime ? agenda.endTime : '');
+        setIsUntilFinished(!hasExplicitEndTime);
+        setEndDateIso(raw.waktu_selesai ? raw.waktu_selesai.slice(0, 10) : null);
 
         const matchVenue = VENUE_OPTIONS.find(
           (v) => v.title.toLowerCase() === agenda.venue?.toLowerCase(),
@@ -533,6 +541,13 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     }
   };
 
+  const handleToggleUntilFinished = (checked: boolean) => {
+    setIsUntilFinished(checked);
+    if (!checked && !endTime.trim()) {
+      setEndTime('12:00');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!title.trim()) {
       useFeedbackStore.getState().showToast({
@@ -545,6 +560,20 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
       useFeedbackStore.getState().showToast({
         type: 'warning',
         message: 'Pilih tanggal rapat terlebih dahulu.',
+      });
+      return;
+    }
+    const scheduleCheck = validateWibSchedule({
+      dateIso,
+      startTime,
+      endTime,
+      isUntilFinished,
+      endDateIso,
+    });
+    if (!scheduleCheck.valid) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: scheduleCheck.errorMessage || 'Periksa kembali jam mulai dan selesai WIB.',
       });
       return;
     }
@@ -594,6 +623,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
       return;
     }
 
+    const targetEndDate = endDateIso && endDateIso > dateIso ? endDateIso : dateIso;
     const updated = await updateMeeting(
       meetingId,
       {
@@ -604,8 +634,10 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         lokasi_ruang:
           formatType === 'online' ? null : venue === 'Pilih ruang rapat' ? null : venue,
         link_meeting: formatType === 'offline' ? null : zoomUrl || null,
-        waktu_mulai: toIsoDateTime(dateIso, startTime),
-        waktu_selesai: endTime.trim() ? toIsoDateTime(dateIso, endTime) : null,
+        waktu_mulai: toIsoDateTime(dateIso, scheduleCheck.normalizedStart),
+        waktu_selesai: scheduleCheck.normalizedEnd
+          ? toIsoDateTime(targetEndDate, scheduleCheck.normalizedEnd)
+          : null,
         pimpinan_id: leaderId ? Number(leaderId) : null,
         notulis_id: notulisId ? Number(notulisId) : null,
         target_type: effectiveTargetType,
@@ -962,46 +994,18 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             </View>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>
-              Waktu Pelaksanaan <Text style={styles.required}>*</Text>
-            </Text>
-            <Pressable
-              onPress={() => setActiveModal('date')}
-              style={({ pressed }) => [styles.selectorTrigger, pressed && styles.pressedState]}
-            >
-              <View style={styles.selectorLeft}>
-                <Calendar size={18} color={colors.primary} strokeWidth={2} />
-                <AutoScrollText style={styles.selectorValue}>{date}</AutoScrollText>
-              </View>
-              <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
-            </Pressable>
-          </View>
-
-          <View style={styles.timeRow}>
-            <View style={styles.timeCol}>
-              <Text style={styles.label}>
-                Mulai (WIB) <Text style={styles.required}>*</Text>
-              </Text>
-              <TextInput
-                style={styles.timeInput}
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="09:00"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.timeCol}>
-              <Text style={styles.label}>Selesai (WIB)</Text>
-              <TextInput
-                style={styles.timeInput}
-                value={endTime}
-                onChangeText={setEndTime}
-                placeholder="12:00"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-          </View>
+          <WibScheduleSection
+            dateLabel={date}
+            dateIso={dateIso}
+            onPressDate={() => setActiveModal('date')}
+            startTime={startTime}
+            onChangeStartTime={setStartTime}
+            endTime={endTime}
+            onChangeEndTime={setEndTime}
+            isUntilFinished={isUntilFinished}
+            onToggleUntilFinished={handleToggleUntilFinished}
+            endDateIso={endDateIso}
+          />
 
           {formatType !== 'online' ? (
             <View style={styles.fieldGroup}>
@@ -1691,6 +1695,9 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         onSelectDate={(newDateIso, formattedText) => {
           setDateIso(newDateIso);
           setDate(formattedText);
+          if (endDateIso && endDateIso < newDateIso) {
+            setEndDateIso(null);
+          }
         }}
         minDate={getJakartaDateKey(new Date())}
       />
@@ -2006,20 +2013,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
-  timeRow: { flexDirection: 'row', gap: spacing.sm },
-  timeCol: { flex: 1, gap: spacing.xs + 2 },
-  timeInput: {
-    minHeight: MIN_TOUCH_TARGET,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: rounded.md,
-    paddingHorizontal: spacing.sm + 4,
-    backgroundColor: colors.surfaceCard,
-    ...typography.labelMono,
-    fontFamily: fontFamilies.monoSemiBold,
-    fontSize: 14,
-    color: colors.onSurface,
-  },
   virtualMeetingBox: {
     backgroundColor: colors.background,
     borderRadius: rounded.lg,

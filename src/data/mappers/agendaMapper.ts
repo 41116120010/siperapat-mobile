@@ -7,10 +7,10 @@ function localDatePart(value: string): string {
 }
 
 function localTime(value: string | null): string {
-  if (!value) return '—';
+  if (!value) return '';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleTimeString('id-ID', {
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,

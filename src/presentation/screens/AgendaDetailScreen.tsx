@@ -39,7 +39,7 @@ import {
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
-import { formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFormatter';
+import { formatRentangWaktu, formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFormatter';
 import { resolveAttendanceMediaUrl, resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { agendaApi, UploadFileRef } from '../../data/datasources/agendaApi';
 import { apiClient } from '../../data/datasources/apiClient';
@@ -526,9 +526,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                   <Text style={styles.heroMetaStrong}>
                     {formatStatusLabel(meeting.status, rawAgenda?.status?.label)}
                   </Text>
-                  {` • ${meeting.date} • ${meeting.startTime} ${
-                    meeting.endTime ? `- ${meeting.endTime} WIB` : 'WIB s.d. Selesai'
-                  }`}
+                  {` • ${meeting.date} • ${formatRentangWaktu(meeting.startTime, meeting.endTime)}`}
                 </Text>
               </View>
 

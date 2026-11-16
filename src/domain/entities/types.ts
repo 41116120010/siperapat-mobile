@@ -35,6 +35,7 @@ export interface Meeting {
   notulis?: string;
   notulisId?: number | null;
   date: string;
+  endDate?: string | null;
   startTime: string;
   endTime: string;
   venue: string;

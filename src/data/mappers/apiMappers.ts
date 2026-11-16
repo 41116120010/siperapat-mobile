@@ -75,6 +75,7 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     leader: agenda.pimpinan?.name ?? '', leaderId: agenda.pimpinan?.id ?? null,
     notulis: agenda.notulis?.name ?? '', notulisId: agenda.notulis?.id ?? null,
     date: agenda.waktu_mulai.slice(0, 10),
+    endDate: agenda.waktu_selesai ? agenda.waktu_selesai.slice(0, 10) : null,
     startTime: timePart(agenda.waktu_mulai), endTime: timePart(agenda.waktu_selesai), venue,
     venueId: agenda.lokasi_ruang ? 'custom' : null,
     status: toMeetingStatus(agenda.status.value),

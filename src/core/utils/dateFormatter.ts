@@ -189,6 +189,37 @@ export const formatTanggalWaktuWIB = (dateInput: Date | string | number): string
   return `${datePart} ${timePart}`;
 };
 
-export const formatRentangWaktu = (start: string, end: string): string => {
-  return `${start} - ${end} WIB`;
+export const formatRentangWaktu = (start: string, end?: string | null): string => {
+  const cleanStart = start?.trim();
+  if (!cleanStart) return '-';
+  const cleanEnd = end?.trim();
+  if (cleanEnd && cleanEnd !== '—') {
+    return `${cleanStart} - ${cleanEnd} WIB`;
+  }
+  return `${cleanStart} WIB s.d. Selesai`;
+};
+
+export const normalizeTimeInput = (raw: string, fallback = '09:00'): string => {
+  const digits = raw.replace(/[^0-9:]/g, '').trim();
+  if (!digits) return fallback;
+
+  let hh = 9;
+  let mm = 0;
+
+  if (/^\d{1,2}$/.test(digits)) {
+    hh = Number(digits);
+  } else if (/^\d{3,4}$/.test(digits)) {
+    const padded = digits.padStart(4, '0');
+    hh = Number(padded.slice(0, 2));
+    mm = Number(padded.slice(2, 4));
+  } else {
+    const match = digits.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (!match) return fallback;
+    hh = Number(match[1]);
+    mm = match[2].length === 1 ? Number(`${match[2]}0`) : Number(match[2]);
+  }
+
+  const clampedH = Math.min(23, Math.max(0, Number.isNaN(hh) ? 9 : hh));
+  const clampedM = Math.min(59, Math.max(0, Number.isNaN(mm) ? 0 : mm));
+  return `${String(clampedH).padStart(2, '0')}:${String(clampedM).padStart(2, '0')}`;
 };

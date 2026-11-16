@@ -122,6 +122,26 @@ export function createFormDataFilePart(fileRef: UploadFileRef): ExpoFormDataFile
   };
 }
 
+function appendAgendaFormFields(
+  form: FormData,
+  data: CreateAgendaDto | UpdateAgendaDto,
+): void {
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined) return;
+    if (value === null) {
+      if (key === 'waktu_selesai' || key === 'pimpinan_id' || key === 'notulis_id') {
+        form.append(key, '');
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => form.append(`${key}[]`, String(item)));
+      return;
+    }
+    form.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
+  });
+}
+
 export const agendaApi = {
   downloadSuratEdaran: (streamUrl: string) => apiClient.get<ApiBinaryResponse>(
     protectedSuratEdaranPath(streamUrl),
@@ -203,12 +223,7 @@ export const agendaApi = {
   create: (data: CreateAgendaDto, suratEdaran?: UploadFileRef) => {
     if (!suratEdaran) return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', data);
     const form = new FormData();
-    Object.entries(data).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (Array.isArray(value)) value.forEach((item) => form.append(`${key}[]`, String(item)));
-        else form.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
-      }
-    });
+    appendAgendaFormFields(form, data);
     form.append('surat_edaran', createFormDataFilePart(suratEdaran) as unknown as Blob);
     return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', form);
   },
@@ -216,12 +231,7 @@ export const agendaApi = {
     if (!suratEdaran) return apiClient.put<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`, data);
     const form = new FormData();
     form.append('_method', 'PUT');
-    Object.entries(data).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (Array.isArray(value)) value.forEach((item) => form.append(`${key}[]`, String(item)));
-        else form.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
-      }
-    });
+    appendAgendaFormFields(form, data);
     form.append('surat_edaran', createFormDataFilePart(suratEdaran) as unknown as Blob);
     return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`, form, {
       headers: { 'X-HTTP-Method-Override': 'PUT' },

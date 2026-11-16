@@ -13,6 +13,7 @@ import { Meeting } from '../../../domain/entities/types';
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
+import { formatRentangWaktu } from '../../../core/utils/dateFormatter';
 import { AutoScrollText } from '../common/AutoScrollText';
 
 export interface MeetingCardProps {
@@ -57,9 +58,7 @@ function formatAgendaDateTime(
   const dateLabel = dateMatch
     ? `${Number(dateMatch[3])} ${SHORT_ID_MONTHS[Number(dateMatch[2]) - 1] ?? dateMatch[2]} ${dateMatch[1]}`
     : dateIso;
-  const rangeLabel = endTime
-    ? `${startTime} - ${endTime} WIB`
-    : `${startTime} WIB s.d. Selesai`;
+  const rangeLabel = formatRentangWaktu(startTime, endTime);
   return dateLabel ? `${dateLabel}, ${rangeLabel}` : rangeLabel;
 }
 
