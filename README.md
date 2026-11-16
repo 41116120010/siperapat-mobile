@@ -1,51 +1,68 @@
 # SIPERAPAT Mobile
-**Sistem Informasi Presensi & Rapat Kedinasan — LLDIKTI Wilayah X**  
+
+**Sistem Informasi Presensi & Rapat Kedinasan - LLDIKTI Wilayah X**  
 *Kementerian Pendidikan Tinggi, Sains, dan Teknologi Republik Indonesia*
 
-Aplikasi klien mobile resmi **SIPERAPAT** berbasis **React Native (`0.88.0`)**, **Expo SDK (`^58.0.19`)**, dan **TypeScript (`~6.0.3`)** yang terintegrasi secara *stateless* dengan backend **Laravel 13** melalui REST API v1 (`Authorization: Bearer`).
+Aplikasi klien mobile resmi **SIPERAPAT** berbasis **React Native (`0.88.0`)**, **Expo SDK (`^58.0.19`)**, dan **TypeScript (`~6.0.3`)** yang terintegrasi *stateless* dengan backend **Laravel 13** melalui REST API v1 (`Authorization: Bearer`).
 
 ---
 
-## 1. Kapabilitas Utama & Paritas Antarmuka Web
+## 1. Kapabilitas Utama & Matriks Akses Peran
 
-* **Autentikasi & Pemulihan Sandi Mandiri:** Login multi-identifier (NIP 18 digit / Username) dan reset kata sandi mandiri via email Brevo (`ForgotPasswordScreen`), dengan penyimpanan token aman berbasis `expo-secure-store`.
-* **Navigasi & Pengalaman Pengguna Final (1:1 Web UI/UX):**
-  * Urutan tab utama: **Dashboard → Riwayat → Agenda** *(khusus Administrator & Admin Unit)* **→ Profil**.
-  * **Standardisasi Waktu WIB (`Asia/Jakarta`):** Seluruh pemformatan tanggal, jadwal rapat, dan stempel waktu presensi diproses konsisten pada zona waktu `+07:00` melalui `src/core/utils/dateFormatter.ts` terlepas dari pengaturan timezone perangkat.
-  * **Tipografi Adaptif (`AutoScrollText`):** Mencegah teks panjang atau *badge* filter terpotong dengan elipsis pada layar perangkat sempit.
-  * **Identitas Loading & Transisi Tut Wuri Handayani:** Indikator muat, *pull-to-refresh* (`TutWuriRefresh`), serta overlay transisi antarhalaman (`TutWuriLoader`, `PageTransitionOverlay`).
-  * **Proteksi Tombol Back Android (`BackHandler`):** Menjaga alur navigasi saat transisi/dialog aktif, mengarahkan kembali dari tab sekunder ke `Dashboard`, meminta konfirmasi pada halaman formulir & presensi (`PROTECTED_FORM_ROUTES`), serta guard keluar dua kali pada halaman utama.
-* **Presensi Multimodal:** Pengambilan swafoto langsung (`FaceOvalOverlay` via `expo-camera` dengan fallback galeri dan kompresi `expo-image-manipulator` lebar `600px` JPEG `0.75` serta fallback `480px` `0.5` agar ≤ 512 KB) dan kanvas tanda tangan digital SVG (`DigitalSignaturePad`), diikuti tampilan bukti kehadiran (`ReceiptScreen` & `PerforatedTicket`).
-* **Manajemen Rapat, Notulensi & Rekapitulasi:** Pembuatan/penyuntingan agenda 3-mode target peserta (disertai paginasi checkbox unit/pegawai dan prioritas kandidat terpilih untuk Pimpinan & Notulis), pratinjau/unggah Surat Edaran, workstation notulensi & dokumentasi foto, pemantauan kehadiran (`MonitoringScreen`), manajemen pegawai & unit kerja (`EmployeeDirectoryScreen`, `UnitDirectoryScreen`), log aktivitas terpisah (sistem & pribadi), serta analitik laporan + unduh/bagikan berkas **PDF, DOCX, dan CSV**.
-* **Batasan Fitur Khusus Portal Web:** Penyusunan naskah **Surat Edaran Digital** (`surat_edaran_type = digital`) dan penyuntingan kustomisasi kop/penandatangan **Laporan Berita Acara** (`report_config`) disediakan secara khusus melalui portal Web SIPERAPAT; layar terkait pada mobile menampilkan pemberitahuan terarah sambil tetap mendukung mode unggah berkas dan pratinjau/ekspor dokumen.
+### Akses Menu & Layar per Level Pengguna
+
+| Fitur / Layar | Administrator | Admin Unit | Staff | Staff sebagai Pimpinan / Notulis |
+|---|---|---|---|---|
+| **Tab Navigasi Utama** | Dashboard, Riwayat, Agenda, Profil | Dashboard, Riwayat, Agenda, Profil | Dashboard, Riwayat, Profil | Sama seperti role akun (bisa buka `MonitoringScreen` untuk rapat tugas) |
+| **Presensi Selfie & TTD Digital** | Ya (semua rapat `ongoing`) | Ya (rapat sasaran) | Ya (rapat sasaran) | Ya (rapat sasaran / tugas) |
+| **Buat & Edit Agenda (`Create/EditMeetingScreen`)** | Semua unit (`all_units`, `selected_units`, `selected_users`) | Agenda unit sendiri / dibuat sendiri (`selected_units`, `selected_users`) | Tidak tersedia | Admin Unit yang ditugaskan bisa edit saat `ongoing` |
+| **Pantau Hadir & Verifikasi Selfie/TTD (`MonitoringScreen`)** | Semua rapat | Rapat terkait unitnya | Tidak tersedia (`AgendaDetailScreen` tanpa daftar peserta lain) | **Pimpinan Rapat (`leaderId`)** otomatis diarahkan ke `MonitoringScreen` & dapat memverifikasi media peserta |
+| **Kelola Notulensi & Foto Dokumentasi** | Semua agenda (kecuali `cancelled`) | Pembuat / Admin Unit penyelenggara | Tidak tersedia | Pimpinan atau Notulis ber-role `staff` dapat mengelola saat status `ongoing` |
+| **Laporan & Ekspor (PDF / DOCX / CSV)** | Seluruh instansi | Terlingkup unit terkait | Tidak tersedia | Mengikuti role akun |
+| **Kelola Pegawai (`EmployeeDirectoryScreen`)** | Semua unit | Khusus pegawai di unit sendiri | Tidak tersedia | Mengikuti role akun |
+| **Unit Kerja (`UnitDirectoryScreen`) & Audit Sistem (`AuditLogScreen`)** | Ya (penuh) | Tidak tersedia | Tidak tersedia | Tidak tersedia |
+
+### Perilaku Inti Aplikasi Mobile
+
+* **Autentikasi, Sesi Aman & Pemulihan Sandi:** Login multi-identifier (NIP 18 digit / Username), pemulihan kata sandi via email Brevo (`ForgotPasswordScreen`), serta penyimpanan token terenkripsi di `expo-secure-store`. Saat token kedaluwarsa (`401`) atau akun dinonaktifkan (`403 ACCOUNT_INACTIVE`), aplikasi otomatis mencabut sesi, membersihkan cache berkas biometrik di perangkat, mereset seluruh store Zustand, dan mengarahkan stack navigasi kembali ke `Login`.
+* **Standardisasi Waktu WIB (`Asia/Jakarta`):** Seluruh pemformatan tanggal, rentang jadwal termasuk mode **"Hingga Selesai"** (`waktu_selesai = null`), dan stempel waktu presensi diproses seragam pada zona waktu `+07:00` melalui `src/core/utils/dateFormatter.ts`.
+* **Tipografi Adaptif & Indikator Tut Wuri:** `AutoScrollText` mencegah teks panjang atau badge filter terpotong elipsis pada layar sempit; indikator muat/transisi memakai `TutWuriLoader`, `TutWuriRefresh`, dan `PageTransitionOverlay`; seluruh dialog dan toast validasi memakai `GlobalFeedbackHost` (`useFeedbackStore`) tanpa `Alert.alert` native.
+* **Proteksi Tombol Back Android (`BackHandler`):** Menjaga layar selama overlay transisi/modal aktif, mengarahkan tab sekunder kembali ke `Dashboard`, meminta konfirmasi sebelum keluar dari formulir & presensi (`PROTECTED_FORM_ROUTES`), serta guard keluar dua kali pada root screen.
+* **Presensi Multimodal & Kompresi Lokal:** Pengambilan swafoto wajah (`FaceOvalOverlay` via `expo-camera` dengan fallback galeri dan kompresi `expo-image-manipulator`: lebar `600px` JPEG `0.75`, fallback `480px` `0.5` agar `<= 512 KB`) serta kanvas tanda tangan digital SVG (`DigitalSignaturePad`), diikuti bukti sah (`ReceiptScreen` & `PerforatedTicket`).
+* **Isolasi & Cache Media Biometrik Terotentikasi:** Unduhan swafoto, TTD, dan surat edaran memakai `src/core/utils/authenticatedMediaCache.ts` (deduplikasi request, cek status `2xx` sebelum caching, anti-cache-poisoning). Bila server menandai `can_view_biometrics: false`, klien tidak memanggil endpoint media melainkan menampilkan `BiometricPrivacyPlaceholder` (ikon vektor gembok Slate) alih-alih ikon gagal muat.
+* **Batasan Khusus Portal Web:** Penyusunan naskah **Surat Edaran Digital** (`surat_edaran_type = digital`) dan kustomisasi lanjutan kop/penandatangan **Berita Acara** (`report_config`) dikelola khusus melalui portal Web SIPERAPAT; layar mobile terkait menyediakan pemberitahuan terarah sambil tetap mendukung mode unggah berkas dan ekspor dokumen.
 
 ---
 
 ## 2. Arsitektur Kode & Struktur Direktori
 
-Menggunakan pendekatan berlapis (*Clean / Feature-Layered Architecture*) dengan manajemen state **Zustand `^5.0.15`**:
+Aplikasi menerapkan struktur berlapis dengan manajemen state **Zustand `^5.0.15`**:
 
 ```text
 src/
 ├── core/
 │   ├── config/          # apiConfig.ts (EXPO_PUBLIC_API_BASE_URL, timeout 20s)
 │   ├── theme/           # colors.ts (Slate Navy #0F172A, Emerald #047857), tokens.ts, typography.ts
-│   └── utils/           # dateFormatter.ts (Asia/Jakarta), mediaUrl.ts, nipValidator.ts, geofence.ts
+│   └── utils/           # authenticatedMediaCache.ts, dateFormatter.ts (WIB), mediaUrl.ts, nipValidator.ts
 ├── domain/
-│   ├── entities/        # types.ts (entitas domain ASN, Meeting, Attendance, Report)
+│   ├── entities/        # types.ts (ASN, Meeting, Attendance, UserOption, MeetingPermissions)
 │   └── repositories/    # interfaces.ts
 ├── data/
-│   ├── datasources/     # apiClient.ts, authTokenStore.ts, authApi.ts, agendaApi.ts, attendanceApi.ts, reportApi.ts, userApi.ts, apiTypes.ts
-│   ├── mappers/         # agendaMapper.ts, apiMappers.ts
+│   ├── datasources/     # apiClient.ts, authTokenStore.ts, authApi.ts, agendaApi.ts, attendanceApi.ts,
+│   │                    # reportApi.ts, userApi.ts, apiTypes.ts
+│   ├── mappers/         # apiMappers.ts
 │   └── repositories/    # Implementasi repository + AgendaExportRepository (FileSystem + Sharing)
 └── presentation/
-    ├── components/      # attendance/, cards/, common/ (AutoScrollText, TutWuriLoader, TutWuriRefresh, SimpleHtmlView, Header, PaginationBar), modals/, receipt/ (PerforatedTicket), transitions/
+    ├── components/      # attendance/, cards/, common/ (AutoScrollText, BiometricPrivacyPlaceholder,
+    │                    # GlobalFeedbackHost, Header, PaginationBar, TutWuriLoader, TutWuriRefresh, ...),
+    │                    # forms/, modals/, receipt/ (PerforatedTicket), transitions/
     ├── constants/       # employeeOptions.ts, meetingOptions.ts
     ├── navigation/      # AppNavigator.tsx, types.ts (24 Stack/Tab screens + BackHandler guard)
-    ├── store/           # useAuthStore, useDashboardStore, useMeetingStore, useAttendanceStore, useEmployeeStore, useFeedbackStore, useTransitionStore
-    ├── utils/           # permissionUtils.ts (paritas RBAC & delegasi Pimpinan/Notulis)
+    ├── store/           # useAuthStore, useMeetingStore, useAttendanceStore,
+    │                    # useEmployeeStore, useFeedbackStore, useTransitionStore
+    ├── utils/           # permissionUtils.ts (selaras dengan AgendaPolicy & API permissions)
     └── screens/         # 24 layar operasional:
-                         # Auth & Shell : SplashScreen, LoginScreen, ForgotPasswordScreen, DashboardScreen
+                         # Auth & Shell  : SplashScreen, LoginScreen, ForgotPasswordScreen, DashboardScreen
                          # Agenda & Absen: AgendaScreen, AgendaDetailScreen, CreateMeetingScreen, EditMeetingScreen,
                          #                 PresensiScreen, ReceiptScreen, RiwayatScreen, MonitoringScreen
                          # Admin & Audit : EmployeeDirectoryScreen, AddEmployeeScreen, EditEmployeeScreen,
@@ -56,12 +73,13 @@ src/
 
 ---
 
-## 3. Tech Stack Utama (`package.json`)
+## 3. Tech Stack & Izin Perangkat (`package.json` & `app.json`)
 
 * **Framework:** Expo `^58.0.19`, React Native `0.88.0`, React `19.3.0`, TypeScript `~6.0.3`
 * **Navigasi:** `@react-navigation/native`, `@react-navigation/native-stack`, `@react-navigation/bottom-tabs`, `@react-navigation/material-top-tabs`
 * **State & Ikon:** `zustand ^5.0.15`, `lucide-react-native ^1.72.0`, `react-native-svg`
 * **Perangkat & Berkas:** `expo-camera`, `expo-image-manipulator`, `expo-image-picker`, `expo-document-picker`, `expo-file-system`, `expo-sharing`, `expo-secure-store`
+* **Izin Android (`app.json`):** `CAMERA` (swafoto presensi), `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION`, `USE_BIOMETRIC` / `USE_FINGERPRINT` (`allowBackup: false`, `predictiveBackGestureEnabled: false`).
 
 ---
 
@@ -90,7 +108,7 @@ npx expo start
 
 ---
 
-## 5. Verifikasi Mutu & Build Produksi
+## 5. Verifikasi Mutu & Build Android
 
 ```bash
 # Pemeriksaan tipe TypeScript statis
@@ -98,15 +116,23 @@ npx tsc --noEmit
 
 # Uji bundling Metro Android (Hermes bytecode + aset)
 npx expo export --platform android
-
-# Build APK / AAB melalui EAS
-eas build --platform android --profile production
 ```
+
+Untuk build binary produksi (APK/AAB) menggunakan EAS CLI (`eas build --platform android`), pastikan profil build pada `eas.json` sudah dikonfigurasi terlebih dahulu sesuai akun Expo instansi.
 
 ---
 
-## 6. Dokumentasi Terkait
+## 6. Panduan Kendala Umum (FAQ Teknis)
 
-* **Matriks Keselarasan Kontrak API Mobile:** [`docs/api-contract-alignment.md`](docs/api-contract-alignment.md)
-* **Spesifikasi Resmi REST API v1 (Backend):** Lihat `API.md` pada repositori backend `lldikti-x` (berdasarkan `routes/api.php`)
-* **Kebutuhan Produk & Skema Data:** Lihat `PRD.md` dan `ERD.md` pada repositori backend `lldikti-x`
+* **Mengapa muncul ikon gembok / keterangan "Dilindungi Privasi" pada foto atau TTD peserta rapat?**  
+  Aplikasi menerima `can_view_biometrics: false` dari API untuk melindungi privasi ASN apabila akun Anda bukan pemilik presensi, Administrator, Admin Unit terkait, atau Pimpinan Rapat pada agenda tersebut.
+* **Mengapa kamera selfie atau tombol pilih foto gagal / ditolak?**  
+  Pastikan izin Kamera / Galeri diaktifkan pada pengaturan aplikasi perangkat, dan ukuran berkas hasil tangkapan tidak melebihi batas server 512 KB (aplikasi otomatis mengompresi foto di sisi klien sebelum kirim).
+* **Mengapa sesi mendadak keluar otomatis ke layar Login?**  
+  Terjadi apabila masa berlaku token Sanctum berakhir (30 hari), kata sandi akun diubah dari perangkat lain, atau akun dinonaktifkan oleh Administrator (`403 ACCOUNT_INACTIVE`).
+
+---
+
+## 7. Dokumentasi Terkait
+
+* **Spesifikasi REST API v1 & Arsitektur Backend:** Lihat `README.md` dan `API.md` pada repositori backend `lldikti-x`.
