@@ -1,7 +1,7 @@
 import { IAttendanceRepository } from '../../domain/repositories/interfaces';
 import { Attendance } from '../../domain/entities/types';
 import { attendanceApi } from '../datasources/attendanceApi';
-import { ApiAttendanceDto } from '../datasources/apiTypes';
+import { ApiAgendaDto, ApiAttendanceDto } from '../datasources/apiTypes';
 import { toMeeting } from '../mappers/apiMappers';
 import { resolveAttendanceMediaUrl } from '../../core/utils/mediaUrl';
 
@@ -31,11 +31,25 @@ function toAttendance(dto: ApiAttendanceDto): Attendance {
 }
 
 export class AttendanceRepositoryImpl implements IAttendanceRepository {
-  async getAttendancePortal(agendaId: string) {
+  async getAttendancePortal(agendaId: string): Promise<{
+    agenda: ReturnType<typeof toMeeting>;
+    rawAgenda: ApiAgendaDto;
+    isOngoing: boolean;
+    isEligible: boolean;
+    hasAttended: boolean;
+    attendance: Attendance | null;
+  }> {
     const response = await attendanceApi.portal(agendaId);
     if (!response.success) throw new Error(response.message || 'Gagal memuat portal presensi.');
     const value = response.data;
-    return { agenda: toMeeting(value.agenda), isOngoing: value.is_ongoing, isEligible: value.is_eligible, hasAttended: value.has_attended, attendance: value.my_attendance ? toAttendance(value.my_attendance) : null };
+    return {
+      agenda: toMeeting(value.agenda),
+      rawAgenda: value.agenda,
+      isOngoing: value.is_ongoing,
+      isEligible: value.is_eligible,
+      hasAttended: value.has_attended,
+      attendance: value.my_attendance ? toAttendance(value.my_attendance) : null,
+    };
   }
 
   async submitAttendance(agendaId: string, payload: { selfie_data?: string; signature_data?: string }): Promise<Attendance> {
@@ -60,15 +74,6 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
     if (!response.success) throw new Error(response.message || 'Gagal memuat tanda terima presensi.');
     return toAttendanceReceipt(response.data);
   }
-
-  async getOfflineQueue(): Promise<Attendance[]> {
-    return [];
-  }
-
-  async syncOfflineQueue(): Promise<number> {
-    return 0;
-  }
-
 }
 
 function toAttendanceReceipt(dto: ApiAttendanceDto): Attendance {

@@ -33,7 +33,6 @@ import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { Meeting } from '../../domain/entities/types';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
-import { agendaApi } from '../../data/datasources/agendaApi';
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
@@ -42,11 +41,6 @@ interface DashboardScreenProps {
   onNavigateRiwayat?: () => void;
   onNavigateCreate?: () => void;
   onNavigateReceipt?: (attendanceId: string) => void;
-}
-
-interface DashboardAttendanceMeta {
-  hasAttended: boolean;
-  attendanceId?: string;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
@@ -68,32 +62,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   } = useMeetingStore();
 
   const [selectedDocument, setSelectedDocument] = useState<Meeting | null>(null);
-  const [attendanceMetaByAgenda, setAttendanceMetaByAgenda] = useState<
-    Record<string, DashboardAttendanceMeta>
-  >({});
 
   const loadDashboardWithMeta = useCallback(async () => {
     await fetchDashboard();
-    try {
-      const response = await agendaApi.dashboard();
-      const map: Record<string, DashboardAttendanceMeta> = {};
-      const activeAgendas = (response.data as any)?.active_agendas ?? [];
-      for (const item of activeAgendas) {
-        if (!item?.id) continue;
-        const agendaKey = String(item.id);
-        const attendanceId =
-          item.my_attendance?.id !== undefined && item.my_attendance?.id !== null
-            ? String(item.my_attendance.id)
-            : undefined;
-        map[agendaKey] = {
-          hasAttended: Boolean(item.has_attended || attendanceId),
-          attendanceId,
-        };
-      }
-      setAttendanceMetaByAgenda(map);
-    } catch {
-      // Tetap gunakan data dari store jika sinkronisasi metadata tambahan gagal
-    }
   }, [fetchDashboard]);
 
   useFocusEffect(
@@ -297,8 +268,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <View style={styles.meetingList}>
             {meetings.map((meeting) => {
               const isOngoing = meeting.status === 'ongoing';
-              const meta = attendanceMetaByAgenda[meeting.id];
-              const hasAttended = Boolean(meta?.hasAttended);
+              const hasAttended = Boolean(meeting.hasAttended || meeting.myAttendanceId);
 
               const footerRight = isOngoing ? (
                 hasAttended ? (
@@ -307,9 +277,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       <Check size={13} strokeWidth={2.5} color={colors.onSuccessContainer} />
                       <Text style={styles.attendedPillText}>Sudah Hadir</Text>
                     </View>
-                    {meta?.attendanceId && onNavigateReceipt ? (
+                    {meeting.myAttendanceId && onNavigateReceipt ? (
                       <Pressable
-                        onPress={() => onNavigateReceipt(meta.attendanceId!)}
+                        onPress={() => onNavigateReceipt(meeting.myAttendanceId!)}
                         style={({ pressed }) => [
                           styles.receiptLinkBtn,
                           pressed && styles.secondaryBtnPressed,

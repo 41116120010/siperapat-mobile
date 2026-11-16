@@ -305,10 +305,20 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   }, [currentPage, activeApiFilters]);
 
   const handleApplyFilters = () => {
+    const start = draftStartDate.trim();
+    const end = draftEndDate.trim();
+    if (start && end && start > end) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Tanggal mulai tidak boleh lebih besar dari tanggal selesai.',
+      });
+      return;
+    }
+
     setCurrentPage(1);
     setAppliedFilters({
-      startDate: draftStartDate.trim(),
-      endDate: draftEndDate.trim(),
+      startDate: start,
+      endDate: end,
       status: draftStatus,
       format: draftFormat,
       unitId: draftUnitId,

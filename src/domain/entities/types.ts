@@ -18,12 +18,23 @@ export interface ASN {
   role?: string;
   roleLabel?: string;
   biometricEnabled: boolean;
+  createdAt?: string | null;
   attendanceStats?: { totalAgendas?: number; totalAttended?: number; attendanceRateLabel?: string; onTimeRateLabel?: string; periodLabel?: string };
   security?: { last_password_changed_at?: string | null; last_password_changed_label?: string | null };
 }
 
 export type MeetingStatus = 'draft' | 'ongoing' | 'upcoming' | 'completed' | 'cancelled';
 export type MeetingType = 'hybrid' | 'offline' | 'online';
+
+export interface MeetingPermissions {
+  can_update: boolean;
+  can_delete: boolean;
+  can_manage_status: boolean;
+  can_manage_minutes: boolean;
+  can_manage_circular: boolean;
+  can_attend: boolean;
+  can_export: boolean;
+}
 
 export interface Meeting {
   id: string;
@@ -64,6 +75,9 @@ export interface Meeting {
   };
   totalInvited?: number;
   totalAttended: number;
+  hasAttended?: boolean;
+  myAttendanceId?: string | null;
+  permissions?: MeetingPermissions | null;
   baNumber?: string | null;
   minutesHtml?: string | null;
   summaryHtml?: string | null;

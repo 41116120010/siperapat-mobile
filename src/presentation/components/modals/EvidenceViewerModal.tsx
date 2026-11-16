@@ -30,7 +30,7 @@ import { Button } from '../common/Button';
 import { TutWuriLoader } from '../common/TutWuriLoader';
 import { AutoScrollText } from '../common/AutoScrollText';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
-import { authTokenStore } from '../../../data/datasources/authTokenStore';
+import { resolveAuthenticatedMediaFile } from '../../../core/utils/authenticatedMediaCache';
 import { formatTanggalIndonesia, formatWaktuWIB } from '../../../core/utils/dateFormatter';
 import { resolveAttendanceMediaUrl } from '../../../core/utils/mediaUrl';
 
@@ -142,54 +142,39 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
     }
 
     // 1. Direct Base64 data URI or Local file URI (from fresh attendance submission)
-    if (targetMediaUrl.startsWith('data:image/') || targetMediaUrl.startsWith('file://')) {
+    if (
+      targetMediaUrl.startsWith('data:image/') ||
+      targetMediaUrl.startsWith('file://') ||
+      targetMediaUrl.startsWith('content://')
+    ) {
       setLocalImageUri(targetMediaUrl);
       setIsLoadingMedia(false);
       return;
     }
 
-    // 2. Remote URL: download to local cache with Bearer Token to guarantee 100% reliable rendering
+    // 2. Remote URL: resolve via deduplicated authenticated media cache (prevents cache poisoning)
     setIsLoadingMedia(true);
+    setLocalImageUri(null);
     try {
-      const token = await authTokenStore.get();
-      const cacheDir = FileSystem.cacheDirectory || '';
       const safeId = (attendanceId || 'att').replace(/[^a-zA-Z0-9_-]/g, '_');
       const safeToken = (verificationToken || 'SIP').replace(/[^a-zA-Z0-9_-]/g, '_');
       const ext = activeTab === 'selfie' ? 'jpg' : 'png';
-      const localDest = `${cacheDir}evidence_${activeTab}_${safeId}_${safeToken}.${ext}`;
 
-      // Check if file is already cached locally
-      const existingInfo = await FileSystem.getInfoAsync(localDest);
-      if (existingInfo.exists && existingInfo.size && existingInfo.size > 0) {
-        setLocalImageUri(localDest);
-        setIsLoadingMedia(false);
-        return;
-      }
-
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const downloadResult = await FileSystem.downloadAsync(targetMediaUrl, localDest, {
-        headers,
+      const cachedUri = await resolveAuthenticatedMediaFile(targetMediaUrl, {
+        cachePrefix: `evidence_${activeTab}`,
+        cacheKey: `${safeId}_${safeToken}`,
+        ext,
       });
 
-      if (downloadResult.status === 200) {
-        setLocalImageUri(downloadResult.uri);
-      } else if (downloadResult.status === 404) {
+      if (cachedUri) {
+        setLocalImageUri(cachedUri);
+      } else {
         setLocalImageUri(null);
         setMediaErrorMessage(
           activeTab === 'selfie'
-            ? 'Berkas swafoto fisik tidak ditemukan di server (catatan presensi lama mungkin dibuat tanpa lampiran foto).'
-            : 'Berkas tanda tangan digital tidak ditemukan di server.'
+            ? 'Berkas swafoto tidak ditemukan atau tidak dapat diunduh dari server.'
+            : 'Berkas tanda tangan digital tidak ditemukan atau tidak dapat diunduh dari server.'
         );
-      } else if (downloadResult.status === 401) {
-        setLocalImageUri(null);
-        setMediaErrorMessage('Sesi otentikasi telah berakhir. Silakan masuk kembali ke aplikasi.');
-      } else {
-        setLocalImageUri(null);
-        setMediaErrorMessage(`Gagal mengunduh berkas dari server (HTTP ${downloadResult.status}).`);
       }
     } catch (error) {
       setLocalImageUri(null);

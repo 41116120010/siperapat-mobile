@@ -87,18 +87,19 @@ interface EmployeeState {
   updateUnit: (id: number | string, data: { kode_unit?: string; nama_unit?: string; deskripsi?: string | null; is_active?: boolean }) => Promise<ApiUnitDto | null>;
   deleteUnit: (id: number | string) => Promise<boolean>;
   toggleUnitStatus: (id: number | string) => Promise<ApiUnitRecord | null>;
+  reset: () => void;
   clearError: () => void;
 }
 
-export const useEmployeeStore = create<EmployeeState>((set) => ({
-  employees: [],
-  selectedEmployee: null,
-  selectedUserDetail: null,
-  userSummary: null,
-  units: [],
-  allUnits: [],
-  selectedUnit: null,
-  unitSummary: null,
+const INITIAL_EMPLOYEE_STATE = {
+  employees: [] as Employee[],
+  selectedEmployee: null as Employee | null,
+  selectedUserDetail: null as ApiUserDto | null,
+  userSummary: null as ApiUsersSummary | null,
+  units: [] as ApiUnitRecord[],
+  allUnits: [] as ApiUnitRecord[],
+  selectedUnit: null as ApiUnitDto | null,
+  unitSummary: null as ApiUnitsSummary | null,
   currentPage: 0,
   lastPage: 1,
   total: 0,
@@ -106,12 +107,16 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
   unitsLastPage: 1,
   unitsTotal: 0,
   isLoading: false,
-  error: null,
-  validationErrors: null,
+  error: null as string | null,
+  validationErrors: null as Record<string, string[]> | null,
   employeesLoading: false,
-  employeesError: null,
+  employeesError: null as string | null,
   unitsLoading: false,
-  unitsError: null,
+  unitsError: null as string | null,
+};
+
+export const useEmployeeStore = create<EmployeeState>((set) => ({
+  ...INITIAL_EMPLOYEE_STATE,
   fetchEmployees: async (page = 1, filters = {}, append = false) => {
     set({ employeesLoading: true, employeesError: null });
     try {
@@ -424,5 +429,6 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       set({ isLoading: false });
     }
   },
+  reset: () => set(INITIAL_EMPLOYEE_STATE),
   clearError: () => set({ error: null, validationErrors: null }),
 }));

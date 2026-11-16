@@ -29,7 +29,6 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { formatTanggalIndonesia } from '../../core/utils/dateFormatter';
-import { authApi } from '../../data/datasources/authApi';
 import { Header } from '../components/common/Header';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
@@ -74,7 +73,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [emailInput, setEmailInput] = useState(user?.email ?? '');
   const [phoneInput, setPhoneInput] = useState(user?.phone ?? '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [registeredAt, setRegisteredAt] = useState<string | null>(null);
+  const registeredAt = user?.createdAt ?? null;
 
   useEffect(() => {
     setNameInput(user?.name ?? '');
@@ -86,13 +85,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     useCallback(() => {
       if (!user?.id) return;
       void refreshProfile();
-      void authApi
-        .me()
-        .then((res) => {
-          const createdAt = (res.data as { created_at?: string | null })?.created_at ?? null;
-          setRegisteredAt(createdAt);
-        })
-        .catch(() => {});
     }, [refreshProfile, user?.id])
   );
 

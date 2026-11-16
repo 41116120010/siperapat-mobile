@@ -134,24 +134,22 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
 
   useFocusEffect(
     useCallback(() => {
-      if (isAdministrator && !formOptions) {
+      if (isAdministrator && !useMeetingStore.getState().formOptions) {
         void fetchAgendaFormOptions();
       }
       void fetchMeetings(1, false, toApiType(typeFilter), {
         status: statusFilter,
-        search: searchQuery,
+        search: committedSearchRef.current,
         unitId: isAdministrator ? unitFilter : 'all',
       });
     }, [
       isAdministrator,
-      formOptions,
       fetchAgendaFormOptions,
       fetchMeetings,
       toApiType,
       typeFilter,
       statusFilter,
       unitFilter,
-      searchQuery,
     ])
   );
 
@@ -260,14 +258,15 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   const handleUnitChange = useCallback(
     (nextUnit: AgendaUnitFilter) => {
       setUnitFilter(nextUnit);
+      committedSearchRef.current = searchQuery;
       flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
       void fetchMeetings(1, false, toApiType(typeFilter), {
         status: statusFilter,
         search: searchQuery,
-        unitId: nextUnit,
+        unitId: isAdministrator ? nextUnit : 'all',
       });
     },
-    [fetchMeetings, toApiType, typeFilter, statusFilter, searchQuery]
+    [fetchMeetings, toApiType, typeFilter, statusFilter, searchQuery, isAdministrator]
   );
 
   const handleResetFilters = useCallback(() => {

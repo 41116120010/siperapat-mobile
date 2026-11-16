@@ -1,9 +1,20 @@
 import { create } from 'zustand';
+import { clearAllAuthMediaCaches } from '../../core/utils/authenticatedMediaCache';
 import { ASN } from '../../domain/entities/types';
 import { AuthRepositoryImpl } from '../../data/repositories/AuthRepositoryImpl';
 import { authTokenStore } from '../../data/datasources/authTokenStore';
+import { useAttendanceStore } from './useAttendanceStore';
+import { useEmployeeStore } from './useEmployeeStore';
+import { useMeetingStore } from './useMeetingStore';
 
 const authRepo = new AuthRepositoryImpl();
+
+function resetAllSessionData(): void {
+  void clearAllAuthMediaCaches();
+  useMeetingStore.getState().reset();
+  useEmployeeStore.getState().reset();
+  useAttendanceStore.getState().reset();
+}
 
 interface AuthState {
   user: ASN | null;
@@ -88,7 +99,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     set({ isLoading: true });
     try { await authRepo.logout(); }
-    finally { set({ user: null, isLoading: false, error: null }); }
+    finally {
+      resetAllSessionData();
+      set({ user: null, isLoading: false, error: null });
+    }
   },
 
   changePassword: async (currentPassword: string, newPassword: string) => {
@@ -142,5 +156,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 }));
 
 authTokenStore.setUnauthorizedHandler(() => {
+  resetAllSessionData();
   useAuthStore.setState({ user: null, isLoading: false, error: 'Sesi berakhir. Silakan masuk kembali.' });
 });

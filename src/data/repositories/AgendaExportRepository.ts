@@ -62,14 +62,21 @@ function normalizeMimeType(rawContentType: string | null, fallbackMime: string):
   return bare || fallbackMime;
 }
 
-async function extractErrorMessage(fileUri: string, status: number): Promise<string> {
+async function parseErrorResponse(
+  fileUri: string,
+  status: number,
+): Promise<{ message: string; code?: string }> {
+  let code: string | undefined;
   try {
     const raw = await FileSystem.readAsStringAsync(fileUri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    const parsed = JSON.parse(raw) as { message?: unknown };
+    const parsed = JSON.parse(raw) as { message?: unknown; code?: unknown };
+    if (typeof parsed?.code === 'string') {
+      code = parsed.code;
+    }
     if (typeof parsed?.message === 'string' && parsed.message.trim().length > 0) {
-      return parsed.message;
+      return { message: parsed.message, code };
     }
   } catch {
     // Non-JSON error body
@@ -81,7 +88,10 @@ async function extractErrorMessage(fileUri: string, status: number): Promise<str
     404: 'Dokumen ekspor tidak ditemukan di server.',
     429: 'Terlalu banyak permintaan ekspor. Coba lagi beberapa saat lagi.',
   };
-  return fallback[status] ?? `Gagal mengunduh berkas (HTTP ${status}).`;
+  return {
+    message: fallback[status] ?? `Gagal mengunduh berkas (HTTP ${status}).`,
+    code,
+  };
 }
 
 export class AgendaExportRepository {
@@ -111,11 +121,11 @@ export class AgendaExportRepository {
     });
 
     if (result.status < 200 || result.status >= 300) {
-      if (result.status === 401) {
+      const { message, code } = await parseErrorResponse(result.uri, result.status);
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
+      if (result.status === 401 || (result.status === 403 && code === 'ACCOUNT_INACTIVE')) {
         await authTokenStore.handleUnauthorized();
       }
-      const message = await extractErrorMessage(result.uri, result.status);
-      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
       throw new Error(message);
     }
 

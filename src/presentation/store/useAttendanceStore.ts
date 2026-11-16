@@ -10,18 +10,30 @@ type AgendaAttendancePage = Awaited<ReturnType<typeof attendanceRepo.getAgendaAt
 interface AttendanceState {
   attendances: Attendance[]; lastReceipt: Attendance | null; historyPage: AttendancePage | null;
   agendaAttendances: Attendance[]; agendaAttendancePage: AgendaAttendancePage | null; portal: AttendancePortal | null; historySummary: AttendancePage['summary'] | null;
-  isLoading: boolean; isSubmitting: boolean; error: string | null; offlineQueueCount: number;
+  isLoading: boolean; isSubmitting: boolean; error: string | null;
   fetchHistory: (page?: number, append?: boolean, filters?: { search?: string; period?: string; tipeRapat?: string }) => Promise<void>; fetchAgendaAttendances: (agendaId: string, page?: number, append?: boolean, filters?: { status?: 'attended' | 'unattended'; search?: string }) => Promise<void>;
   fetchPortal: (agendaId: string) => Promise<void>; fetchReceipt: (id: string) => Promise<Attendance | null>;
   submitAttendance: (agendaId: string, payload: { selfie_data?: string; signature_data?: string }) => Promise<Attendance | null>;
-  syncOfflineQueue: () => Promise<number>; clearError: () => void;
+  reset: () => void; clearError: () => void;
 }
+
+const INITIAL_ATTENDANCE_STATE = {
+  attendances: [] as Attendance[],
+  lastReceipt: null as Attendance | null,
+  historyPage: null as AttendancePage | null,
+  agendaAttendances: [] as Attendance[],
+  agendaAttendancePage: null as AgendaAttendancePage | null,
+  portal: null as AttendancePortal | null,
+  historySummary: null as AttendancePage['summary'] | null,
+  isLoading: false,
+  isSubmitting: false,
+  error: null as string | null,
+};
 
 function errorMessage(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
 
 export const useAttendanceStore = create<AttendanceState>((set, get) => ({
-  attendances: [], lastReceipt: null, historyPage: null, agendaAttendances: [], agendaAttendancePage: null, portal: null, historySummary: null,
-  isLoading: false, isSubmitting: false, error: null, offlineQueueCount: 0,
+  ...INITIAL_ATTENDANCE_STATE,
 
   fetchPortal: async (agendaId) => {
     set({ isLoading: true, error: null });
@@ -35,8 +47,6 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     try {
       const result = await attendanceRepo.getAttendanceHistory(page, 10, filters);
       set((state) => ({ attendances: append ? [...state.attendances, ...result.records] : result.records, historyPage: result, historySummary: result.summary }));
-      const queue = await attendanceRepo.getOfflineQueue();
-      set({ offlineQueueCount: queue.length });
     } catch (error) { set({ error: errorMessage(error, 'Gagal memuat riwayat presensi.') }); }
     finally { set({ isLoading: false }); }
   },
@@ -78,12 +88,12 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
         signatureSvg: payload.signature_data || record.signatureSvg,
       };
       set({ lastReceipt: richRecord, portal: get().portal ? { ...get().portal!, hasAttended: true, attendance: richRecord } : null });
-      await get().fetchHistory(1);
+      void get().fetchHistory(1);
       return richRecord;
     } catch (error) { set({ error: errorMessage(error, 'Gagal mengirim presensi.') }); return null; }
     finally { set({ isSubmitting: false }); }
   },
 
-  syncOfflineQueue: async () => { try { const count = await attendanceRepo.syncOfflineQueue(); set({ offlineQueueCount: (await attendanceRepo.getOfflineQueue()).length }); return count; } catch { return 0; } },
+  reset: () => set(INITIAL_ATTENDANCE_STATE),
   clearError: () => set({ error: null }),
 }));

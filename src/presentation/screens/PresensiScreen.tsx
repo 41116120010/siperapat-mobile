@@ -19,8 +19,6 @@ import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { formatRentangWaktu } from '../../core/utils/dateFormatter';
 import { resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
-import { attendanceApi } from '../../data/datasources/attendanceApi';
-import { ApiAgendaDto } from '../../data/datasources/apiTypes';
 import { Header } from '../components/common/Header';
 import { Button } from '../components/common/Button';
 import { FaceOvalOverlay } from '../components/attendance/FaceOvalOverlay';
@@ -46,27 +44,13 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
 
   const [selfieUri, setSelfieUri] = useState<string>('');
   const [signatureSvg, setSignatureSvg] = useState<string>('');
-  const [rawAgenda, setRawAgenda] = useState<ApiAgendaDto | null>(null);
   const [isCircularVisible, setIsCircularVisible] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
     void fetchPortal(meetingId);
-    void attendanceApi
-      .portal(meetingId)
-      .then((res) => {
-        if (!cancelled && res.success) {
-          setRawAgenda(res.data.agenda);
-        }
-      })
-      .catch(() => {
-        // Fallback handled gracefully by portal store state
-      });
-    return () => {
-      cancelled = true;
-    };
   }, [meetingId, fetchPortal]);
 
+  const rawAgenda = portal?.rawAgenda ?? null;
   const meeting = portal?.agenda;
   const rawEdaran = rawAgenda?.surat_edaran;
   const suratEdaranMeta = rawEdaran ?? meeting?.suratEdaran;

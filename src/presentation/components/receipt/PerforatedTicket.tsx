@@ -20,10 +20,61 @@ import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { formatWaktuWIB, formatTanggalIndonesia } from '../../../core/utils/dateFormatter';
-import { authTokenStore } from '../../../data/datasources/authTokenStore';
+import { resolveAuthenticatedMediaFile } from '../../../core/utils/authenticatedMediaCache';
 import { EvidenceViewerModal } from '../modals/EvidenceViewerModal';
 import { TutWuriLoader } from '../common/TutWuriLoader';
 import { resolveAttendanceMediaUrl } from '../../../core/utils/mediaUrl';
+
+function useResolvedTicketMedia(
+  resolvedUrl: string | null,
+  kind: 'selfie' | 'signature',
+  attendanceId: string,
+  verificationToken?: string
+): { localUri: string | null; isLoading: boolean } {
+  const [localUri, setLocalUri] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!resolvedUrl) {
+      setLocalUri(null);
+      setIsLoading(false);
+      return;
+    }
+
+    if (
+      resolvedUrl.startsWith('data:image/') ||
+      resolvedUrl.startsWith('file://') ||
+      resolvedUrl.startsWith('content://')
+    ) {
+      setLocalUri(resolvedUrl);
+      setIsLoading(false);
+      return;
+    }
+
+    setLocalUri(null);
+    setIsLoading(true);
+
+    const safeId = attendanceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeToken = (verificationToken || 'SIP').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    void resolveAuthenticatedMediaFile(resolvedUrl, {
+      cachePrefix: `authmedia_receipt_${kind}`,
+      cacheKey: `${safeId}_${safeToken}`,
+      ext: kind === 'selfie' ? 'jpg' : 'png',
+    }).then((uri) => {
+      if (cancelled) return;
+      setLocalUri(uri);
+      setIsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedUrl, kind, attendanceId, verificationToken]);
+
+  return { localUri, isLoading };
+}
 
 export interface PerforatedTicketProps {
   attendance: Attendance;
@@ -36,11 +87,6 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
 }) => {
   const [isEvidenceModalVisible, setIsEvidenceModalVisible] = useState(false);
   const [evidenceTab, setEvidenceTab] = useState<'selfie' | 'signature'>('selfie');
-  const [authToken, setAuthToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    void authTokenStore.get().then((token) => setAuthToken(token));
-  }, []);
 
   const activeSelfie = useMemo(() => {
     return resolveAttendanceMediaUrl(
@@ -58,31 +104,19 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
     );
   }, [attendance.signatureSvg, attendance.signatureUrl, attendance.id]);
 
-  const isSelfieReadyToRender = useMemo(() => {
-    if (!activeSelfie) return false;
-    if (activeSelfie.startsWith('data:') || activeSelfie.startsWith('file:')) return true;
-    return Boolean(authToken);
-  }, [activeSelfie, authToken]);
+  const { localUri: selfieLocalUri, isLoading: isLoadingSelfie } = useResolvedTicketMedia(
+    activeSelfie,
+    'selfie',
+    attendance.id,
+    attendance.verificationToken
+  );
 
-  const isSignatureReadyToRender = useMemo(() => {
-    if (!activeSignature) return false;
-    if (activeSignature.startsWith('data:') || activeSignature.startsWith('file:')) return true;
-    return Boolean(authToken);
-  }, [activeSignature, authToken]);
-
-  const selfieHeaders = useMemo(() => {
-    if (activeSelfie && (activeSelfie.startsWith('http://') || activeSelfie.startsWith('https://')) && authToken) {
-      return { Authorization: `Bearer ${authToken}` };
-    }
-    return undefined;
-  }, [activeSelfie, authToken]);
-
-  const signatureHeaders = useMemo(() => {
-    if (activeSignature && (activeSignature.startsWith('http://') || activeSignature.startsWith('https://')) && authToken) {
-      return { Authorization: `Bearer ${authToken}` };
-    }
-    return undefined;
-  }, [activeSignature, authToken]);
+  const { localUri: signatureLocalUri, isLoading: isLoadingSignature } = useResolvedTicketMedia(
+    activeSignature,
+    'signature',
+    attendance.id,
+    attendance.verificationToken
+  );
 
   const handleOpenEvidence = (tab: 'selfie' | 'signature') => {
     setEvidenceTab(tab);
@@ -296,13 +330,13 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             accessibilityLabel="Lihat Bukti Swafoto Presensi"
           >
             <View style={styles.evidenceImageWrapper}>
-              {activeSelfie && isSelfieReadyToRender ? (
+              {selfieLocalUri ? (
                 <Image
-                  source={{ uri: activeSelfie, headers: selfieHeaders }}
+                  source={{ uri: selfieLocalUri }}
                   style={styles.evidenceImage}
                   resizeMode="cover"
                 />
-              ) : activeSelfie && !isSelfieReadyToRender ? (
+              ) : isLoadingSelfie ? (
                 <View style={styles.evidencePlaceholder}>
                   <TutWuriLoader size="md" />
                 </View>
@@ -332,13 +366,13 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             accessibilityLabel="Lihat Bukti Tanda Tangan Digital"
           >
             <View style={styles.signatureImageWrapper}>
-              {activeSignature && isSignatureReadyToRender ? (
+              {signatureLocalUri ? (
                 <Image
-                  source={{ uri: activeSignature, headers: signatureHeaders }}
+                  source={{ uri: signatureLocalUri }}
                   style={styles.signatureImage}
                   resizeMode="contain"
                 />
-              ) : activeSignature && !isSignatureReadyToRender ? (
+              ) : isLoadingSignature ? (
                 <View style={styles.signaturePlaceholder}>
                   <TutWuriLoader size="md" />
                 </View>

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,13 @@ import {
   Pressable,
   PanResponder,
   GestureResponderEvent,
-  Alert,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Check, PenTool, RotateCcw, ShieldCheck } from 'lucide-react-native';
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
+import { useFeedbackStore } from '../../store/useFeedbackStore';
 
 interface DigitalSignaturePadProps {
   onSignatureChange: (signatureSvg: string) => void;
@@ -24,6 +24,19 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
   const [paths, setPaths] = useState<string[]>([]);
   const currentPathRef = useRef<string>('');
   const svgRef = useRef<Svg>(null);
+  const exportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (exportTimerRef.current) {
+        clearTimeout(exportTimerRef.current);
+        exportTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const hasDrawn = paths.length > 0;
 
@@ -33,6 +46,10 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt: GestureResponderEvent) => {
+        if (exportTimerRef.current) {
+          clearTimeout(exportTimerRef.current);
+          exportTimerRef.current = null;
+        }
         const { locationX, locationY } = evt.nativeEvent;
         currentPathRef.current = `M ${locationX.toFixed(1)} ${locationY.toFixed(1)}`;
         setPaths((prev) => [...prev, currentPathRef.current]);
@@ -47,19 +64,42 @@ export const DigitalSignaturePad: React.FC<DigitalSignaturePadProps> = ({
         });
       },
       onPanResponderRelease: () => {
-        setTimeout(() => svgRef.current?.toDataURL((base64) => {
-          if (Math.ceil(base64.length * 0.75) > 512 * 1024) {
-            Alert.alert('Tanda tangan terlalu besar', 'Bersihkan sebagian goresan atau ulangi tanda tangan. Batas API adalah 512 KB.');
-            onSignatureChange('');
+        if (exportTimerRef.current) {
+          clearTimeout(exportTimerRef.current);
+        }
+        exportTimerRef.current = setTimeout(() => {
+          exportTimerRef.current = null;
+          if (!isMountedRef.current || !currentPathRef.current) {
             return;
           }
-          onSignatureChange(`data:image/png;base64,${base64}`);
-        }), 50);
+          svgRef.current?.toDataURL((base64) => {
+            if (!isMountedRef.current) return;
+            const trimmed = (base64 || '').trim();
+            if (!trimmed) {
+              onSignatureChange('');
+              return;
+            }
+            if (Math.ceil(trimmed.length * 0.75) > 512 * 1024) {
+              useFeedbackStore.getState().showModal({
+                type: 'warning',
+                title: 'Tanda Tangan Terlalu Besar',
+                message: 'Bersihkan sebagian goresan atau ulangi tanda tangan. Batas ukuran berkas API adalah 512 KB.',
+              });
+              onSignatureChange('');
+              return;
+            }
+            onSignatureChange(`data:image/png;base64,${trimmed}`);
+          });
+        }, 50);
       },
     })
   ).current;
 
   const handleClear = () => {
+    if (exportTimerRef.current) {
+      clearTimeout(exportTimerRef.current);
+      exportTimerRef.current = null;
+    }
     currentPathRef.current = '';
     setPaths([]);
     onSignatureChange('');

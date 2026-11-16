@@ -61,6 +61,7 @@ import {
   formatTanggalWaktuWIB,
   formatWaktuWIB,
 } from '../../core/utils/dateFormatter';
+import { resolveAuthenticatedMediaFile } from '../../core/utils/authenticatedMediaCache';
 import { resolveAttendanceMediaUrl, resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { AutoScrollText } from '../components/common/AutoScrollText';
 import { Button } from '../components/common/Button';
@@ -77,7 +78,6 @@ import { UploadSuratEdaranModal } from '../components/modals/UploadSuratEdaranMo
 import { agendaApi, resolveFileMimeType, UploadFileRef } from '../../data/datasources/agendaApi';
 import { apiClient } from '../../data/datasources/apiClient';
 import { attendanceApi } from '../../data/datasources/attendanceApi';
-import { authTokenStore } from '../../data/datasources/authTokenStore';
 import { AgendaExportFormat } from '../../data/datasources/reportApi';
 import { meetingToUpdateDto, toMeeting } from '../../data/mappers/apiMappers';
 import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
@@ -187,34 +187,25 @@ const AuthMediaThumbnail: React.FC<{
     const resolved = resolveAttendanceMediaUrl(rawUrl, attendanceId, mediaType);
     if (!resolved) {
       setFailed(true);
-      return;
-    }
-    if (resolved.startsWith('data:image/') || resolved.startsWith('file://')) {
-      setCachedUri(resolved);
-      setFailed(false);
+      setCachedUri(null);
       return;
     }
 
-    (async () => {
-      try {
-        const token = await authTokenStore.get();
-        const cacheDir = FileSystem.cacheDirectory ?? '';
-        const ext = mediaType === 'signature' ? 'png' : 'jpg';
-        const dest = `${cacheDir}mon_${mediaType}_${attendanceId}.${ext}`;
-        const res = await FileSystem.downloadAsync(resolved, dest, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!active) return;
-        if (res.status >= 200 && res.status < 300) {
-          setCachedUri(`${res.uri}?t=${Date.now()}`);
-          setFailed(false);
-        } else {
-          setFailed(true);
-        }
-      } catch {
-        if (active) setFailed(true);
+    setFailed(false);
+    void resolveAuthenticatedMediaFile(resolved, {
+      cachePrefix: `mon_${mediaType}`,
+      cacheKey: attendanceId,
+      ext: mediaType === 'signature' ? 'png' : 'jpg',
+    }).then((localUri) => {
+      if (!active) return;
+      if (localUri) {
+        setCachedUri(localUri);
+        setFailed(false);
+      } else {
+        setCachedUri(null);
+        setFailed(true);
       }
-    })();
+    });
 
     return () => {
       active = false;
@@ -548,9 +539,19 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         await Linking.openURL(fileUrl);
         return;
       }
+      const cleanPath = fileUrl.split('?')[0].split('#')[0].toLowerCase();
+      const imageExt = cleanPath.endsWith('.png')
+        ? 'png'
+        : cleanPath.endsWith('.webp')
+          ? 'webp'
+          : 'jpg';
       const cacheDir = FileSystem.cacheDirectory ?? '';
-      const dest = `${cacheDir}doc_${doc.id}_${Date.now()}.jpg`;
+      const dest = `${cacheDir}doc_${doc.id}_${Date.now()}.${imageExt}`;
       const res = await FileSystem.downloadAsync(fileUrl, dest);
+      if (res.status < 200 || res.status >= 300) {
+        await FileSystem.deleteAsync(dest, { idempotent: true }).catch(() => {});
+        throw new Error(`HTTP ${res.status}`);
+      }
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(res.uri, { dialogTitle: 'Unduh Dokumentasi Rapat' });
       } else {

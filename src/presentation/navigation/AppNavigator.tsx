@@ -279,11 +279,28 @@ const safeGoBack = (navigation: any, fallbackRoute = 'MainTabs') => {
 };
 
 export const AppNavigator: React.FC = () => {
-  const role = useAuthStore((state) => state.user?.role);
+  const user = useAuthStore((state) => state.user);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const role = user?.role;
   const canManageEmployees = role === 'administrator' || role === 'admin';
   const canManageMeetings = role === 'administrator' || role === 'admin';
   const isAdministrator = role === 'administrator';
   const lastBackPressAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (isLoading || user || !rootNavigationRef.isReady()) {
+      return;
+    }
+    const currentRoute = rootNavigationRef.getCurrentRoute()?.name;
+    if (
+      currentRoute &&
+      currentRoute !== 'Splash' &&
+      currentRoute !== 'Login' &&
+      currentRoute !== 'ForgotPassword'
+    ) {
+      rootNavigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+    }
+  }, [user, isLoading]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') {

@@ -40,10 +40,10 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { formatRentangWaktu, formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFormatter';
+import { resolveAuthenticatedMediaFile } from '../../core/utils/authenticatedMediaCache';
 import { resolveAttendanceMediaUrl, resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { agendaApi, UploadFileRef } from '../../data/datasources/agendaApi';
 import { apiClient } from '../../data/datasources/apiClient';
-import { authTokenStore } from '../../data/datasources/authTokenStore';
 import { toMeeting } from '../../data/mappers/apiMappers';
 import { Meeting } from '../../domain/entities/types';
 import { AutoScrollText } from '../components/common/AutoScrollText';
@@ -169,32 +169,25 @@ const AuthSelfieThumbnail: React.FC<{
     const resolved = resolveAttendanceMediaUrl(selfieUrl, attendanceId, 'selfie');
     if (!resolved) {
       setFailed(true);
-      return;
-    }
-    if (resolved.startsWith('data:image/') || resolved.startsWith('file://')) {
-      setCachedUri(resolved);
+      setCachedUri(null);
       return;
     }
 
-    (async () => {
-      try {
-        const token = await authTokenStore.get();
-        const cacheDir = FileSystem.cacheDirectory ?? '';
-        const dest = `${cacheDir}selfie_detail_${attendanceId}.jpg`;
-        const res = await FileSystem.downloadAsync(resolved, dest, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!active) return;
-        if (res.status >= 200 && res.status < 300) {
-          setCachedUri(`${res.uri}?t=${Date.now()}`);
-          setFailed(false);
-        } else {
-          setFailed(true);
-        }
-      } catch {
-        if (active) setFailed(true);
+    setFailed(false);
+    void resolveAuthenticatedMediaFile(resolved, {
+      cachePrefix: 'selfie_detail',
+      cacheKey: attendanceId,
+      ext: 'jpg',
+    }).then((localUri) => {
+      if (!active) return;
+      if (localUri) {
+        setCachedUri(localUri);
+        setFailed(false);
+      } else {
+        setCachedUri(null);
+        setFailed(true);
       }
-    })();
+    });
 
     return () => {
       active = false;

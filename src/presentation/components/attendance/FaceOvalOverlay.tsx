@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   Image,
-  Alert,
   Modal,
   ScrollView,
   Dimensions,
@@ -26,6 +25,7 @@ import {
 import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
+import { useFeedbackStore } from '../../store/useFeedbackStore';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -52,10 +52,11 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
     const mime = (mimeType ?? 'image/jpeg').toLowerCase();
     const bytes = Math.ceil(base64.length * 0.75);
     if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(mime) || bytes > 512 * 1024) {
-      Alert.alert(
-        'Foto tidak sesuai',
-        'Foto harus berupa JPEG/PNG/WebP dan maksimal 512 KB. Silakan pilih atau ambil foto lain.'
-      );
+      useFeedbackStore.getState().showModal({
+        type: 'warning',
+        title: 'Foto Tidak Sesuai',
+        message: 'Foto harus berupa JPEG/PNG/WebP dan maksimal 512 KB. Silakan pilih atau ambil foto lain.',
+      });
       return;
     }
     const data = `data:${mime};base64,${base64}`;
@@ -87,10 +88,11 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
     if (!permission?.granted) {
       const response = await requestPermission();
       if (!response.granted) {
-        Alert.alert(
-          'Izin Kamera Ditolak',
-          'Akses kamera tidak diizinkan atau tidak didukung. Silakan gunakan opsi unggah foto di bawah.'
-        );
+        useFeedbackStore.getState().showModal({
+          type: 'warning',
+          title: 'Izin Kamera Ditolak',
+          message: 'Akses kamera tidak diizinkan atau tidak didukung. Silakan gunakan opsi unggah foto di bawah.',
+        });
       }
       return;
     }
@@ -101,7 +103,10 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
         await preparePhoto(photo.uri, 'camera');
       }
     } catch {
-      Alert.alert('Kamera gagal', 'Periksa izin kamera dan coba lagi, atau gunakan unggah foto.');
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: 'Kamera gagal mengambil foto. Periksa izin kamera atau gunakan unggah foto.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -112,10 +117,11 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
     try {
       const mediaPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!mediaPerm.granted) {
-        Alert.alert(
-          'Izin Galeri Diperlukan',
-          'Izinkan akses galeri foto pada pengaturan perangkat untuk memilih berkas swafoto.'
-        );
+        useFeedbackStore.getState().showModal({
+          type: 'warning',
+          title: 'Izin Galeri Diperlukan',
+          message: 'Izinkan akses galeri foto pada pengaturan perangkat untuk memilih berkas swafoto.',
+        });
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -132,7 +138,10 @@ export const FaceOvalOverlay: React.FC<FaceOvalOverlayProps> = ({ onCapture }) =
         }
       }
     } catch {
-      Alert.alert('Gagal memilih foto', 'Terjadi kendala saat membuka galeri foto perangkat.');
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message: 'Gagal memilih foto dari galeri perangkat.',
+      });
     }
   };
 

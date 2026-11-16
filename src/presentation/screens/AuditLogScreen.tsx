@@ -37,6 +37,7 @@ import {
 import { CalendarDatePickerModal } from '../components/modals/CalendarDatePickerModal';
 import { activityLogApi, userApi } from '../../data/datasources/userApi';
 import { ApiActivityLogDto, ApiUserDto } from '../../data/datasources/apiTypes';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 import {
   formatTanggalSingkat,
   formatWaktuWIB,
@@ -194,7 +195,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   useEffect(() => {
     let mounted = true;
     userApi
-      .users(1, { perPage: 100 })
+      .candidates({ includeInactive: true })
       .then((res) => {
         if (mounted && Array.isArray(res.data)) {
           setActorUsers(res.data);
@@ -250,6 +251,14 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
   }, [fetchLogs]);
 
   const handleApplyFilter = () => {
+    if (startDate && endDate && startDate > endDate) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Tanggal mulai tidak boleh lebih besar dari tanggal selesai.',
+      });
+      return;
+    }
+
     setAppliedFilters({
       search: searchInput.trim(),
       type: selectedType,

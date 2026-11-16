@@ -41,8 +41,14 @@ function query(values: Record<string, string | number | undefined>) {
 
 export const userApi = {
   /** GET /users/candidates — cross-unit active ASN candidates for agenda targeting. */
-  candidates: (filters: { search?: string; unitId?: number } = {}) =>
-    apiClient.get<ApiCandidateList<ApiUserDto>>(`/users/candidates?${query({ search: filters.search, unit_id: filters.unitId })}`),
+  candidates: (filters: { search?: string; unitId?: number; includeInactive?: boolean } = {}) =>
+    apiClient.get<ApiCandidateList<ApiUserDto>>(
+      `/users/candidates?${query({
+        search: filters.search,
+        unit_id: filters.unitId,
+        include_inactive: filters.includeInactive ? 1 : undefined,
+      })}`,
+    ),
   users: (page = 1, filters: { search?: string; role?: string; status?: string; unitId?: number | string; perPage?: number } = {}) =>
     apiClient.get<ApiUsersPage>(`/users?${query({ page, per_page: filters.perPage ?? 10, search: filters.search, role: filters.role, status: filters.status, unit_id: filters.unitId })}`),
   user: (id: string, options: { withStats?: boolean } = {}) =>

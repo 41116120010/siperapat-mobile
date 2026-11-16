@@ -39,6 +39,7 @@ import { CalendarDatePickerModal } from '../components/modals/CalendarDatePicker
 import { activityLogApi } from '../../data/datasources/userApi';
 import { ApiActivityLogDto } from '../../data/datasources/apiTypes';
 import { useAuthStore } from '../store/useAuthStore';
+import { useFeedbackStore } from '../store/useFeedbackStore';
 import {
   formatTanggalSingkat,
   formatWaktuWIB,
@@ -238,6 +239,14 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
   }, [fetchPersonalLogs]);
 
   const handleApplyFilter = () => {
+    if (startDate && endDate && startDate > endDate) {
+      useFeedbackStore.getState().showToast({
+        type: 'warning',
+        message: 'Tanggal mulai tidak boleh lebih besar dari tanggal selesai.',
+      });
+      return;
+    }
+
     setAppliedFilters({
       search: searchInput.trim(),
       type: selectedType,

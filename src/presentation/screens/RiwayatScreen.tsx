@@ -10,11 +10,9 @@ import {
   Image,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import * as FileSystem from 'expo-file-system/legacy';
 import {
   Check,
   PenTool,
-  RefreshCw,
   Search,
   User,
   X,
@@ -22,10 +20,10 @@ import {
 import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
+import { resolveAuthenticatedMediaFile } from '../../core/utils/authenticatedMediaCache';
 import { resolveAttendanceMediaUrl } from '../../core/utils/mediaUrl';
 import { formatTanggalWaktuWIB } from '../../core/utils/dateFormatter';
 import { Attendance } from '../../domain/entities/types';
-import { authTokenStore } from '../../data/datasources/authTokenStore';
 import { Header } from '../components/common/Header';
 import { AutoScrollText } from '../components/common/AutoScrollText';
 import { EmptyState } from '../components/common/EmptyState';
@@ -67,37 +65,21 @@ const HistoryMediaThumb: React.FC<HistoryMediaThumbProps> = ({
       setLocalUri(null);
       return;
     }
-    if (resolved.startsWith('data:image/') || resolved.startsWith('file://')) {
-      setLocalUri(resolved);
-      return;
-    }
 
-    const loadCached = async () => {
-      try {
-        const cacheDir = FileSystem.cacheDirectory || '';
-        const safeId = attendanceId.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const safeToken = (verificationToken || 'SIP').replace(/[^a-zA-Z0-9_-]/g, '_');
-        const ext = kind === 'selfie' ? 'jpg' : 'png';
-        const dest = `${cacheDir}hist_${kind}_${safeId}_${safeToken}.${ext}`;
-        const info = await FileSystem.getInfoAsync(dest);
-        if (info.exists && info.size && info.size > 0) {
-          if (!cancelled) setLocalUri(dest);
-          return;
-        }
-        const token = await authTokenStore.get();
-        if (!token) return;
-        const result = await FileSystem.downloadAsync(resolved, dest, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!cancelled && result.status === 200) {
-          setLocalUri(result.uri);
-        }
-      } catch {
-        // Fallback placeholder rendered silently
+    const safeId = attendanceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeToken = (verificationToken || 'SIP').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const ext = kind === 'selfie' ? 'jpg' : 'png';
+
+    void resolveAuthenticatedMediaFile(resolved, {
+      cachePrefix: `hist_${kind}`,
+      cacheKey: `${safeId}_${safeToken}`,
+      ext,
+    }).then((uri) => {
+      if (!cancelled) {
+        setLocalUri(uri);
       }
-    };
+    });
 
-    void loadCached();
     return () => {
       cancelled = true;
     };
@@ -164,8 +146,6 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
   const authUser = useAuthStore((state) => state.user);
   const detailRoute = authUser?.role === 'staff' ? 'AgendaDetail' : 'Monitoring';
   const {
-    offlineQueueCount,
-    syncOfflineQueue,
     attendances,
     fetchHistory,
     historyPage,
@@ -200,13 +180,12 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
 
   useFocusEffect(
     useCallback(() => {
-      void syncOfflineQueue();
       void fetchHistory(1, false, {
         search: appliedSearch,
         period: 'all',
         tipeRapat: 'all',
       });
-    }, [syncOfflineQueue, fetchHistory, appliedSearch])
+    }, [fetchHistory, appliedSearch])
   );
 
   const handleSubmitSearch = () => {
@@ -288,24 +267,6 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
             Daftar seluruh kehadiran rapat kedinasan yang pernah Anda ikuti
           </Text>
         </View>
-
-        {/* Offline Queue Sync Banner only when local queue exists */}
-        {offlineQueueCount > 0 ? (
-          <View style={styles.syncBanner}>
-            <RefreshCw size={18} color={colors.warning} strokeWidth={2} />
-            <Text style={styles.syncText}>
-              {offlineQueueCount} presensi tersimpan lokal (menunggu sinkronisasi)
-            </Text>
-            <Pressable
-              onPress={() => void syncOfflineQueue()}
-              style={styles.syncActionBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Sinkronkan presensi lokal"
-            >
-              <Text style={styles.syncAction}>Sinkronkan</Text>
-            </Pressable>
-          </View>
-        ) : null}
 
         {/* Action Bar & Search (Web SSOT attendances/history.blade.php:10-30) */}
         <View style={styles.searchCard}>
@@ -653,35 +614,6 @@ const styles = StyleSheet.create({
     ...typography.bodySm,
     color: colors.textSecondary,
     marginTop: 2,
-  },
-  syncBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.warningContainer,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs,
-    borderRadius: rounded.md,
-  },
-  syncText: {
-    ...typography.bodySm,
-    fontSize: 11,
-    color: colors.onWarningContainer,
-    flex: 1,
-  },
-  syncActionBtn: {
-    minHeight: MIN_TOUCH_TARGET,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xs,
-  },
-  syncAction: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansBold,
-    fontSize: 11,
-    color: colors.onWarningContainer,
-    textDecorationLine: 'underline',
   },
   searchCard: {
     ...cardSurface,

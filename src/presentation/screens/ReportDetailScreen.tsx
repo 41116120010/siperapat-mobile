@@ -10,7 +10,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
 import {
   ArrowLeft,
   BookOpen,
@@ -36,8 +35,8 @@ import { colors } from '../../core/theme/colors';
 import { fontFamilies, typography } from '../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../core/theme/tokens';
 import { formatTanggalIndonesia, formatWaktuWIB } from '../../core/utils/dateFormatter';
+import { resolveAuthenticatedMediaFile } from '../../core/utils/authenticatedMediaCache';
 import { resolveAttendanceMediaUrl, resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
-import { authTokenStore } from '../../data/datasources/authTokenStore';
 import {
   ApiAgendaDto,
   ApiAttendanceDto,
@@ -164,35 +163,36 @@ const BearerImage: React.FC<{
     setFailed(false);
     setLocalUri(null);
 
-    const load = async () => {
-      try {
-        const cacheDir = FileSystem.cacheDirectory;
-        if (!cacheDir) {
-          if (active) setFailed(true);
-          return;
-        }
-        const token = authTokenStore.get();
-        const safeKey = resolved.replace(/[^a-zA-Z0-9]/g, '_').slice(-48);
-        const dest = `${cacheDir}rep_detail_${mediaKind}_${safeKey}.png`;
-        const result = await FileSystem.downloadAsync(resolved, dest, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (!active) return;
-        if (result.status >= 200 && result.status < 300) {
-          setLocalUri(result.uri);
-        } else {
-          setFailed(true);
-        }
-      } catch {
-        if (active) setFailed(true);
-      }
-    };
+    const extFromUrl: 'jpg' | 'png' | 'webp' =
+      mediaKind === 'signature'
+        ? 'png'
+        : mediaKind === 'selfie'
+        ? 'jpg'
+        : resolved.toLowerCase().includes('.png')
+        ? 'png'
+        : resolved.toLowerCase().includes('.webp')
+        ? 'webp'
+        : 'jpg';
 
-    void load();
+    const cacheKey = attendanceId != null ? `${attendanceId}_${resolved}` : resolved;
+
+    void resolveAuthenticatedMediaFile(resolved, {
+      cachePrefix: `rep_detail_${mediaKind}`,
+      cacheKey,
+      ext: extFromUrl,
+    }).then((uri) => {
+      if (!active) return;
+      if (uri) {
+        setLocalUri(uri);
+      } else {
+        setFailed(true);
+      }
+    });
+
     return () => {
       active = false;
     };
-  }, [resolved, mediaKind]);
+  }, [resolved, mediaKind, attendanceId]);
 
   if (localUri) {
     return <Image source={{ uri: localUri }} style={style} resizeMode={resizeMode} />;

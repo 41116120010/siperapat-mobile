@@ -1,6 +1,7 @@
 import { File } from 'expo-file-system';
 import { ApiBinaryResponse, ApiError, apiClient } from './apiClient';
-import { ApiAgendaDto, ApiAgendaPage, ApiDashboardDto, ApiEnvelope, ApiPaginated, ApiUnitDto, ApiUserDto } from './apiTypes';
+import { ApiAgendaDto, ApiAgendaPage, ApiDashboardDto, ApiEnvelope } from './apiTypes';
+import { userApi } from './userApi';
 import { requireApiBaseUrl } from '../../core/config/apiConfig';
 
 export type AgendaFilters = {
@@ -239,12 +240,10 @@ export const agendaApi = {
   },
   delete: (id: string | number) => apiClient.delete<ApiEnvelope<never>>(`/agendas/${encodeURIComponent(id)}`),
   formOptions: async () => {
-    const [usersFirstPage, units] = await Promise.all([
-      apiClient.get<ApiPaginated<ApiUserDto>>('/users?status=active&per_page=50&page=1'),
-      apiClient.get<ApiEnvelope<ApiUnitDto[]>>('/units?all=true&status=active'),
+    const [candidatesRes, unitsRes] = await Promise.all([
+      userApi.candidates(),
+      userApi.units(1, undefined, 100, { all: true, status: 'active' }),
     ]);
-    const users = [...usersFirstPage.data];
-    for (let page = 2; page <= usersFirstPage.meta.last_page; page += 1) users.push(...(await apiClient.get<ApiPaginated<ApiUserDto>>(`/users?status=active&per_page=50&page=${page}`)).data);
-    return { users, units: units.data };
+    return { users: candidatesRes.data, units: unitsRes.data };
   },
 };

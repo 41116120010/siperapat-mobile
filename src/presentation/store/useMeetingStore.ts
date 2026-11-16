@@ -41,23 +41,42 @@ interface MeetingState {
   updateMeeting: (id: string, payload: UpdateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   deleteMeeting: (id: string) => Promise<{ success: boolean; message?: string }>;
   fetchUserCandidates: (filters?: { search?: string; unitId?: number }) => Promise<{ users: UserOption[]; total: number } | null>;
-  fetchAgendaFormOptions: () => Promise<void>; clearError: () => void;
+  fetchAgendaFormOptions: () => Promise<void>;
+  reset: () => void;
+  clearError: () => void;
 }
+
+const INITIAL_MEETING_STATE = {
+  meetings: [] as Meeting[],
+  dashboardMeetings: [] as Meeting[],
+  dashboardStats: null as ApiDashboardDto['stats'] | null,
+  activeMeeting: null as Meeting | null,
+  isLoading: false,
+  isLoadingMore: false,
+  error: null as string | null,
+  filterTab: 'all' as FilterTab,
+  currentPage: 0,
+  lastPage: 1,
+  total: 0,
+  isSavingMinutes: false,
+  typeFilter: undefined as 'hybrid' | 'offline' | 'online' | undefined,
+  statusFilter: 'all' as AgendaStatusFilter,
+  searchQuery: '',
+  unitFilter: 'all' as AgendaUnitFilter,
+  statusCounts: null as ApiAgendaStatusCounts | null,
+  agendaMetaById: {} as Record<string, ApiAgendaDto>,
+  formOptions: null as { users: ApiUserDto[]; units: ApiUnitDto[] } | null,
+  isFormOptionsLoading: false,
+  userCandidates: [] as UserOption[],
+  userCandidatesTotal: 0,
+  isUserCandidatesLoading: false,
+  userCandidatesError: null as string | null,
+};
 
 function message(error: unknown, fallback: string) { return error instanceof Error ? error.message : fallback; }
 
 export const useMeetingStore = create<MeetingState>((set, get) => ({
-  meetings: [], dashboardMeetings: [], dashboardStats: null, activeMeeting: null,
-  isLoading: false, isLoadingMore: false, error: null, filterTab: 'all', currentPage: 0, lastPage: 1, total: 0,
-  isSavingMinutes: false,
-  typeFilter: undefined,
-  statusFilter: 'all',
-  searchQuery: '',
-  unitFilter: 'all',
-  statusCounts: null,
-  agendaMetaById: {},
-  formOptions: null, isFormOptionsLoading: false,
-  userCandidates: [], userCandidatesTotal: 0, isUserCandidatesLoading: false, userCandidatesError: null,
+  ...INITIAL_MEETING_STATE,
 
   setFilterTab: (tab) => {
     set({ filterTab: tab });
@@ -235,6 +254,11 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       candidatesInFlightKey = null;
       set({ isUserCandidatesLoading: false });
     }
+  },
+
+  reset: () => {
+    candidatesInFlightKey = null;
+    set(INITIAL_MEETING_STATE);
   },
 
   clearError: () => set({ error: null }),

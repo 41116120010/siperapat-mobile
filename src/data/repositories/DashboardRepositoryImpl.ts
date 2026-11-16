@@ -1,6 +1,6 @@
 import { agendaApi } from '../datasources/agendaApi';
 import { ApiDashboardDto } from '../datasources/apiTypes';
-import { toMeeting } from '../mappers/agendaMapper';
+import { toMeeting } from '../mappers/apiMappers';
 
 export interface DashboardData {
   stats: ApiDashboardDto['stats'];

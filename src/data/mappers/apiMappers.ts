@@ -10,6 +10,7 @@ export function toAsn(user: ApiUserDto): ASN {
     unitId: user.unit_id ?? user.unit?.id ?? null,
     email: user.email ?? '', phone: user.phone ?? '', avatarUrl: user.avatar_url ?? undefined,
     username: user.username, role: user.role.value, roleLabel: user.role.label, biometricEnabled: false,
+    createdAt: user.created_at ?? null,
     attendanceStats: user.attendance_stats ? {
       totalAgendas: user.attendance_stats.total_agendas,
       totalAttended: user.attendance_stats.total_attended,
@@ -93,6 +94,9 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     invitationPdfUrl: resolvedEdaranUrl ?? undefined,
     totalInvited: agenda.total_invited ?? undefined, geofenceRadiusMeters: undefined, latitude: undefined, longitude: undefined,
     totalAttended: agenda.total_attended ?? 0,
+    hasAttended: Boolean(agenda.has_attended ?? agenda.my_attendance),
+    myAttendanceId: agenda.my_attendance?.id ? String(agenda.my_attendance.id) : null,
+    permissions: agenda.permissions ?? null,
     baNumber: agenda.nomor_ba ?? null,
     minutesHtml: agenda.notulensi_html ?? null, summaryHtml: agenda.kesimpulan_html ?? null,
     invitedUsers,

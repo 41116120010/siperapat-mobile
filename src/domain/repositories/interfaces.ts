@@ -1,6 +1,6 @@
 import { ASN, Meeting, Attendance, CreateEmployeeInput, Employee, UserOption } from '../entities/types';
 import { AgendaFilters, CreateAgendaDto, UpdateAgendaDto, UpdateMinutesDto, UploadFileRef } from '../../data/datasources/agendaApi';
-import { ApiAgendaAttendanceSummary, ApiAttendanceDto, ApiAttendanceHistorySummary, ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
+import { ApiAgendaAttendanceSummary, ApiAgendaDto, ApiAttendanceHistorySummary, ApiDashboardDto, ApiUnitDto, ApiUserDto } from '../../data/datasources/apiTypes';
 
 export interface IAuthRepository {
   loginWithNIP(identifier: string, password: string, remember?: boolean): Promise<ASN>;
@@ -27,13 +27,11 @@ export interface IMeetingRepository {
 }
 
 export interface IAttendanceRepository {
-  getAttendancePortal(agendaId: string): Promise<{ agenda: Meeting; isOngoing: boolean; isEligible: boolean; hasAttended: boolean; attendance: Attendance | null }>;
+  getAttendancePortal(agendaId: string): Promise<{ agenda: Meeting; rawAgenda: ApiAgendaDto; isOngoing: boolean; isEligible: boolean; hasAttended: boolean; attendance: Attendance | null }>;
   submitAttendance(agendaId: string, payload: { selfie_data?: string; signature_data?: string }): Promise<Attendance>;
   getAttendanceHistory(page?: number, perPage?: number, filters?: { search?: string; period?: string; tipeRapat?: string }): Promise<{ records: Attendance[]; currentPage: number; lastPage: number; total: number; summary: ApiAttendanceHistorySummary }>;
   getAgendaAttendances(agendaId: string, page?: number, perPage?: number, filters?: { status?: 'attended' | 'unattended'; search?: string }): Promise<{ records: Attendance[]; currentPage: number; lastPage: number; total: number; summary: ApiAgendaAttendanceSummary }>;
   getAttendanceReceipt(attendanceId: string): Promise<Attendance | null>;
-  getOfflineQueue(): Promise<Attendance[]>;
-  syncOfflineQueue(): Promise<number>;
 }
 
 export interface IEmployeeRepository {

@@ -7,7 +7,14 @@ export interface ApiBinaryResponse { blob: Blob; filename: string | null; conten
 export interface ApiRequestOptions { method?: ApiMethod; body?: unknown; authenticated?: boolean; responseType?: ApiResponseType; timeoutMs?: number; headers?: Record<string, string> }
 
 export class ApiError extends Error {
-  constructor(readonly kind: 'http' | 'network' | 'timeout' | 'configuration', message: string, readonly status?: number, readonly errors?: Record<string, string[]>, readonly retryAfterSeconds?: number) {
+  constructor(
+    readonly kind: 'http' | 'network' | 'timeout' | 'configuration',
+    message: string,
+    readonly status?: number,
+    readonly errors?: Record<string, string[]>,
+    readonly retryAfterSeconds?: number,
+    readonly code?: string,
+  ) {
     super(message); this.name = 'ApiError';
   }
 }
@@ -21,7 +28,7 @@ function firstValidationMessage(errors: unknown): string | undefined {
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
-  let payload: { message?: unknown; errors?: unknown } = {};
+  let payload: { message?: unknown; errors?: unknown; code?: unknown } = {};
   try { payload = await response.json() as typeof payload; } catch { /* non-JSON gateway response */ }
   const fallback: Record<number, string> = {
     401: 'Sesi tidak valid atau telah berakhir. Silakan masuk kembali.',
@@ -30,11 +37,12 @@ async function toApiError(response: Response): Promise<ApiError> {
     429: 'Terlalu banyak permintaan. Coba lagi beberapa saat lagi.',
   };
   const errors = payload.errors && typeof payload.errors === 'object' ? payload.errors as Record<string, string[]> : undefined;
+  const code = typeof payload.code === 'string' ? payload.code : undefined;
   const message = (response.status === 422 ? firstValidationMessage(errors) : undefined)
     ?? (typeof payload.message === 'string' ? payload.message : undefined)
     ?? fallback[response.status]
     ?? `Permintaan gagal (HTTP ${response.status}).`;
-  return new ApiError('http', message, response.status, errors, Number(response.headers.get('Retry-After')) || undefined);
+  return new ApiError('http', message, response.status, errors, Number(response.headers.get('Retry-After')) || undefined, code);
 }
 
 function downloadFilename(response: Response): string | null {
@@ -111,7 +119,10 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await toApiError(response);
-      if (response.status === 401 && options.authenticated !== false) await authTokenStore.handleUnauthorized();
+      const isInactiveAccount = response.status === 403 && error.code === 'ACCOUNT_INACTIVE';
+      if ((response.status === 401 || isInactiveAccount) && options.authenticated !== false) {
+        await authTokenStore.handleUnauthorized();
+      }
       throw error;
     }
     if (response.status === 204) return undefined as T;
