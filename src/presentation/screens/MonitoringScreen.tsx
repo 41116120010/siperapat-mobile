@@ -64,6 +64,7 @@ import {
 import { resolveAuthenticatedMediaFile } from '../../core/utils/authenticatedMediaCache';
 import { resolveAttendanceMediaUrl, resolveSuratEdaranUrl } from '../../core/utils/mediaUrl';
 import { AutoScrollText } from '../components/common/AutoScrollText';
+import { BiometricPrivacyPlaceholder } from '../components/common/BiometricPrivacyPlaceholder';
 import { Button } from '../components/common/Button';
 import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
@@ -127,6 +128,9 @@ interface SignerAttendanceRecord {
   signedAt?: string | null;
   selfieUrl?: string | null;
   signatureUrl?: string | null;
+  canViewBiometrics?: boolean;
+  hasSelfie?: boolean;
+  hasSignature?: boolean;
 }
 
 type MeetingWithDocs = Meeting & {
@@ -146,6 +150,9 @@ interface Participant {
   status: AttendanceStatus;
   selfieUrl?: string | null;
   signatureUrl?: string | null;
+  canViewBiometrics?: boolean;
+  hasSelfie?: boolean;
+  hasSignature?: boolean;
   verificationToken?: string;
   ipAddress?: string;
   deviceInfo?: string;
@@ -434,6 +441,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           signedAt: item.checked_in_at ?? item.signed_at ?? null,
           selfieUrl: item.selfie_url ?? null,
           signatureUrl: item.signature_url ?? null,
+          canViewBiometrics: item.can_view_biometrics !== false,
+          hasSelfie: Boolean(item.has_selfie ?? item.selfie_url),
+          hasSignature: Boolean(item.has_signature ?? item.signature_url),
         }));
         setSignerAttendances(rows);
       } catch {
@@ -838,6 +848,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
             status: record.status,
             selfieUrl: record.selfieUrl ?? null,
             signatureUrl: record.signatureUrl ?? null,
+            canViewBiometrics: record.canViewBiometrics !== false,
+            hasSelfie: Boolean(record.hasSelfie ?? record.selfieUrl),
+            hasSignature: Boolean(record.hasSignature ?? record.signatureUrl),
             verificationToken: record.verificationToken,
             ipAddress: record.ipAddress,
             deviceInfo: record.deviceInfo,
@@ -1409,6 +1422,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
             ) : (
               filteredList.map((p, idx) => {
                 const canInspectEvidence = Boolean(p.id);
+                const canViewBiometrics = p.canViewBiometrics !== false;
                 const initials = (p.name || 'AS')
                   .trim()
                   .split(/\s+/)
@@ -1427,7 +1441,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                   >
                     <View style={styles.attendeeCompactLeft}>
                       <View style={styles.attendeeAvatarCircle}>
-                        {canInspectEvidence ? (
+                        {canInspectEvidence && !canViewBiometrics ? (
+                          <BiometricPrivacyPlaceholder variant="avatar" />
+                        ) : canInspectEvidence ? (
                           <AuthMediaThumbnail
                             attendanceId={p.id!}
                             rawUrl={p.selfieUrl}
@@ -1451,7 +1467,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                       </View>
                     </View>
 
-                    {canInspectEvidence ? (
+                    {canInspectEvidence && !canViewBiometrics ? (
+                      <BiometricPrivacyPlaceholder variant="compactBtn" />
+                    ) : canInspectEvidence ? (
                       <Pressable
                         onPress={() => setEvidenceParticipant(p)}
                         style={({ pressed }) => [
@@ -1811,7 +1829,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
             <View style={styles.webSigCol}>
               <Text style={styles.webSigRoleLabel}>{roleTitle}</Text>
               <View style={styles.webSigCanvasWrap}>
-                {att && att.signatureUrl ? (
+                {att && att.canViewBiometrics === false && att.hasSignature ? (
+                  <BiometricPrivacyPlaceholder
+                    variant="signature"
+                    label="Tanda Tangan Terlindungi"
+                  />
+                ) : att && att.signatureUrl ? (
                   <AuthMediaThumbnail
                     attendanceId={att.id}
                     rawUrl={att.signatureUrl}
@@ -2383,6 +2406,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         signedAt={evidenceParticipant?.signedAt ?? undefined}
         ipAddress={evidenceParticipant?.ipAddress}
         deviceInfo={evidenceParticipant?.deviceInfo}
+        canViewBiometrics={evidenceParticipant?.canViewBiometrics}
       />
     </View>
   );

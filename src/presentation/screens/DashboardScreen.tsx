@@ -36,7 +36,7 @@ import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerMo
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
-  onNavigateDetail: (meetingId: string) => void;
+  onNavigateDetail: (meetingId: string, isLeader?: boolean) => void;
   onNavigateAgenda?: () => void;
   onNavigateRiwayat?: () => void;
   onNavigateCreate?: () => void;
@@ -309,12 +309,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 <Text style={styles.presensiClosedText}>Presensi belum dibuka</Text>
               );
 
+              const isLeader = Boolean(
+                user?.id && meeting.leaderId && String(meeting.leaderId) === String(user.id),
+              );
+
               return (
                 <MeetingCard
                   key={meeting.id}
                   meeting={meeting}
                   showAttendance={canManageMeetings}
-                  onPressDetail={() => onNavigateDetail(meeting.id)}
+                  onPressDetail={() => onNavigateDetail(meeting.id, isLeader)}
                   onPressPdf={() => handlePdfView(meeting)}
                   onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
                   footerRight={footerRight}

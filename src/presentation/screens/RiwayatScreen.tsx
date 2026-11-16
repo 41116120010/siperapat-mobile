@@ -26,6 +26,7 @@ import { formatTanggalWaktuWIB } from '../../core/utils/dateFormatter';
 import { Attendance } from '../../domain/entities/types';
 import { Header } from '../components/common/Header';
 import { AutoScrollText } from '../components/common/AutoScrollText';
+import { BiometricPrivacyPlaceholder } from '../components/common/BiometricPrivacyPlaceholder';
 import { EmptyState } from '../components/common/EmptyState';
 import { PaginationBar } from '../components/common/PaginationBar';
 import {
@@ -450,60 +451,89 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
 
                       {/* Verifikasi Media */}
                       <View style={[styles.cellMedia, styles.bodyCellCenter]}>
-                        <View style={styles.mediaThumbsRow}>
-                          <Pressable
-                            onPress={() =>
-                              setEvidenceModalState({
-                                attendance: item.attendance,
-                                tab: 'selfie',
-                              })
-                            }
-                            style={({ pressed }) => [
-                              styles.mediaThumbTouch,
-                              pressed && styles.btnPressed,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Verifikasi Foto Selfie Anda"
-                          >
-                            <View style={styles.mediaThumbBox}>
-                              <HistoryMediaThumb
-                                attendanceId={item.id}
-                                kind="selfie"
-                                rawUrl={
-                                  item.attendance.selfieUrl ?? item.attendance.selfieUri
-                                }
-                                verificationToken={item.attendance.verificationToken}
-                              />
-                            </View>
-                          </Pressable>
+                        {(() => {
+                          const hasLocalSelfie = Boolean(
+                            item.attendance.selfieUri &&
+                              (item.attendance.selfieUri.startsWith('data:') ||
+                                item.attendance.selfieUri.startsWith('file:') ||
+                                item.attendance.selfieUri.startsWith('content:'))
+                          );
+                          const hasLocalSig = Boolean(
+                            item.attendance.signatureSvg &&
+                              (item.attendance.signatureSvg.startsWith('data:') ||
+                                item.attendance.signatureSvg.startsWith('file:') ||
+                                item.attendance.signatureSvg.startsWith('content:'))
+                          );
+                          const isSelfieRestricted =
+                            item.attendance.canViewBiometrics === false && !hasLocalSelfie;
+                          const isSignatureRestricted =
+                            item.attendance.canViewBiometrics === false && !hasLocalSig;
 
-                          <Pressable
-                            onPress={() =>
-                              setEvidenceModalState({
-                                attendance: item.attendance,
-                                tab: 'signature',
-                              })
-                            }
-                            style={({ pressed }) => [
-                              styles.mediaThumbTouch,
-                              pressed && styles.btnPressed,
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Klik untuk memperbesar Tanda Tangan"
-                          >
-                            <View style={styles.mediaThumbBox}>
-                              <HistoryMediaThumb
-                                attendanceId={item.id}
-                                kind="signature"
-                                rawUrl={
-                                  item.attendance.signatureUrl ??
-                                  item.attendance.signatureSvg
+                          return (
+                            <View style={styles.mediaThumbsRow}>
+                              <Pressable
+                                onPress={() =>
+                                  setEvidenceModalState({
+                                    attendance: item.attendance,
+                                    tab: 'selfie',
+                                  })
                                 }
-                                verificationToken={item.attendance.verificationToken}
-                              />
+                                style={({ pressed }) => [
+                                  styles.mediaThumbTouch,
+                                  pressed && styles.btnPressed,
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityLabel="Verifikasi Foto Selfie Anda"
+                              >
+                                <View style={styles.mediaThumbBox}>
+                                  {isSelfieRestricted ? (
+                                    <BiometricPrivacyPlaceholder variant="avatar" />
+                                  ) : (
+                                    <HistoryMediaThumb
+                                      attendanceId={item.id}
+                                      kind="selfie"
+                                      rawUrl={
+                                        item.attendance.selfieUrl ?? item.attendance.selfieUri
+                                      }
+                                      verificationToken={item.attendance.verificationToken}
+                                    />
+                                  )}
+                                </View>
+                              </Pressable>
+
+                              <Pressable
+                                onPress={() =>
+                                  setEvidenceModalState({
+                                    attendance: item.attendance,
+                                    tab: 'signature',
+                                  })
+                                }
+                                style={({ pressed }) => [
+                                  styles.mediaThumbTouch,
+                                  pressed && styles.btnPressed,
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityLabel="Klik untuk memperbesar Tanda Tangan"
+                              >
+                                <View style={styles.mediaThumbBox}>
+                                  {isSignatureRestricted ? (
+                                    <BiometricPrivacyPlaceholder variant="avatar" />
+                                  ) : (
+                                    <HistoryMediaThumb
+                                      attendanceId={item.id}
+                                      kind="signature"
+                                      rawUrl={
+                                        item.attendance.signatureUrl ??
+                                        item.attendance.signatureSvg
+                                      }
+                                      verificationToken={item.attendance.verificationToken}
+                                    />
+                                  )}
+                                </View>
+                              </Pressable>
                             </View>
-                          </Pressable>
-                        </View>
+                          );
+                        })()}
                       </View>
 
                       {/* Aksi */}
@@ -582,6 +612,7 @@ export const RiwayatScreen: React.FC<RiwayatScreenProps> = ({ onSelectReceipt })
         signedAt={evidenceModalState?.attendance.timestamp}
         ipAddress={evidenceModalState?.attendance.ipAddress}
         deviceInfo={evidenceModalState?.attendance.deviceInfo}
+        canViewBiometrics={evidenceModalState?.attendance.canViewBiometrics ?? true}
       />
     </View>
   );

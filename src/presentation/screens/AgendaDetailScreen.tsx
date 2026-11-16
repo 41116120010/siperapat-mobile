@@ -47,6 +47,7 @@ import { apiClient } from '../../data/datasources/apiClient';
 import { toMeeting } from '../../data/mappers/apiMappers';
 import { Meeting } from '../../domain/entities/types';
 import { AutoScrollText } from '../components/common/AutoScrollText';
+import { BiometricPrivacyPlaceholder } from '../components/common/BiometricPrivacyPlaceholder';
 import { Button } from '../components/common/Button';
 import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
@@ -72,6 +73,9 @@ interface RawAttendanceRecord {
   checked_in_at?: string | null;
   selfie_url?: string | null;
   signature_url?: string | null;
+  can_view_biometrics?: boolean;
+  has_selfie?: boolean;
+  has_signature?: boolean;
   verification_token?: string | null;
   ip_address?: string | null;
   device_info?: string | null;
@@ -849,10 +853,18 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                         accessibilityRole="button"
                         accessibilityLabel="Perbesar foto selfie presensi"
                       >
-                        <AuthSelfieThumbnail
-                          attendanceId={String(myAttendance.id)}
-                          selfieUrl={myAttendance.selfie_url}
-                        />
+                        {myAttendance.can_view_biometrics === false ? (
+                          <BiometricPrivacyPlaceholder variant="avatar" />
+                        ) : myAttendance.selfie_url ? (
+                          <AuthSelfieThumbnail
+                            attendanceId={String(myAttendance.id)}
+                            selfieUrl={myAttendance.selfie_url}
+                          />
+                        ) : (
+                          <View style={styles.mySelfieFallback}>
+                            <ShieldCheck size={20} color={colors.success} strokeWidth={2} />
+                          </View>
+                        )}
                       </Pressable>
                       <View style={styles.flexOne}>
                         <Text style={styles.myAttendedTime}>
@@ -862,7 +874,13 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                               )}`
                             : 'Tercatat dalam sistem'}
                         </Text>
-                        <Text style={styles.myAttendedHint}>Foto Selfie Terekam</Text>
+                        <Text style={styles.myAttendedHint}>
+                          {myAttendance.can_view_biometrics === false
+                            ? 'Media Biometrik Terlindungi'
+                            : myAttendance.selfie_url
+                              ? 'Foto Selfie Terekam'
+                              : 'Presensi Tercatat (Tanpa Swafoto)'}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -1107,6 +1125,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
         signedAt={myAttendance?.checked_in_at ?? undefined}
         ipAddress={myAttendance?.ip_address ?? undefined}
         deviceInfo={myAttendance?.device_info ?? undefined}
+        canViewBiometrics={myAttendance?.can_view_biometrics}
       />
 
       {/* Notulensi & Dokumentasi Editor Modal */}

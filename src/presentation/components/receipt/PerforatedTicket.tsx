@@ -22,6 +22,7 @@ import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/t
 import { formatWaktuWIB, formatTanggalIndonesia } from '../../../core/utils/dateFormatter';
 import { resolveAuthenticatedMediaFile } from '../../../core/utils/authenticatedMediaCache';
 import { EvidenceViewerModal } from '../modals/EvidenceViewerModal';
+import { BiometricPrivacyPlaceholder } from '../common/BiometricPrivacyPlaceholder';
 import { TutWuriLoader } from '../common/TutWuriLoader';
 import { resolveAttendanceMediaUrl } from '../../../core/utils/mediaUrl';
 
@@ -88,21 +89,36 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
   const [isEvidenceModalVisible, setIsEvidenceModalVisible] = useState(false);
   const [evidenceTab, setEvidenceTab] = useState<'selfie' | 'signature'>('selfie');
 
+  const isLocalUri = (value?: string | null): boolean =>
+    Boolean(
+      value &&
+        (value.startsWith('data:image/') ||
+          value.startsWith('file://') ||
+          value.startsWith('content://'))
+    );
+
+  const isSelfieRestricted =
+    attendance.canViewBiometrics === false && !isLocalUri(attendance.selfieUri);
+  const isSignatureRestricted =
+    attendance.canViewBiometrics === false && !isLocalUri(attendance.signatureSvg);
+
   const activeSelfie = useMemo(() => {
+    if (isSelfieRestricted) return null;
     return resolveAttendanceMediaUrl(
       attendance.selfieUri || attendance.selfieUrl,
       attendance.id,
       'selfie'
     );
-  }, [attendance.selfieUri, attendance.selfieUrl, attendance.id]);
+  }, [isSelfieRestricted, attendance.selfieUri, attendance.selfieUrl, attendance.id]);
 
   const activeSignature = useMemo(() => {
+    if (isSignatureRestricted) return null;
     return resolveAttendanceMediaUrl(
       attendance.signatureSvg || attendance.signatureUrl,
       attendance.id,
       'signature'
     );
-  }, [attendance.signatureSvg, attendance.signatureUrl, attendance.id]);
+  }, [isSignatureRestricted, attendance.signatureSvg, attendance.signatureUrl, attendance.id]);
 
   const { localUri: selfieLocalUri, isLoading: isLoadingSelfie } = useResolvedTicketMedia(
     activeSelfie,
@@ -330,7 +346,9 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             accessibilityLabel="Lihat Bukti Swafoto Presensi"
           >
             <View style={styles.evidenceImageWrapper}>
-              {selfieLocalUri ? (
+              {isSelfieRestricted ? (
+                <BiometricPrivacyPlaceholder variant="avatar" />
+              ) : selfieLocalUri ? (
                 <Image
                   source={{ uri: selfieLocalUri }}
                   style={styles.evidenceImage}
@@ -345,13 +363,19 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
                   <User size={36} color={colors.outline} strokeWidth={1.75} />
                 </View>
               )}
-              <View style={styles.evidenceBadgeOverlay}>
-                <ZoomIn size={13} color={colors.onPrimary} strokeWidth={2} />
-              </View>
+              {!isSelfieRestricted ? (
+                <View style={styles.evidenceBadgeOverlay}>
+                  <ZoomIn size={13} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+              ) : null}
             </View>
             <Text style={styles.evidenceTitle}>Swafoto Presensi</Text>
             <Text style={activeSelfie ? styles.evidenceSubActive : styles.evidenceSub}>
-              {activeSelfie ? 'Ketuk untuk memperbesar' : 'Bukti tidak tersedia'}
+              {isSelfieRestricted
+                ? 'Dilindungi privasi'
+                : activeSelfie
+                ? 'Ketuk untuk memperbesar'
+                : 'Bukti tidak tersedia'}
             </Text>
           </Pressable>
 
@@ -366,7 +390,12 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
             accessibilityLabel="Lihat Bukti Tanda Tangan Digital"
           >
             <View style={styles.signatureImageWrapper}>
-              {signatureLocalUri ? (
+              {isSignatureRestricted ? (
+                <BiometricPrivacyPlaceholder
+                  variant="signature"
+                  label="Tanda Tangan Terlindungi"
+                />
+              ) : signatureLocalUri ? (
                 <Image
                   source={{ uri: signatureLocalUri }}
                   style={styles.signatureImage}
@@ -381,13 +410,19 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
                   <PenTool size={30} color={colors.outline} strokeWidth={1.75} />
                 </View>
               )}
-              <View style={styles.evidenceBadgeOverlay}>
-                <ZoomIn size={13} color={colors.onPrimary} strokeWidth={2} />
-              </View>
+              {!isSignatureRestricted ? (
+                <View style={styles.evidenceBadgeOverlay}>
+                  <ZoomIn size={13} color={colors.onPrimary} strokeWidth={2} />
+                </View>
+              ) : null}
             </View>
             <Text style={styles.evidenceTitle}>Tanda Tangan Digital</Text>
             <Text style={activeSignature ? styles.evidenceSubActive : styles.evidenceSub}>
-              {activeSignature ? 'Ketuk untuk memperbesar' : 'Bukti tidak tersedia'}
+              {isSignatureRestricted
+                ? 'Dilindungi privasi'
+                : activeSignature
+                ? 'Ketuk untuk memperbesar'
+                : 'Bukti tidak tersedia'}
             </Text>
           </Pressable>
         </View>
@@ -435,6 +470,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
         ipAddress={attendance.ipAddress}
         deviceInfo={attendance.deviceInfo}
         deviceLabel={deviceLabel}
+        canViewBiometrics={attendance.canViewBiometrics ?? true}
       />
     </View>
   );

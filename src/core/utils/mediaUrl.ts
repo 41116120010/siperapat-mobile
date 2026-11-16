@@ -30,7 +30,7 @@ export function resolveAttendanceMediaUrl(
     const canonicalUrl = `${baseUrl}/attendances/${encodeURIComponent(attendanceId)}/${type}`;
 
     if (!rawUrl || rawUrl.trim() === '') {
-      return canonicalUrl;
+      return null;
     }
 
     const trimmed = rawUrl.trim();

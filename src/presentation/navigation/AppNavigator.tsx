@@ -165,9 +165,12 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
               triggerPageTransition();
               rootStackNav.navigate('Presensi', { meetingId: id });
             }}
-            onNavigateDetail={(id) => {
+            onNavigateDetail={(id, isLeader) => {
               triggerPageTransition();
-              rootStackNav.navigate(detailRoute, { meetingId: id });
+              rootStackNav.navigate(
+                user?.role !== 'staff' || isLeader ? 'Monitoring' : 'AgendaDetail',
+                { meetingId: id },
+              );
             }}
             onNavigateAgenda={
               canManageMeetings

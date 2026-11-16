@@ -26,7 +26,13 @@ function toAttendance(dto: ApiAttendanceDto): Attendance {
     validationStatusLabel: dto.receipt?.validation?.status_label ?? (attendanceStatus === 'belum_hadir' ? undefined : 'Hadir Sah Terverifikasi'),
     verificationMethod: dto.receipt?.validation?.metode_verifikasi ?? (attendanceStatus === 'belum_hadir' ? undefined : 'Swafoto Wajah & Tanda Tangan Digital'),
     meetingSchedule: dto.receipt?.meeting?.jadwal_lengkap ?? null,
-    isSynced: true, selfieUrl: canonicalSelfieUrl, signatureUrl: canonicalSignatureUrl, userId: String(dto.user_id),
+    isSynced: true,
+    selfieUrl: canonicalSelfieUrl,
+    signatureUrl: canonicalSignatureUrl,
+    canViewBiometrics: dto.can_view_biometrics,
+    hasSelfie: dto.has_selfie,
+    hasSignature: dto.has_signature,
+    userId: String(dto.user_id),
   };
 }
 

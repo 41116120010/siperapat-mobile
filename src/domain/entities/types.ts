@@ -121,6 +121,9 @@ export interface Attendance {
   distanceMeters?: number;
   selfieUrl?: string | null;
   signatureUrl?: string | null;
+  canViewBiometrics?: boolean;
+  hasSelfie?: boolean;
+  hasSignature?: boolean;
   userId?: string;
   validationStatus?: string;
   validationStatusLabel?: string;

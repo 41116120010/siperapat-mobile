@@ -77,7 +77,9 @@ export interface ApiAttendanceDto {
   user?: Pick<ApiUserDto, 'id' | 'name' | 'nip' | 'role' | 'unit' | 'jabatan' | 'pangkat_golongan'> | null;
   agenda?: { id: number; judul_rapat: string; slug?: string; tipe_rapat?: 'hybrid' | 'offline' | 'online'; lokasi_ruang?: string | null; waktu_mulai?: string | null; waktu_selesai?: string | null; nomor_ba?: string | null } | null;
   verification_token?: string | null; receipt?: ApiAttendanceReceiptDto | null; status?: 'belum_hadir';
-  signed_at: string | null; selfie_url: string | null; signature_url: string | null; ip_address: string | null; user_agent: string | null;
+  signed_at: string | null;
+  can_view_biometrics?: boolean; has_selfie?: boolean; has_signature?: boolean;
+  selfie_url: string | null; signature_url: string | null; ip_address: string | null; user_agent: string | null;
   created_at: string | null; updated_at: string | null;
 }
 export interface ApiAttendanceReceiptDto {

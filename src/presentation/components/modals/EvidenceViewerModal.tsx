@@ -27,6 +27,7 @@ import { colors } from '../../../core/theme/colors';
 import { fontFamilies, typography } from '../../../core/theme/typography';
 import { cardSurface, MIN_TOUCH_TARGET, rounded, spacing } from '../../../core/theme/tokens';
 import { Button } from '../common/Button';
+import { BiometricPrivacyPlaceholder } from '../common/BiometricPrivacyPlaceholder';
 import { TutWuriLoader } from '../common/TutWuriLoader';
 import { AutoScrollText } from '../common/AutoScrollText';
 import { useFeedbackStore } from '../../store/useFeedbackStore';
@@ -53,6 +54,7 @@ export interface EvidenceViewerModalProps {
   ipAddress?: string;
   deviceInfo?: string;
   deviceLabel?: string;
+  canViewBiometrics?: boolean;
 }
 
 function deriveDeviceLabel(userAgent?: string | null): string {
@@ -104,6 +106,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
   ipAddress,
   deviceInfo,
   deviceLabel,
+  canViewBiometrics = true,
 }) => {
   const [activeTab, setActiveTab] = useState<'selfie' | 'signature'>(initialTab);
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
@@ -126,10 +129,24 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
     return resolveAttendanceMediaUrl(raw, attendanceId, activeTab);
   }, [activeTab, selfieUri, selfieUrl, signatureSvg, signatureUrl, attendanceId]);
 
+  const isDirectLocalMedia = Boolean(
+    targetMediaUrl &&
+      (targetMediaUrl.startsWith('data:image/') ||
+        targetMediaUrl.startsWith('file://') ||
+        targetMediaUrl.startsWith('content://'))
+  );
+  const isPrivacyRestricted = canViewBiometrics === false && !isDirectLocalMedia;
+
   const loadMediaFile = useCallback(async () => {
     if (!visible) return;
 
     setMediaErrorMessage(null);
+
+    if (isPrivacyRestricted) {
+      setLocalImageUri(null);
+      setIsLoadingMedia(false);
+      return;
+    }
 
     if (!targetMediaUrl) {
       setLocalImageUri(null);
@@ -142,11 +159,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
     }
 
     // 1. Direct Base64 data URI or Local file URI (from fresh attendance submission)
-    if (
-      targetMediaUrl.startsWith('data:image/') ||
-      targetMediaUrl.startsWith('file://') ||
-      targetMediaUrl.startsWith('content://')
-    ) {
+    if (isDirectLocalMedia) {
       setLocalImageUri(targetMediaUrl);
       setIsLoadingMedia(false);
       return;
@@ -186,7 +199,15 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
     } finally {
       setIsLoadingMedia(false);
     }
-  }, [visible, targetMediaUrl, activeTab, attendanceId, verificationToken]);
+  }, [
+    visible,
+    isPrivacyRestricted,
+    isDirectLocalMedia,
+    targetMediaUrl,
+    activeTab,
+    attendanceId,
+    verificationToken,
+  ]);
 
   useEffect(() => {
     void loadMediaFile();
@@ -347,7 +368,15 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
                 showsHorizontalScrollIndicator={false}
                 showsVerticalScrollIndicator={false}
               >
-                {localImageUri && !mediaErrorMessage ? (
+                {isPrivacyRestricted ? (
+                  <BiometricPrivacyPlaceholder
+                    variant="modalNotice"
+                    label="Akses Media Biometrik Dibatasi"
+                    sublabel="Hanya dapat dilihat oleh pemilik presensi, Administrator, Admin Unit terkait, dan Pimpinan Rapat."
+                  />
+                ) : null}
+
+                {!isPrivacyRestricted && localImageUri && !mediaErrorMessage ? (
                   <Image
                     source={{ uri: localImageUri }}
                     style={activeTab === 'selfie' ? styles.selfieImage : styles.signatureImage}
@@ -355,14 +384,14 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
                   />
                 ) : null}
 
-                {isLoadingMedia ? (
+                {!isPrivacyRestricted && isLoadingMedia ? (
                   <View style={styles.loadingOverlay}>
                     <TutWuriLoader size="lg" />
                     <Text style={styles.loadingText}>Menyiapkan berkas terotentikasi...</Text>
                   </View>
                 ) : null}
 
-                {mediaErrorMessage && !isLoadingMedia ? (
+                {!isPrivacyRestricted && mediaErrorMessage && !isLoadingMedia ? (
                   <View style={styles.errorBox}>
                     {activeTab === 'selfie' ? (
                       <CameraOff size={44} color={colors.textMuted} strokeWidth={2} />
@@ -455,7 +484,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
           {/* Modal Footer */}
           <View style={styles.footer}>
             <View style={styles.footerButtons}>
-              {localImageUri && !mediaErrorMessage ? (
+              {!isPrivacyRestricted && localImageUri && !mediaErrorMessage ? (
                 <Button
                   title="Bagikan Bukti"
                   onPress={() => void handleShareEvidence()}

@@ -50,6 +50,7 @@ import {
 } from '../../data/datasources/reportApi';
 import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
 import { AutoScrollText } from '../components/common/AutoScrollText';
+import { BiometricPrivacyPlaceholder } from '../components/common/BiometricPrivacyPlaceholder';
 import { ErrorState } from '../components/common/ErrorState';
 import { Header } from '../components/common/Header';
 import { PaginationBar } from '../components/common/PaginationBar';
@@ -210,6 +211,44 @@ const BearerImage: React.FC<{
     </View>
   );
 };
+
+function renderRoleSignatureContent(att: ApiAttendanceDto | null): React.ReactNode {
+  if (!att) {
+    return (
+      <View style={styles.signatureEmptyDashBox}>
+        <Text style={styles.signaturePendingText}>Belum Mengisi Presensi</Text>
+      </View>
+    );
+  }
+
+  if (att.can_view_biometrics === false && att.has_signature !== false) {
+    return (
+      <BiometricPrivacyPlaceholder
+        variant="signature"
+        label="Tanda Tangan Terlindungi"
+      />
+    );
+  }
+
+  if (att.signature_url) {
+    return (
+      <BearerImage
+        rawUrl={att.signature_url}
+        attendanceId={att.id}
+        mediaKind="signature"
+        style={styles.signatureImg}
+        resizeMode="contain"
+        fallbackLabel="Belum Mengisi Presensi"
+      />
+    );
+  }
+
+  return (
+    <View style={styles.signatureEmptyDashBox}>
+      <Text style={styles.signaturePendingText}>Hadir (Tanpa Tanda Tangan)</Text>
+    </View>
+  );
+}
 
 export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
   meetingId,
@@ -820,22 +859,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                 <View style={styles.signatureVerifyBox}>
                   <Text style={styles.signatureRoleTitle}>Pemimpin Rapat</Text>
                   <View style={styles.signatureImageWrap}>
-                    {pimpinanAttendance?.signature_url ? (
-                      <BearerImage
-                        rawUrl={pimpinanAttendance.signature_url}
-                        attendanceId={pimpinanAttendance.id}
-                        mediaKind="signature"
-                        style={styles.signatureImg}
-                        resizeMode="contain"
-                        fallbackLabel="Belum Mengisi Presensi"
-                      />
-                    ) : (
-                      <View style={styles.signatureEmptyDashBox}>
-                        <Text style={styles.signaturePendingText}>
-                          Belum Mengisi Presensi
-                        </Text>
-                      </View>
-                    )}
+                    {renderRoleSignatureContent(pimpinanAttendance)}
                   </View>
                   <View style={styles.signaturePersonDivider}>
                     <Text style={styles.signaturePersonName}>{pimpinanName}</Text>
@@ -859,22 +883,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                 <View style={styles.signatureVerifyBox}>
                   <Text style={styles.signatureRoleTitle}>Notulis Rapat</Text>
                   <View style={styles.signatureImageWrap}>
-                    {notulisAttendance?.signature_url ? (
-                      <BearerImage
-                        rawUrl={notulisAttendance.signature_url}
-                        attendanceId={notulisAttendance.id}
-                        mediaKind="signature"
-                        style={styles.signatureImg}
-                        resizeMode="contain"
-                        fallbackLabel="Belum Mengisi Presensi"
-                      />
-                    ) : (
-                      <View style={styles.signatureEmptyDashBox}>
-                        <Text style={styles.signaturePendingText}>
-                          Belum Mengisi Presensi
-                        </Text>
-                      </View>
-                    )}
+                    {renderRoleSignatureContent(notulisAttendance)}
                   </View>
                   <View style={styles.signaturePersonDivider}>
                     <Text style={styles.signaturePersonName}>{notulisName}</Text>
@@ -994,39 +1003,47 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                             </View>
 
                             <View style={[styles.tdCell, { width: ATT_COL_WIDTHS.selfie }]}>
-                              <Pressable
-                                onPress={() =>
-                                  setEvidenceState({
-                                    visible: true,
-                                    initialTab: 'selfie',
-                                    attendance: att,
-                                  })
-                                }
-                                style={({ pressed }) => [styles.mediaThumbBtn, pressed && styles.pressed]}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Lihat selfie ${att.user?.name || ''}`}
-                              >
-                                <Camera size={14} strokeWidth={2} color={colors.primary} />
-                                <Text style={styles.mediaThumbBtnText}>Selfie</Text>
-                              </Pressable>
+                              {att.can_view_biometrics === false ? (
+                                <BiometricPrivacyPlaceholder variant="compactBtn" />
+                              ) : (
+                                <Pressable
+                                  onPress={() =>
+                                    setEvidenceState({
+                                      visible: true,
+                                      initialTab: 'selfie',
+                                      attendance: att,
+                                    })
+                                  }
+                                  style={({ pressed }) => [styles.mediaThumbBtn, pressed && styles.pressed]}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Lihat selfie ${att.user?.name || ''}`}
+                                >
+                                  <Camera size={14} strokeWidth={2} color={colors.primary} />
+                                  <Text style={styles.mediaThumbBtnText}>Selfie</Text>
+                                </Pressable>
+                              )}
                             </View>
 
                             <View style={[styles.tdCell, { width: ATT_COL_WIDTHS.signature }]}>
-                              <Pressable
-                                onPress={() =>
-                                  setEvidenceState({
-                                    visible: true,
-                                    initialTab: 'signature',
-                                    attendance: att,
-                                  })
-                                }
-                                style={({ pressed }) => [styles.mediaThumbBtn, pressed && styles.pressed]}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Lihat tanda tangan ${att.user?.name || ''}`}
-                              >
-                                <PenTool size={14} strokeWidth={2} color={colors.primary} />
-                                <Text style={styles.mediaThumbBtnText}>Lihat TTD</Text>
-                              </Pressable>
+                              {att.can_view_biometrics === false ? (
+                                <BiometricPrivacyPlaceholder variant="compactBtn" />
+                              ) : (
+                                <Pressable
+                                  onPress={() =>
+                                    setEvidenceState({
+                                      visible: true,
+                                      initialTab: 'signature',
+                                      attendance: att,
+                                    })
+                                  }
+                                  style={({ pressed }) => [styles.mediaThumbBtn, pressed && styles.pressed]}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Lihat tanda tangan ${att.user?.name || ''}`}
+                                >
+                                  <PenTool size={14} strokeWidth={2} color={colors.primary} />
+                                  <Text style={styles.mediaThumbBtnText}>Lihat TTD</Text>
+                                </Pressable>
+                              )}
                             </View>
                           </View>
                         );
@@ -1114,6 +1131,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
         signedAt={evidenceState.attendance?.signed_at ?? undefined}
         ipAddress={evidenceState.attendance?.ip_address ?? undefined}
         deviceInfo={evidenceState.attendance?.user_agent ?? undefined}
+        canViewBiometrics={evidenceState.attendance?.can_view_biometrics ?? true}
       />
     </View>
   );
