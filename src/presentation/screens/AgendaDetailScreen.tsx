@@ -32,6 +32,7 @@ import {
   Plus,
   ShieldCheck,
   User,
+  UserPlus,
   Users,
   Video,
   X,
@@ -54,11 +55,12 @@ import { Header } from '../components/common/Header';
 import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { TutWuriRefreshBanner, useTutWuriRefreshControl } from '../components/common/TutWuriRefresh';
+import { AddParticipantsModal } from '../components/modals/AddParticipantsModal';
 import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
-import { canManageMinutes } from '../utils/permissionUtils';
+import { canManageMinutes, canManageParticipants } from '../utils/permissionUtils';
 
 interface DocumentationItem {
   id: number | string;
@@ -224,6 +226,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isViewerModalVisible, setIsViewerModalVisible] = useState(false);
   const [isEvidenceModalVisible, setIsEvidenceModalVisible] = useState(false);
+  const [isAddParticipantsVisible, setIsAddParticipantsVisible] = useState(false);
   const [isDownloadingEdaran, setIsDownloadingEdaran] = useState(false);
   const [zoomDoc, setZoomDoc] = useState<DocumentationItem | null>(null);
 
@@ -1011,9 +1014,24 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
 
           {/* 7. Panel Target Partisipan Rapat (staff_show.blade.php:345-398) */}
           <View style={styles.panel}>
-            <View style={styles.panelHeader}>
-              <Users size={17} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.panelHeaderTitle}>Target Partisipan Rapat</Text>
+            <View style={[styles.panelHeader, styles.panelHeaderBetween]}>
+              <View style={styles.panelHeaderLeft}>
+                <Users size={17} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.panelHeaderTitle}>Target Partisipan Rapat</Text>
+              </View>
+              {!meeting.isAllUnits &&
+              meeting.targetType !== 'all_units' &&
+              canManageParticipants(meeting, user) ? (
+                <Pressable
+                  onPress={() => setIsAddParticipantsVisible(true)}
+                  style={({ pressed }) => [styles.addParticipantBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tambah peserta ASN susulan"
+                >
+                  <UserPlus size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.addParticipantBtnText}>+ Tambah ASN</Text>
+                </Pressable>
+              ) : null}
             </View>
             <View style={styles.panelBody}>
               {meeting.targetType === 'selected_users' ? (
@@ -1091,6 +1109,31 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                       </Text>
                     )}
                   </View>
+
+                  {(meeting.invitedUsers ?? []).length > 0 ? (
+                    <View style={styles.extraParticipantsSection}>
+                      <View style={styles.extraParticipantsHeader}>
+                        <Text style={styles.targetSubLabel}>
+                          Peserta ASN Tambahan (Susulan)
+                        </Text>
+                        <View style={styles.extraParticipantsCountBadge}>
+                          <Text style={styles.extraParticipantsCountText}>
+                            {meeting.invitedUsers!.length} Pegawai
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.unitChipsWrap}>
+                        {meeting.invitedUsers!.map((u) => (
+                          <View key={u.id} style={styles.extraParticipantChip}>
+                            <Text style={styles.extraParticipantChipText}>
+                              {u.name}
+                              {u.unit ? ` (${u.unit})` : ''}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
               )}
             </View>
@@ -1126,6 +1169,26 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
         ipAddress={myAttendance?.ip_address ?? undefined}
         deviceInfo={myAttendance?.device_info ?? undefined}
         canViewBiometrics={myAttendance?.can_view_biometrics}
+      />
+
+      <AddParticipantsModal
+        visible={isAddParticipantsVisible}
+        onClose={() => setIsAddParticipantsVisible(false)}
+        meeting={meeting}
+        onAdded={(updated) => {
+          setMeeting((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  ...updated,
+                  documentations: prev.documentations,
+                  hasAttended: prev.hasAttended,
+                  pimpinanId: prev.pimpinanId,
+                }
+              : updated,
+          );
+          void load();
+        }}
       />
 
       {/* Notulensi & Dokumentasi Editor Modal */}
@@ -2149,5 +2212,72 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     lineHeight: 18,
+  },
+  panelHeaderBetween: {
+    justifyContent: 'space-between',
+  },
+  panelHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  addParticipantBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  addParticipantBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11.5,
+    color: colors.onPrimary,
+  },
+  extraParticipantsSection: {
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    gap: spacing.xs + 2,
+  },
+  extraParticipantsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+  },
+  extraParticipantsCountBadge: {
+    paddingHorizontal: spacing.xs + 4,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  extraParticipantsCountText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    color: colors.onSuccessContainer,
+  },
+  extraParticipantChip: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  extraParticipantChipText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 11,
+    color: colors.onSurface,
   },
 });

@@ -19,11 +19,12 @@ export interface IMeetingRepository {
   getMeetingById(id: string): Promise<Meeting | null>;
   createMeeting(meeting: CreateAgendaDto, suratEdaran?: UploadFileRef): Promise<Meeting>;
   updateMeeting(id: string, meeting: UpdateAgendaDto, suratEdaran?: UploadFileRef): Promise<Meeting>;
+  addParticipants(id: string | number, userIds: number[]): Promise<Meeting>;
   deleteMeeting(id: string): Promise<boolean>;
   updateMinutes(id: string, minutes: UpdateMinutesDto): Promise<Meeting>;
   uploadSuratEdaran(id: string, suratEdaran: UploadFileRef, meetingContext?: UpdateAgendaDto): Promise<Meeting>;
   getAgendaFormOptions(): Promise<{ users: ApiUserDto[]; units: ApiUnitDto[] }>;
-  getUserCandidates(filters?: { search?: string; unitId?: number }): Promise<{ users: UserOption[]; total: number }>;
+  getUserCandidates(filters?: { search?: string; unitId?: number; agendaId?: number | string }): Promise<{ users: UserOption[]; total: number }>;
 }
 
 export interface IAttendanceRepository {

@@ -39,8 +39,9 @@ interface MeetingState {
   uploadSuratEdaran: (id: string, suratEdaran: UploadFileRef, meetingContext?: UpdateAgendaDto) => Promise<Meeting | null>;
   createMeeting: (payload: CreateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
   updateMeeting: (id: string, payload: UpdateAgendaDto, suratEdaran?: UploadFileRef) => Promise<Meeting | null>;
+  addParticipants: (agendaId: string | number, userIds: number[]) => Promise<Meeting | null>;
   deleteMeeting: (id: string) => Promise<{ success: boolean; message?: string }>;
-  fetchUserCandidates: (filters?: { search?: string; unitId?: number }) => Promise<{ users: UserOption[]; total: number } | null>;
+  fetchUserCandidates: (filters?: { search?: string; unitId?: number; agendaId?: number | string }) => Promise<{ users: UserOption[]; total: number } | null>;
   fetchAgendaFormOptions: () => Promise<void>;
   reset: () => void;
   clearError: () => void;
@@ -207,6 +208,30 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     }
   },
 
+  addParticipants: async (agendaId, userIds) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await agendaApi.addParticipants(agendaId, userIds);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Gagal menambahkan peserta rapat.');
+      }
+      const updated = toMeeting(response.data);
+      const targetId = String(agendaId);
+      set((state) => ({
+        meetings: state.meetings.map((item) => (item.id === targetId ? updated : item)),
+        dashboardMeetings: state.dashboardMeetings.map((item) => (item.id === targetId ? updated : item)),
+        activeMeeting: state.activeMeeting?.id === targetId ? updated : state.activeMeeting,
+        agendaMetaById: { ...state.agendaMetaById, [targetId]: response.data },
+      }));
+      return updated;
+    } catch (error) {
+      set({ error: message(error, 'Gagal menambahkan peserta rapat.') });
+      return null;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   deleteMeeting: async (id) => {
     set({ isLoading: true, error: null });
     try {
@@ -236,14 +261,14 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
 
   fetchUserCandidates: async (filters = {}) => {
     const search = filters.search?.trim() || undefined;
-    const requestKey = `${search ?? ''}|${filters.unitId ?? ''}`;
+    const requestKey = `${search ?? ''}|${filters.unitId ?? ''}|${filters.agendaId ?? ''}`;
     if (candidatesInFlightKey === requestKey) {
       return { users: get().userCandidates, total: get().userCandidatesTotal };
     }
     candidatesInFlightKey = requestKey;
     set({ isUserCandidatesLoading: true, userCandidatesError: null });
     try {
-      const result = await repository.getUserCandidates({ search, unitId: filters.unitId });
+      const result = await repository.getUserCandidates({ search, unitId: filters.unitId, agendaId: filters.agendaId });
       set({ userCandidates: result.users, userCandidatesTotal: result.total });
       return result;
     } catch (error) {

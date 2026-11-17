@@ -96,7 +96,12 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     totalAttended: agenda.total_attended ?? 0,
     hasAttended: Boolean(agenda.has_attended ?? agenda.my_attendance),
     myAttendanceId: agenda.my_attendance?.id ? String(agenda.my_attendance.id) : null,
-    permissions: agenda.permissions ?? null,
+    permissions: agenda.permissions
+      ? {
+          ...agenda.permissions,
+          can_manage_participants: Boolean(agenda.permissions.can_manage_participants),
+        }
+      : null,
     baNumber: agenda.nomor_ba ?? null,
     minutesHtml: agenda.notulensi_html ?? null, summaryHtml: agenda.kesimpulan_html ?? null,
     invitedUsers,

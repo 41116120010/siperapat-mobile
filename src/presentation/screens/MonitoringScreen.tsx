@@ -48,6 +48,7 @@ import {
   ShieldCheck,
   Trash2,
   User,
+  UserPlus,
   Users,
   Video,
   X,
@@ -72,6 +73,7 @@ import { SimpleHtmlView } from '../components/common/SimpleHtmlView';
 import { StatusPill, StatusPillType } from '../components/common/StatusPill';
 import { TutWuriLoader } from '../components/common/TutWuriLoader';
 import { TutWuriRefreshBanner, useTutWuriRefreshControl } from '../components/common/TutWuriRefresh';
+import { AddParticipantsModal } from '../components/modals/AddParticipantsModal';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
@@ -92,6 +94,7 @@ import {
   canDeleteMeeting,
   canEditMeeting,
   canManageMinutes,
+  canManageParticipants,
   canManageSuratEdaran,
 } from '../utils/permissionUtils';
 
@@ -312,6 +315,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   const [pendingLeaderId, setPendingLeaderId] = useState('');
   const [pendingNotulisId, setPendingNotulisId] = useState('');
   const [isSavingRoles, setIsSavingRoles] = useState(false);
+  const [isAddParticipantsVisible, setIsAddParticipantsVisible] = useState(false);
 
   const userCanDelete = useMemo(() => canDeleteMeeting(user, meeting), [user, meeting]);
   const userCanEdit = useMemo(() => canEditMeeting(user, meeting), [user, meeting]);
@@ -319,6 +323,16 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   const userCanManageSuratEdaran = useMemo(
     () => canManageSuratEdaran(user, meeting),
     [user, meeting],
+  );
+  const userCanManageParticipants = useMemo(
+    () =>
+      Boolean(
+        meeting &&
+          !meeting.isAllUnits &&
+          meeting.targetType !== 'all_units' &&
+          canManageParticipants(meeting, user),
+      ),
+    [meeting, user],
   );
 
   const isAppointedNotulis = useMemo(
@@ -1687,6 +1701,17 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 <Building2 size={17} color={colors.onSurface} strokeWidth={2} />
                 <Text style={styles.webPanelTitle}>Target Partisipan Rapat</Text>
               </View>
+              {userCanManageParticipants ? (
+                <Pressable
+                  onPress={() => setIsAddParticipantsVisible(true)}
+                  style={({ pressed }) => [styles.addParticipantBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tambah peserta ASN susulan"
+                >
+                  <UserPlus size={14} color={colors.onPrimary} strokeWidth={2} />
+                  <Text style={styles.addParticipantBtnText}>+ Tambah ASN</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             <View style={styles.webPanelBody}>
@@ -1767,6 +1792,31 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                       </Text>
                     )}
                   </View>
+
+                  {(meeting.invitedUsers ?? []).length > 0 ? (
+                    <View style={styles.extraParticipantsSection}>
+                      <View style={styles.extraParticipantsHeader}>
+                        <Text style={styles.targetUpperCaption}>
+                          Peserta ASN Tambahan (Susulan)
+                        </Text>
+                        <View style={styles.extraParticipantsCountBadge}>
+                          <Text style={styles.extraParticipantsCountText}>
+                            {meeting.invitedUsers!.length} Pegawai
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.targetChipsWrap}>
+                        {meeting.invitedUsers!.map((u) => (
+                          <View key={u.id} style={styles.extraParticipantChip}>
+                            <Text style={styles.extraParticipantChipText}>
+                              {u.name}
+                              {u.unit ? ` (${u.unit})` : ''}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
               )}
             </View>
@@ -2407,6 +2457,28 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         ipAddress={evidenceParticipant?.ipAddress}
         deviceInfo={evidenceParticipant?.deviceInfo}
         canViewBiometrics={evidenceParticipant?.canViewBiometrics}
+      />
+
+      <AddParticipantsModal
+        visible={isAddParticipantsVisible}
+        onClose={() => setIsAddParticipantsVisible(false)}
+        meeting={meeting}
+        onAdded={(updated) => {
+          setMeeting((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  ...updated,
+                  documentations: prev.documentations,
+                  hasAttended: prev.hasAttended,
+                }
+              : updated,
+          );
+          if (meetingId) {
+            void loadAgendaDetail();
+            void fetchAgendaAttendances(meetingId, 1, false);
+          }
+        }}
       />
     </View>
   );
@@ -3644,5 +3716,62 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     lineHeight: 18,
+  },
+  addParticipantBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: rounded.md,
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  addParticipantBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 11.5,
+    color: colors.onPrimary,
+  },
+  extraParticipantsSection: {
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    gap: spacing.xs + 2,
+  },
+  extraParticipantsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+  },
+  extraParticipantsCountBadge: {
+    paddingHorizontal: spacing.xs + 4,
+    paddingVertical: 2,
+    borderRadius: rounded.full,
+    backgroundColor: colors.successContainer,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  extraParticipantsCountText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    color: colors.onSuccessContainer,
+  },
+  extraParticipantChip: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: rounded.md,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  extraParticipantChipText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
+    fontSize: 11,
+    color: colors.onSurface,
   },
 });

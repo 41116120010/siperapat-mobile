@@ -24,6 +24,8 @@ export interface WibScheduleSectionProps {
   isUntilFinished: boolean;
   onToggleUntilFinished: (checked: boolean) => void;
   endDateIso?: string | null;
+  allowOverlap?: boolean;
+  onToggleOverlap?: (next: boolean) => void;
 }
 
 export interface WibScheduleValidationParams {
@@ -154,6 +156,8 @@ export const WibScheduleSection: React.FC<WibScheduleSectionProps> = ({
   isUntilFinished,
   onToggleUntilFinished,
   endDateIso,
+  allowOverlap = false,
+  onToggleOverlap,
 }) => {
   const preview = useMemo(() => {
     const parsedStart = parseStrictTime(startTime);
@@ -350,6 +354,35 @@ export const WibScheduleSection: React.FC<WibScheduleSectionProps> = ({
           <Text style={[styles.previewBadgeText, bannerBadgeTextToneStyle]}>{preview.badge}</Text>
         </View>
       </View>
+
+      {/* Opsi Penjadwalan Bersamaan / Paralel (Soft vs Hard Conflict) */}
+      {onToggleOverlap ? (
+        <Pressable
+          onPress={() => onToggleOverlap(!allowOverlap)}
+          style={({ pressed }) => [
+            styles.overlapCard,
+            allowOverlap && styles.overlapCardActive,
+            pressed && styles.pressedState,
+          ]}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: allowOverlap }}
+          accessibilityLabel="Izinkan rapat bersamaan untuk unit atau ASN yang sama"
+        >
+          <View style={styles.overlapIconWrap}>
+            {allowOverlap ? (
+              <CheckSquare size={18} color={colors.primary} strokeWidth={2} />
+            ) : (
+              <Square size={18} color={colors.textMuted} strokeWidth={2} />
+            )}
+          </View>
+          <View style={styles.overlapTextWrap}>
+            <Text style={styles.overlapTitle}>Izinkan jadwal bersamaan</Text>
+            <Text style={styles.overlapDesc}>
+              Izinkan rapat bersamaan untuk unit atau ASN yang sama. Bentrok ruangan fisik tetap diblokir.
+            </Text>
+          </View>
+        </Pressable>
+      ) : null}
     </View>
   );
 };
@@ -536,5 +569,40 @@ const styles = StyleSheet.create({
   },
   previewBadgeTextSuccess: {
     color: colors.onSuccessContainer,
+  },
+  overlapCard: {
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.xs + 4,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  overlapCardActive: {
+    borderColor: colors.infoBorder,
+    backgroundColor: colors.infoBg,
+  },
+  overlapIconWrap: {
+    paddingTop: 1,
+  },
+  overlapTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  overlapTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+  },
+  overlapDesc: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
 });

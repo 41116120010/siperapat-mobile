@@ -19,6 +19,7 @@ export interface CreateAgendaDto {
   is_all_units: boolean; unit_ids?: number[]; user_ids?: number[]; status?: 'draft' | 'scheduled';
   surat_edaran_type?: 'upload' | 'digital';
   open_surat_edaran_after_save?: boolean;
+  allow_schedule_overlap?: boolean;
 }
 export interface UpdateAgendaDto extends Omit<Partial<CreateAgendaDto>, 'status'> {
   status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
@@ -153,8 +154,22 @@ export const agendaApi = {
     const query = queryString({ page, per_page: perPage, status: filters.status, tipe_rapat: filters.type, search: filters.search, unit_id: filters.unitId });
     return apiClient.get<ApiAgendaPage>(`/agendas?${query}`);
   },
-  updateStatus: (id: string | number, status: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled') =>
-    apiClient.patch<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/status`, { status }),
+  updateStatus: (
+    id: string | number,
+    status: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled',
+    allowScheduleOverlap?: boolean,
+  ) =>
+    apiClient.patch<ApiEnvelope<ApiAgendaDto>>(
+      `/agendas/${encodeURIComponent(id)}/status`,
+      allowScheduleOverlap !== undefined
+        ? { status, allow_schedule_overlap: allowScheduleOverlap }
+        : { status },
+    ),
+  addParticipants: (id: string | number, userIds: number[]) =>
+    apiClient.post<ApiEnvelope<ApiAgendaDto>>(
+      `/agendas/${encodeURIComponent(id)}/participants`,
+      { user_ids: userIds },
+    ),
   detail: (id: string) => apiClient.get<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`),
   updateMinutes: (id: string, data: UpdateMinutesDto) => {
     if (data.photos && data.photos.length > 0) {

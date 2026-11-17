@@ -199,6 +199,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   const [endTime, setEndTime] = useState('12:00');
   const [isUntilFinished, setIsUntilFinished] = useState(false);
   const [endDateIso, setEndDateIso] = useState<string | null>(null);
+  const [allowScheduleOverlap, setAllowScheduleOverlap] = useState(false);
 
   const [venue, setVenue] = useState('Pilih ruang rapat');
   const [venueId, setVenueId] = useState('');
@@ -292,6 +293,9 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         setEndTime(hasExplicitEndTime ? agenda.endTime : '');
         setIsUntilFinished(!hasExplicitEndTime);
         setEndDateIso(raw.waktu_selesai ? raw.waktu_selesai.slice(0, 10) : null);
+        setAllowScheduleOverlap(
+          Boolean((raw as unknown as Record<string, unknown>).allow_schedule_overlap),
+        );
 
         const matchVenue = VENUE_OPTIONS.find(
           (v) => v.title.toLowerCase() === agenda.venue?.toLowerCase(),
@@ -638,6 +642,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         waktu_selesai: scheduleCheck.normalizedEnd
           ? toIsoDateTime(targetEndDate, scheduleCheck.normalizedEnd)
           : null,
+        allow_schedule_overlap: allowScheduleOverlap,
         pimpinan_id: leaderId ? Number(leaderId) : null,
         notulis_id: notulisId ? Number(notulisId) : null,
         target_type: effectiveTargetType,
@@ -1005,6 +1010,8 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
             isUntilFinished={isUntilFinished}
             onToggleUntilFinished={handleToggleUntilFinished}
             endDateIso={endDateIso}
+            allowOverlap={allowScheduleOverlap}
+            onToggleOverlap={setAllowScheduleOverlap}
           />
 
           {formatType !== 'online' ? (

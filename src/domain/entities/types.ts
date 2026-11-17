@@ -32,6 +32,7 @@ export interface MeetingPermissions {
   can_manage_status: boolean;
   can_manage_minutes: boolean;
   can_manage_circular: boolean;
+  can_manage_participants?: boolean;
   can_attend: boolean;
   can_export: boolean;
 }

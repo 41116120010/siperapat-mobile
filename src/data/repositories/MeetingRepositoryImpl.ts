@@ -47,6 +47,12 @@ export class MeetingRepositoryImpl implements IMeetingRepository {
     return toMeeting(response.data as ApiAgendaDto);
   }
 
+  async addParticipants(id: string | number, userIds: number[]): Promise<Meeting> {
+    const response = await agendaApi.addParticipants(id, userIds);
+    if (!response.success) throw new Error(response.message || 'Gagal menambahkan peserta rapat.');
+    return toMeeting(response.data as ApiAgendaDto);
+  }
+
   async deleteMeeting(id: string): Promise<boolean> {
     const response = await agendaApi.delete(id);
     if (!response.success) throw new Error(response.message || 'Gagal menghapus agenda rapat.');
@@ -55,7 +61,7 @@ export class MeetingRepositoryImpl implements IMeetingRepository {
 
   getAgendaFormOptions() { return agendaApi.formOptions(); }
 
-  async getUserCandidates(filters: { search?: string; unitId?: number } = {}) {
+  async getUserCandidates(filters: { search?: string; unitId?: number; agendaId?: number | string } = {}) {
     const response = await userApi.candidates(filters);
     if (!response.success) throw new Error(response.message || 'Gagal memuat kandidat pegawai.');
     return { users: toUserOptions(response.data), total: response.meta?.total ?? response.data.length };

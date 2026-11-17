@@ -196,6 +196,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
   const [isUntilFinished, setIsUntilFinished] = useState(false);
+  const [allowScheduleOverlap, setAllowScheduleOverlap] = useState(false);
   const [venue, setVenue] = useState('Pilih ruang rapat');
   const [venueId, setVenueId] = useState('');
   const [customClassification, setCustomClassification] = useState('');
@@ -404,6 +405,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
         waktu_selesai: scheduleCheck.normalizedEnd
           ? toIsoDateTime(dateIso, scheduleCheck.normalizedEnd)
           : null,
+        allow_schedule_overlap: allowScheduleOverlap,
         pimpinan_id: leaderId ? Number(leaderId) : null,
         notulis_id: notulisId ? Number(notulisId) : null,
         target_type: targetType,
@@ -728,6 +730,8 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 setEndTime('12:00');
               }
             }}
+            allowOverlap={allowScheduleOverlap}
+            onToggleOverlap={setAllowScheduleOverlap}
           />
 
           {formatType !== 'online' ? (

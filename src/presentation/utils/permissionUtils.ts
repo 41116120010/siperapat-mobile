@@ -109,3 +109,34 @@ export function canManageSuratEdaran(user: ASN | null, meeting: Meeting | null):
 
   return Boolean(isAdminUnitRole(user) && user.unitId && meeting.creatorUnitId === user.unitId);
 }
+
+/**
+ * Checks whether the current user can add ad-hoc ASN participants during an active meeting.
+ * Mirrors backend AgendaPolicy::manageParticipants (Administrator, organizing Admin Unit, or Pimpinan).
+ */
+export function canManageParticipants(meeting?: Meeting | null, user?: ASN | null): boolean {
+  if (!meeting || !user) return false;
+  if (typeof meeting.permissions?.can_manage_participants === 'boolean') {
+    return meeting.permissions.can_manage_participants;
+  }
+
+  const isScheduledOrOngoing =
+    meeting.rawStatus === 'scheduled' ||
+    meeting.rawStatus === 'ongoing' ||
+    meeting.status === 'upcoming' ||
+    meeting.status === 'ongoing';
+  if (!isScheduledOrOngoing) return false;
+
+  if (isAdministratorRole(user)) return true;
+
+  if (meeting.leaderId != null && String(meeting.leaderId) === String(user.id)) {
+    return true;
+  }
+
+  if (isAdminUnitRole(user)) {
+    if (meeting.creatorId != null && String(meeting.creatorId) === String(user.id)) return true;
+    if (user.unitId != null && meeting.creatorUnitId === user.unitId) return true;
+  }
+
+  return false;
+}
