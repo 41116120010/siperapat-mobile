@@ -43,20 +43,19 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
     <View style={styles.container}>
       <StatusBar style="light" />
       <ImageBackground
-        source={require('../../../assets/images/rumah-gadang-bg.jpg')}
+        source={require('../../../assets/images/siluet.webp')}
         style={styles.backgroundImage}
         resizeMode="cover"
-        blurRadius={2}
       >
         {/* Neutral Optical Scrim Gradient (Preserves Minangkabau Architecture & eliminates blue mud) */}
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <Svg width="100%" height="100%">
             <Defs>
               <SvgLinearGradient id="neutralScrim" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0%" stopColor={colors.primaryDarkest} stopOpacity="0.72" />
-                <Stop offset="35%" stopColor={colors.primary} stopOpacity="0.45" />
-                <Stop offset="68%" stopColor={colors.primaryDarkest} stopOpacity="0.72" />
-                <Stop offset="100%" stopColor={colors.primaryDarkest} stopOpacity="0.92" />
+                <Stop offset="0%" stopColor={colors.primaryDarkest} stopOpacity="0.86" />
+                <Stop offset="35%" stopColor={colors.primary} stopOpacity="0.76" />
+                <Stop offset="68%" stopColor={colors.primaryDarkest} stopOpacity="0.80" />
+                <Stop offset="100%" stopColor={colors.primaryDarkest} stopOpacity="0.94" />
               </SvgLinearGradient>
             </Defs>
             <Rect width="100%" height="100%" fill="url(#neutralScrim)" />

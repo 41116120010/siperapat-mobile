@@ -136,7 +136,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
       >
         {/* Dark Slate Hero Header matching LoginScreen & Web .auth-illustration */}
         <ImageBackground
-          source={require('../../../assets/images/rumah-gadang-bg.jpg')}
+          source={require('../../../assets/images/siluet.webp')}
           style={[
             styles.heroBanner,
             { paddingTop: Math.max(spacing.xl, insets.top + spacing.md) },
