@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Linking,
@@ -17,7 +17,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import {
+  AlertTriangle,
   ArrowLeft,
+  Bold,
   BookOpen,
   Building2,
   Calendar,
@@ -32,8 +34,12 @@ import {
   FileCheck2,
   FileSpreadsheet,
   FileText,
+  Heading2,
   Image as ImageIcon,
   Info,
+  Italic,
+  List,
+  ListOrdered,
   Mail,
   MapPin,
   Monitor,
@@ -83,6 +89,16 @@ import { apiClient } from '../../data/datasources/apiClient';
 import { attendanceApi } from '../../data/datasources/attendanceApi';
 import { AgendaExportFormat } from '../../data/datasources/reportApi';
 import { meetingToUpdateDto, toMeeting } from '../../data/mappers/apiMappers';
+import {
+  appendNoteToHtml,
+  applyFormatMarker,
+  hasComplexHtml,
+  htmlToReadablePreview,
+  htmlToStructuredText,
+  MinutesFormatKind,
+  structuredTextToHtml,
+  TextSelectionRange,
+} from '../../utils/minutesHtml';
 import { AgendaExportRepository } from '../../data/repositories/AgendaExportRepository';
 import { AttendanceStatus, Meeting } from '../../domain/entities/types';
 import { useAttendanceStore } from '../store/useAttendanceStore';
@@ -235,18 +251,6 @@ const AuthMediaThumbnail: React.FC<{
   );
 };
 
-function plainText(html?: string | null) {
-  return (
-    html
-      ?.replace(/<br\s*\/?\s*>/gi, '\n')
-      .replace(/<\/p>/gi, '\n\n')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/gi, ' ')
-      .replace(/&amp;/gi, '&')
-      .trim() || ''
-  );
-}
-
 function toPillStatus(status?: Meeting['status']): StatusPillType {
   if (
     status === 'ongoing' ||
@@ -302,6 +306,13 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   const [isEditingMinutes, setIsEditingMinutes] = useState(false);
   const [minutesDraft, setMinutesDraft] = useState('');
   const [conclusionDraft, setConclusionDraft] = useState('');
+  const [minutesSourceHtml, setMinutesSourceHtml] = useState('');
+  const [conclusionSourceHtml, setConclusionSourceHtml] = useState('');
+  const [minutesEditMode, setMinutesEditMode] = useState<'structured' | 'append' | 'flatten'>('structured');
+  const [minutesSelection, setMinutesSelection] = useState<TextSelectionRange | undefined>(undefined);
+  const [conclusionSelection, setConclusionSelection] = useState<TextSelectionRange | undefined>(undefined);
+  const minutesSelRef = useRef<TextSelectionRange>({ start: 0, end: 0 });
+  const conclusionSelRef = useRef<TextSelectionRange>({ start: 0, end: 0 });
   const [isUploadingEdaran, setIsUploadingEdaran] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [agendaError, setAgendaError] = useState<string | null>(null);
@@ -684,15 +695,76 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   };
 
   const handleEditMinutes = () => {
-    setMinutesDraft(meeting?.minutesHtml ? plainText(meeting.minutesHtml) : '');
-    setConclusionDraft(meeting?.summaryHtml ? plainText(meeting.summaryHtml) : '');
+    const srcNotulensi = String(rawAgenda?.notulensi_raw ?? meeting?.minutesHtml ?? '');
+    const srcKesimpulan = String(rawAgenda?.kesimpulan_raw ?? meeting?.summaryHtml ?? '');
+    const notulensiComplex = hasComplexHtml(srcNotulensi);
+    const kesimpulanComplex = hasComplexHtml(srcKesimpulan);
+
+    setMinutesSourceHtml(srcNotulensi);
+    setConclusionSourceHtml(srcKesimpulan);
+
+    if (notulensiComplex || kesimpulanComplex) {
+      setMinutesEditMode('append');
+      setMinutesDraft(notulensiComplex ? '' : htmlToStructuredText(srcNotulensi));
+      setConclusionDraft(kesimpulanComplex ? '' : htmlToStructuredText(srcKesimpulan));
+    } else {
+      setMinutesEditMode('structured');
+      setMinutesDraft(htmlToStructuredText(srcNotulensi));
+      setConclusionDraft(htmlToStructuredText(srcKesimpulan));
+    }
+
+    minutesSelRef.current = { start: 0, end: 0 };
+    conclusionSelRef.current = { start: 0, end: 0 };
+    setMinutesSelection(undefined);
+    setConclusionSelection(undefined);
     setIsEditingMinutes(true);
+  };
+
+  const switchMinutesEditMode = (nextMode: 'append' | 'flatten') => {
+    setMinutesEditMode(nextMode);
+    if (nextMode === 'append') {
+      setMinutesDraft(hasComplexHtml(minutesSourceHtml) ? '' : htmlToStructuredText(minutesSourceHtml));
+      setConclusionDraft(hasComplexHtml(conclusionSourceHtml) ? '' : htmlToStructuredText(conclusionSourceHtml));
+    } else {
+      setMinutesDraft(htmlToStructuredText(minutesSourceHtml));
+      setConclusionDraft(htmlToStructuredText(conclusionSourceHtml));
+    }
+    setMinutesSelection(undefined);
+    setConclusionSelection(undefined);
+  };
+
+  const handleApplyMinutesFormat = (target: 'notulensi' | 'kesimpulan', kind: MinutesFormatKind) => {
+    if (target === 'notulensi') {
+      const result = applyFormatMarker(minutesDraft, minutesSelRef.current, kind);
+      setMinutesDraft(result.nextText);
+      minutesSelRef.current = result.nextSelection;
+      setMinutesSelection(result.nextSelection);
+      return;
+    }
+    const result = applyFormatMarker(conclusionDraft, conclusionSelRef.current, kind);
+    setConclusionDraft(result.nextText);
+    conclusionSelRef.current = result.nextSelection;
+    setConclusionSelection(result.nextSelection);
   };
 
   const handleSaveMinutes = async () => {
     if (!meetingId || !meeting || isSavingMinutes) return;
-    const notulensi = minutesDraft.trim() || null;
-    const kesimpulan = conclusionDraft.trim() || null;
+
+    const notulensiComplex = hasComplexHtml(minutesSourceHtml);
+    const kesimpulanComplex = hasComplexHtml(conclusionSourceHtml);
+
+    const finalNotulensi =
+      notulensiComplex && minutesEditMode === 'append'
+        ? appendNoteToHtml(minutesSourceHtml, minutesDraft)
+        : structuredTextToHtml(minutesDraft);
+
+    const finalKesimpulan =
+      kesimpulanComplex && minutesEditMode === 'append'
+        ? appendNoteToHtml(conclusionSourceHtml, conclusionDraft)
+        : structuredTextToHtml(conclusionDraft);
+
+    const notulensi = finalNotulensi.trim() || null;
+    const kesimpulan = finalKesimpulan.trim() || null;
 
     const updated = await updateMinutes(meetingId, { notulensi, kesimpulan });
     if (!updated) {
@@ -704,8 +776,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
       return;
     }
     setMeeting(updated as MeetingWithDocs);
-    setMinutesDraft(updated.minutesHtml ? plainText(updated.minutesHtml) : '');
-    setConclusionDraft(updated.summaryHtml ? plainText(updated.summaryHtml) : '');
+    setMinutesDraft(updated.minutesHtml ? htmlToStructuredText(updated.minutesHtml) : '');
+    setConclusionDraft(updated.summaryHtml ? htmlToStructuredText(updated.summaryHtml) : '');
     setIsEditingMinutes(false);
     useFeedbackStore.getState().showToast({
       type: 'success',
@@ -734,9 +806,17 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
       const fileName = asset.fileName || `dokumentasi_${Date.now()}.jpg`;
       const mimeType = resolveFileMimeType(fileName, asset.mimeType ?? 'image/jpeg');
       setIsUploadingPhoto(true);
+      const preservedNotulensi =
+        typeof rawAgenda?.notulensi_raw === 'string'
+          ? rawAgenda.notulensi_raw
+          : meeting.minutesHtml ?? undefined;
+      const preservedKesimpulan =
+        typeof rawAgenda?.kesimpulan_raw === 'string'
+          ? rawAgenda.kesimpulan_raw
+          : meeting.summaryHtml ?? undefined;
       const updated = await updateMinutes(meetingId, {
-        notulensi: meeting.minutesHtml ? plainText(meeting.minutesHtml) : undefined,
-        kesimpulan: meeting.summaryHtml ? plainText(meeting.summaryHtml) : undefined,
+        notulensi: preservedNotulensi,
+        kesimpulan: preservedKesimpulan,
         photos: [{ uri: asset.uri, name: fileName, type: mimeType }],
         captions: [`Dokumentasi ${meeting.title}`],
       });
@@ -1864,10 +1944,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           );
 
           const hasMinutesContent = Boolean(
-            meeting?.minutesHtml && plainText(meeting.minutesHtml).length > 0,
+            meeting?.minutesHtml && htmlToReadablePreview(meeting.minutesHtml).length > 0,
           );
           const hasSummaryContent = Boolean(
-            meeting?.summaryHtml && plainText(meeting.summaryHtml).length > 0,
+            meeting?.summaryHtml && htmlToReadablePreview(meeting.summaryHtml).length > 0,
           );
 
           const renderWebSignatureCol = (
@@ -2340,14 +2420,135 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
 
             <ScrollView style={styles.minutesModalScroll}>
               <View style={styles.rolesModalBody}>
+                {(hasComplexHtml(minutesSourceHtml) || hasComplexHtml(conclusionSourceHtml)) && (
+                  <View style={styles.complexHtmlBanner}>
+                    <View style={styles.complexHtmlHeader}>
+                      <Info size={16} color={colors.infoText} strokeWidth={2} />
+                      <Text style={styles.complexHtmlTitle}>
+                        Dokumen Memuat Tabel / Format Lanjutan Web
+                      </Text>
+                    </View>
+                    <Text style={styles.complexHtmlDesc}>
+                      Naskah dari Web mengandung tabel, tautan, atau format lanjutan. Pilih mode sunting:
+                    </Text>
+                    <View style={styles.complexModeRow}>
+                      <Pressable
+                        onPress={() => switchMinutesEditMode('append')}
+                        style={({ pressed }) => [
+                          styles.complexModeBtn,
+                          minutesEditMode === 'append' && styles.complexModeBtnActive,
+                          pressed && styles.pressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Tambah Catatan Lanjutan"
+                      >
+                        <Text
+                          style={[
+                            styles.complexModeBtnText,
+                            minutesEditMode === 'append' && styles.complexModeBtnTextActive,
+                          ]}
+                        >
+                          Tambah Catatan Lanjutan
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => switchMinutesEditMode('flatten')}
+                        style={({ pressed }) => [
+                          styles.complexModeBtn,
+                          minutesEditMode === 'flatten' && styles.complexModeBtnWarnActive,
+                          pressed && styles.pressed,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Edit Ulang Teks Polos"
+                      >
+                        <Text
+                          style={[
+                            styles.complexModeBtnText,
+                            minutesEditMode === 'flatten' && styles.complexModeBtnWarnTextActive,
+                          ]}
+                        >
+                          Edit Ulang Teks Polos
+                        </Text>
+                      </Pressable>
+                    </View>
+                    {minutesEditMode === 'flatten' && (
+                      <View style={styles.complexWarnBox}>
+                        <AlertTriangle size={14} color={colors.onWarningContainer} strokeWidth={2} />
+                        <Text style={styles.complexWarnText}>
+                          Menyimpan pada mode ini akan mengganti tabel/tautan Web dengan teks terstruktur.
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
                 <Text style={styles.roleFieldLabel}>Pembahasan Jalannya Rapat</Text>
+                {hasComplexHtml(minutesSourceHtml) && minutesEditMode === 'append' && (
+                  <Text style={styles.appendHintText}>
+                    Mode aman aktif: catatan di bawah akan ditambahkan di akhir pembahasan Web tanpa mengubah tabel.
+                  </Text>
+                )}
+                <View style={styles.formatToolbar}>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('notulensi', 'bold')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Tebal Pembahasan"
+                  >
+                    <Bold size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('notulensi', 'italic')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Miring Pembahasan"
+                  >
+                    <Italic size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('notulensi', 'bullet')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Poin Bullet Pembahasan"
+                  >
+                    <List size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('notulensi', 'ordered')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Daftar Bernomor Pembahasan"
+                  >
+                    <ListOrdered size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('notulensi', 'heading')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Subjudul Pembahasan"
+                  >
+                    <Heading2 size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                </View>
                 <TextInput
                   multiline
                   textAlignVertical="top"
                   value={minutesDraft}
-                  onChangeText={setMinutesDraft}
+                  onChangeText={(txt) => {
+                    setMinutesDraft(txt);
+                    if (minutesSelection) setMinutesSelection(undefined);
+                  }}
+                  selection={minutesSelection}
+                  onSelectionChange={(e) => {
+                    minutesSelRef.current = e.nativeEvent.selection;
+                    if (minutesSelection) setMinutesSelection(undefined);
+                  }}
                   editable={!isSavingMinutes}
-                  placeholder="Tuliskan jalannya rapat dan dinamika pembahasan secara lengkap..."
+                  placeholder={
+                    hasComplexHtml(minutesSourceHtml) && minutesEditMode === 'append'
+                      ? 'Tuliskan catatan pembahasan lanjutan (opsional)...'
+                      : 'Tuliskan jalannya rapat dan dinamika pembahasan secara lengkap...'
+                  }
                   placeholderTextColor={colors.textMuted}
                   style={styles.minutesModalInput}
                 />
@@ -2355,13 +2556,72 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 <Text style={[styles.roleFieldLabel, styles.roleFieldGap]}>
                   Keputusan & Tindak Lanjut (Kesimpulan)
                 </Text>
+                {hasComplexHtml(conclusionSourceHtml) && minutesEditMode === 'append' && (
+                  <Text style={styles.appendHintText}>
+                    Mode aman aktif: catatan di bawah akan ditambahkan di akhir kesimpulan Web tanpa mengubah tabel.
+                  </Text>
+                )}
+                <View style={styles.formatToolbar}>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('kesimpulan', 'bold')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Tebal Kesimpulan"
+                  >
+                    <Bold size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('kesimpulan', 'italic')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Miring Kesimpulan"
+                  >
+                    <Italic size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('kesimpulan', 'bullet')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Poin Bullet Kesimpulan"
+                  >
+                    <List size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('kesimpulan', 'ordered')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Daftar Bernomor Kesimpulan"
+                  >
+                    <ListOrdered size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApplyMinutesFormat('kesimpulan', 'heading')}
+                    style={({ pressed }) => [styles.formatToolBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Format Subjudul Kesimpulan"
+                  >
+                    <Heading2 size={16} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                </View>
                 <TextInput
                   multiline
                   textAlignVertical="top"
                   value={conclusionDraft}
-                  onChangeText={setConclusionDraft}
+                  onChangeText={(txt) => {
+                    setConclusionDraft(txt);
+                    if (conclusionSelection) setConclusionSelection(undefined);
+                  }}
+                  selection={conclusionSelection}
+                  onSelectionChange={(e) => {
+                    conclusionSelRef.current = e.nativeEvent.selection;
+                    if (conclusionSelection) setConclusionSelection(undefined);
+                  }}
                   editable={!isSavingMinutes}
-                  placeholder="Tuliskan poin keputusan, arahan pimpinan, PIC, dan tenggat waktu..."
+                  placeholder={
+                    hasComplexHtml(conclusionSourceHtml) && minutesEditMode === 'append'
+                      ? 'Tuliskan catatan kesimpulan lanjutan (opsional)...'
+                      : 'Tuliskan poin keputusan, arahan pimpinan, PIC, dan tenggat waktu...'
+                  }
                   placeholderTextColor={colors.textMuted}
                   style={styles.minutesModalInput}
                 />
@@ -3689,6 +3949,102 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: colors.onSurface,
     includeFontPadding: false,
+  },
+  formatToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  formatToolBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  complexHtmlBanner: {
+    padding: spacing.sm,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.infoBorder,
+    backgroundColor: colors.infoBg,
+    gap: spacing.xs + 2,
+    marginBottom: spacing.xs,
+  },
+  complexHtmlHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  complexHtmlTitle: {
+    ...typography.labelMd,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.infoText,
+    flex: 1,
+  },
+  complexHtmlDesc: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.infoText,
+  },
+  complexModeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+  },
+  complexModeBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: rounded.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  complexModeBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  complexModeBtnWarnActive: {
+    backgroundColor: colors.warningContainer,
+    borderColor: colors.warningBorder,
+  },
+  complexModeBtnText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansSemiBold,
+    color: colors.onSurface,
+  },
+  complexModeBtnTextActive: {
+    color: colors.onPrimary,
+  },
+  complexModeBtnWarnTextActive: {
+    color: colors.onWarningContainer,
+  },
+  complexWarnBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs + 2,
+    padding: spacing.xs + 2,
+    borderRadius: rounded.sm,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+    backgroundColor: colors.warningContainer,
+  },
+  complexWarnText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.onWarningContainer,
+    flex: 1,
+  },
+  appendHintText: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textSecondary,
   },
   uploadPhotoModalRow: {
     marginTop: 8,

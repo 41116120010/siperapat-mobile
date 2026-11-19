@@ -422,11 +422,37 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
     return allKnownAttendances.find((a) => a.user_id === agenda.notulis?.id) ?? null;
   }, [agenda?.notulis?.id, allKnownAttendances]);
 
+  const reportConfig = recapDetail?.report_config ?? agenda?.report_config;
+
+  const signer3Attendance = useMemo(() => {
+    const signer3Id = reportConfig?.signer3_user_id;
+    if (signer3Id === null || signer3Id === undefined || signer3Id === '') return null;
+    return allKnownAttendances.find((a) => String(a.user_id) === String(signer3Id)) ?? null;
+  }, [reportConfig?.signer3_user_id, allKnownAttendances]);
+
+  const showDasarSurat =
+    Boolean(reportConfig?.show_dasar_surat) &&
+    typeof reportConfig?.dasar_surat === 'string' &&
+    reportConfig.dasar_surat.trim().length > 0;
+  const dasarSuratText = showDasarSurat ? String(reportConfig?.dasar_surat).trim() : '';
+
+  const showOpeningBa =
+    Boolean(reportConfig?.show_opening_ba) &&
+    typeof reportConfig?.opening_ba === 'string' &&
+    reportConfig.opening_ba.trim().length > 0;
+  const openingBaText = showOpeningBa ? String(reportConfig?.opening_ba).trim() : '';
+
+  const showClosingBa = reportConfig?.show_closing_ba !== false;
   const penutupText =
-    typeof recapDetail?.report_config?.penutup === 'string' &&
-    recapDetail.report_config.penutup.trim().length > 0
-      ? recapDetail.report_config.penutup.trim()
+    typeof reportConfig?.penutup === 'string' && reportConfig.penutup.trim().length > 0
+      ? reportConfig.penutup.trim()
       : 'Demikian notulensi rapat kedinasan ini disusun secara sah sebagai bagian dari dokumentasi administrasi rapat di lingkungan LLDIKTI Wilayah X.';
+
+  const showTembusan =
+    Boolean(reportConfig?.show_tembusan) &&
+    typeof reportConfig?.tembusan === 'string' &&
+    reportConfig.tembusan.trim().length > 0;
+  const tembusanText = showTembusan ? String(reportConfig?.tembusan).trim() : '';
 
   const suratUrl = agenda?.surat_edaran?.stream_url || agenda?.surat_edaran?.url || null;
   const totalAttended = agenda?.total_attended ?? agenda?.attendances_count ?? attMeta.total ?? 0;
@@ -435,6 +461,55 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
   const creatorUnitCode = agenda?.creator?.unit?.kode_unit || 'Pusat';
   const pimpinanName = agenda?.nama_pimpinan || agenda?.pimpinan?.name || '-';
   const notulisName = agenda?.nama_notulis || agenda?.notulis?.name || '-';
+
+  const signer1Prefix =
+    typeof reportConfig?.signer1_prefix === 'string'
+      ? reportConfig.signer1_prefix.trim()
+      : 'Mengetahui,';
+  const signer1Role =
+    typeof reportConfig?.signer1_role === 'string' && reportConfig.signer1_role.trim()
+      ? reportConfig.signer1_role.trim()
+      : 'Pemimpin Rapat';
+  const signer1DisplayName =
+    typeof reportConfig?.signer1_name === 'string' && reportConfig.signer1_name.trim()
+      ? reportConfig.signer1_name.trim()
+      : pimpinanName;
+  const signer1DisplayNip =
+    typeof reportConfig?.signer1_nip === 'string' && reportConfig.signer1_nip.trim()
+      ? reportConfig.signer1_nip.trim()
+      : agenda?.pimpinan?.nip || '-';
+  const showSigner1Signature = reportConfig?.show_signer1_signature !== false;
+
+  const signer2Role =
+    typeof reportConfig?.signer2_role === 'string' && reportConfig.signer2_role.trim()
+      ? reportConfig.signer2_role.trim()
+      : 'Notulis Rapat';
+  const signer2DisplayName =
+    typeof reportConfig?.signer2_name === 'string' && reportConfig.signer2_name.trim()
+      ? reportConfig.signer2_name.trim()
+      : notulisName;
+  const signer2DisplayNip =
+    typeof reportConfig?.signer2_nip === 'string' && reportConfig.signer2_nip.trim()
+      ? reportConfig.signer2_nip.trim()
+      : agenda?.notulis?.nip || '-';
+  const showSigner2Signature = reportConfig?.show_signer2_signature !== false;
+
+  const signer3Prefix =
+    typeof reportConfig?.signer3_prefix === 'string' ? reportConfig.signer3_prefix.trim() : '';
+  const signer3Role =
+    typeof reportConfig?.signer3_role === 'string' && reportConfig.signer3_role.trim()
+      ? reportConfig.signer3_role.trim()
+      : 'Pejabat Penandatangan';
+  const signer3DisplayName =
+    typeof reportConfig?.signer3_name === 'string' ? reportConfig.signer3_name.trim() : '';
+  const signer3DisplayNip =
+    typeof reportConfig?.signer3_nip === 'string' && reportConfig.signer3_nip.trim()
+      ? reportConfig.signer3_nip.trim()
+      : '-';
+  const showSigner3Block =
+    Boolean(reportConfig?.show_signer3) &&
+    (signer3DisplayName.length > 0 || signer3Role.length > 0);
+  const showSigner3Signature = Boolean(reportConfig?.show_signer3_signature);
 
   const handleRefresh = useCallback(() => {
     void loadDetail('refresh');
@@ -803,6 +878,34 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                 ) : null}
               </View>
 
+              {showDasarSurat ? (
+                <View style={styles.notulenBlock}>
+                  <View style={styles.notulenSubHeadingRow}>
+                    <View style={styles.notulenCircleBadge}>
+                      <Text style={styles.notulenCircleBadgeText}>D</Text>
+                    </View>
+                    <Text style={styles.notulenSubHeading}>Dasar / Rujukan Surat</Text>
+                  </View>
+                  <View style={styles.notulenContentIndent}>
+                    <Text style={styles.penutupText}>{dasarSuratText}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {showOpeningBa ? (
+                <View style={styles.notulenBlock}>
+                  <View style={styles.notulenSubHeadingRow}>
+                    <View style={styles.notulenCircleBadge}>
+                      <Text style={styles.notulenCircleBadgeText}>A</Text>
+                    </View>
+                    <Text style={styles.notulenSubHeading}>Pembuka Berita Acara</Text>
+                  </View>
+                  <View style={styles.notulenContentIndent}>
+                    <Text style={styles.penutupText}>{openingBaText}</Text>
+                  </View>
+                </View>
+              ) : null}
+
               <View style={styles.notulenBlock}>
                 <View style={styles.notulenSubHeadingRow}>
                   <View style={styles.notulenCircleBadge}>
@@ -841,31 +944,38 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                 </View>
               </View>
 
-              <View style={styles.notulenBlock}>
-                <View style={styles.notulenSubHeadingRow}>
-                  <View style={styles.notulenCircleBadge}>
-                    <Check size={11} strokeWidth={2.5} color={colors.onPrimary} />
+              {showClosingBa ? (
+                <View style={styles.notulenBlock}>
+                  <View style={styles.notulenSubHeadingRow}>
+                    <View style={styles.notulenCircleBadge}>
+                      <Check size={11} strokeWidth={2.5} color={colors.onPrimary} />
+                    </View>
+                    <Text style={styles.notulenSubHeading}>Penutup</Text>
                   </View>
-                  <Text style={styles.notulenSubHeading}>Penutup</Text>
+                  <View style={styles.notulenContentIndent}>
+                    <Text style={styles.penutupText}>{penutupText}</Text>
+                  </View>
                 </View>
-                <View style={styles.notulenContentIndent}>
-                  <Text style={styles.penutupText}>{penutupText}</Text>
-                </View>
-              </View>
+              ) : null}
 
               {/* Dual Verification Signatures */}
               <View style={styles.dualSignatureGrid}>
                 {/* Pemimpin Rapat */}
                 <View style={styles.signatureVerifyBox}>
-                  <Text style={styles.signatureRoleTitle}>Pemimpin Rapat</Text>
-                  <View style={styles.signatureImageWrap}>
-                    {renderRoleSignatureContent(pimpinanAttendance)}
-                  </View>
+                  {signer1Prefix ? (
+                    <Text style={styles.signaturePrefixText}>{signer1Prefix}</Text>
+                  ) : null}
+                  <Text style={styles.signatureRoleTitle}>{signer1Role}</Text>
+                  {showSigner1Signature ? (
+                    <View style={styles.signatureImageWrap}>
+                      {renderRoleSignatureContent(pimpinanAttendance)}
+                    </View>
+                  ) : null}
                   <View style={styles.signaturePersonDivider}>
-                    <Text style={styles.signaturePersonName}>{pimpinanName}</Text>
-                    {agenda.pimpinan?.nip && agenda.pimpinan.nip !== '-' ? (
+                    <Text style={styles.signaturePersonName}>{signer1DisplayName}</Text>
+                    {signer1DisplayNip && signer1DisplayNip !== '-' ? (
                       <Text style={styles.signaturePersonNip}>
-                        NIP {agenda.pimpinan.nip}
+                        NIP {signer1DisplayNip}
                       </Text>
                     ) : null}
                     {pimpinanAttendance?.signed_at ? (
@@ -881,15 +991,17 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
 
                 {/* Notulis Rapat */}
                 <View style={styles.signatureVerifyBox}>
-                  <Text style={styles.signatureRoleTitle}>Notulis Rapat</Text>
-                  <View style={styles.signatureImageWrap}>
-                    {renderRoleSignatureContent(notulisAttendance)}
-                  </View>
+                  <Text style={styles.signatureRoleTitle}>{signer2Role}</Text>
+                  {showSigner2Signature ? (
+                    <View style={styles.signatureImageWrap}>
+                      {renderRoleSignatureContent(notulisAttendance)}
+                    </View>
+                  ) : null}
                   <View style={styles.signaturePersonDivider}>
-                    <Text style={styles.signaturePersonName}>{notulisName}</Text>
-                    {agenda.notulis?.nip && agenda.notulis.nip !== '-' ? (
+                    <Text style={styles.signaturePersonName}>{signer2DisplayName}</Text>
+                    {signer2DisplayNip && signer2DisplayNip !== '-' ? (
                       <Text style={styles.signaturePersonNip}>
-                        NIP {agenda.notulis.nip}
+                        NIP {signer2DisplayNip}
                       </Text>
                     ) : null}
                     {notulisAttendance?.signed_at ? (
@@ -903,6 +1015,52 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                   </View>
                 </View>
               </View>
+
+              {showSigner3Block ? (
+                <View style={styles.signatureVerifyBoxFull}>
+                  {signer3Prefix ? (
+                    <Text style={styles.signaturePrefixText}>{signer3Prefix}</Text>
+                  ) : null}
+                  <Text style={styles.signatureRoleTitle}>{signer3Role}</Text>
+                  {showSigner3Signature ? (
+                    <View style={styles.signatureImageWrap}>
+                      {renderRoleSignatureContent(signer3Attendance)}
+                    </View>
+                  ) : null}
+                  <View style={styles.signaturePersonDivider}>
+                    <Text style={styles.signaturePersonName}>
+                      {signer3DisplayName || '-'}
+                    </Text>
+                    {signer3DisplayNip && signer3DisplayNip !== '-' ? (
+                      <Text style={styles.signaturePersonNip}>
+                        NIP {signer3DisplayNip}
+                      </Text>
+                    ) : null}
+                    {signer3Attendance?.signed_at ? (
+                      <View style={styles.signatureValidatedPill}>
+                        <Check size={10} strokeWidth={2.5} color={colors.success} />
+                        <Text style={styles.signatureValidatedText}>
+                          Tervalidasi Hadir ({formatWaktuWIB(signer3Attendance.signed_at).slice(0, 5)} WIB)
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+
+              {showTembusan ? (
+                <View style={styles.notulenBlock}>
+                  <View style={styles.notulenSubHeadingRow}>
+                    <View style={styles.notulenCircleBadge}>
+                      <Text style={styles.notulenCircleBadgeText}>T</Text>
+                    </View>
+                    <Text style={styles.notulenSubHeading}>Tembusan</Text>
+                  </View>
+                  <View style={styles.notulenContentIndent}>
+                    <Text style={styles.penutupText}>{tembusanText}</Text>
+                  </View>
+                </View>
+              ) : null}
 
               <View style={styles.webOnlyNoticeBox}>
                 <Monitor size={15} strokeWidth={2} color={colors.infoText} />
@@ -1635,11 +1793,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  signatureVerifyBoxFull: {
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: rounded.md,
+    padding: spacing.sm,
+    alignItems: 'center',
+    gap: 6,
+  },
+  signaturePrefixText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
   signatureRoleTitle: {
     ...typography.labelSm,
     fontFamily: fontFamilies.sansBold,
     color: colors.textSecondary,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
   signatureImageWrap: {
     width: '100%',

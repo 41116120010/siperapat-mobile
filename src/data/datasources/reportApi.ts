@@ -1,6 +1,6 @@
 import { requireApiBaseUrl } from '../../core/config/apiConfig';
 import { apiClient, ApiBinaryResponse } from './apiClient';
-import { ApiAgendaDto, ApiEnvelope, ApiPaginated } from './apiTypes';
+import { ApiAgendaDto, ApiEnvelope, ApiPaginated, ApiReportConfig } from './apiTypes';
 
 export type AgendaExportFormat = 'pdf' | 'word' | 'csv';
 
@@ -62,7 +62,7 @@ export interface ApiReportSummaryDto {
 
 export interface ApiReportAgendaRecapDto {
   agenda: ApiAgendaDto;
-  report_config: Record<string, unknown>;
+  report_config: ApiReportConfig;
   export_links: {
     pdf: string;
     word: string;

@@ -29,6 +29,58 @@ export interface ApiAgendaStatusCounts {
   completed: number;
   cancelled: number;
 }
+export interface ApiReportConfig {
+  show_kop?: boolean;
+  show_logo?: boolean;
+  custom_logo_path?: string | null;
+  instansi_induk?: string;
+  instansi_pelaksana?: string;
+  alamat_kontak?: string;
+  document_title?: string;
+  show_document_number?: boolean;
+  document_number?: string;
+  show_dasar_surat?: boolean;
+  dasar_surat?: string | null;
+  show_opening_ba?: boolean;
+  opening_ba?: string | null;
+  show_meeting_info?: boolean;
+  custom_agenda_title?: string;
+  custom_location?: string;
+  show_attendees?: boolean;
+  show_nip?: boolean;
+  show_unit?: boolean;
+  show_attendance_time?: boolean;
+  show_selfie_photos?: boolean;
+  show_attendee_signatures?: boolean;
+  show_notulensi?: boolean;
+  show_kesimpulan?: boolean;
+  show_closing_ba?: boolean;
+  penutup?: string | null;
+  show_documentation?: boolean;
+  signing_city?: string;
+  signing_date?: string;
+  signer1_prefix?: string | null;
+  signer1_role?: string;
+  signer1_name?: string;
+  signer1_nip?: string;
+  show_signer1_signature?: boolean;
+  signer2_role?: string;
+  signer2_name?: string;
+  signer2_nip?: string;
+  show_signer2_signature?: boolean;
+  show_signer3?: boolean;
+  signer3_prefix?: string | null;
+  signer3_role?: string;
+  signer3_name?: string;
+  signer3_nip?: string;
+  signer3_user_id?: number | string | null;
+  show_signer3_signature?: boolean;
+  show_tembusan?: boolean;
+  tembusan?: string | null;
+  show_footer_note?: boolean;
+  footer_note?: string;
+  [key: string]: unknown;
+}
 export interface ApiAgendaDto {
   id: number; judul_rapat: string; slug: string; jenis_rapat: string; tipe_rapat: 'hybrid' | 'offline' | 'online';
   lokasi_ruang: string | null; link_meeting: string | null; waktu_mulai: string; waktu_selesai: string | null;
@@ -55,7 +107,7 @@ export interface ApiAgendaDto {
   documentations?: Array<{ id: number; agenda_id?: number; url?: string; file_url?: string; caption?: string | null; sort_order?: number; created_at?: string | null; updated_at?: string | null }>;
   attendances?: ApiAttendanceDto[];
   invited_users?: ApiUserDto[];
-  report_config?: Record<string, unknown>;
+  report_config?: ApiReportConfig;
   permissions?: {
     can_update: boolean;
     can_delete: boolean;
