@@ -142,6 +142,13 @@ export class AgendaExportRepository {
     if (mimeType === 'text/html' && finalName.toLowerCase().endsWith('.pdf')) {
       finalName = `${finalName.slice(0, -4)}.html`;
     }
+    if (
+      options.format === 'word' &&
+      (mimeType.includes('ms-word') || mimeType === 'application/msword') &&
+      finalName.toLowerCase().endsWith('.docx')
+    ) {
+      finalName = `${finalName.slice(0, -5)}.doc`;
+    }
 
     const finalUri = `${directory}${finalName}`;
     if (finalUri !== result.uri) {
@@ -153,9 +160,16 @@ export class AgendaExportRepository {
       throw new Error('Fitur berbagi file tidak tersedia pada perangkat ini.');
     }
 
+    const uti =
+      mimeType === 'text/html'
+        ? 'public.html'
+        : mimeType.includes('ms-word') || mimeType === 'application/msword'
+          ? 'com.microsoft.word.doc'
+          : IOS_UTIS[options.format];
+
     await Sharing.shareAsync(finalUri, {
       mimeType: mimeType === 'text/html' ? 'text/html' : mimeType,
-      UTI: mimeType === 'text/html' ? 'public.html' : IOS_UTIS[options.format],
+      UTI: uti,
       dialogTitle: options.dialogTitle,
     });
 
