@@ -1122,6 +1122,9 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                     ) : (
                       attendances.map((att, idx) => {
                         const rowNum = (Math.max(attPage, 1) - 1) * 10 + idx + 1;
+                        const hasSelfie = Boolean(att.has_selfie ?? att.selfie_url);
+                        const hasSignature = Boolean(att.has_signature ?? att.signature_url);
+                        const canViewBiometrics = att.can_view_biometrics === true;
                         return (
                           <View
                             key={att.id}
@@ -1161,7 +1164,9 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                             </View>
 
                             <View style={[styles.tdCell, { width: ATT_COL_WIDTHS.selfie }]}>
-                              {att.can_view_biometrics === false ? (
+                              {!hasSelfie ? (
+                                <Text style={styles.attSignedTimeMono}>-</Text>
+                              ) : !canViewBiometrics ? (
                                 <BiometricPrivacyPlaceholder variant="compactBtn" />
                               ) : (
                                 <Pressable
@@ -1183,7 +1188,9 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                             </View>
 
                             <View style={[styles.tdCell, { width: ATT_COL_WIDTHS.signature }]}>
-                              {att.can_view_biometrics === false ? (
+                              {!hasSignature ? (
+                                <Text style={styles.attSignedTimeMono}>-</Text>
+                              ) : !canViewBiometrics ? (
                                 <BiometricPrivacyPlaceholder variant="compactBtn" />
                               ) : (
                                 <Pressable
@@ -1289,7 +1296,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
         signedAt={evidenceState.attendance?.signed_at ?? undefined}
         ipAddress={evidenceState.attendance?.ip_address ?? undefined}
         deviceInfo={evidenceState.attendance?.user_agent ?? undefined}
-        canViewBiometrics={evidenceState.attendance?.can_view_biometrics ?? true}
+        canViewBiometrics={evidenceState.attendance?.can_view_biometrics === true}
       />
     </View>
   );

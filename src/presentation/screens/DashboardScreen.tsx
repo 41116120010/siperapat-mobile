@@ -309,8 +309,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 <Text style={styles.presensiClosedText}>Presensi belum dibuka</Text>
               );
 
-              const isLeader = Boolean(
-                user?.id && meeting.leaderId && String(meeting.leaderId) === String(user.id),
+              const isDelegatedOfficer = Boolean(
+                user?.id &&
+                  ((meeting.leaderId && String(meeting.leaderId) === String(user.id)) ||
+                    (meeting.notulisId && String(meeting.notulisId) === String(user.id)) ||
+                    meeting.permissions?.can_manage_minutes),
               );
 
               return (
@@ -318,7 +321,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   key={meeting.id}
                   meeting={meeting}
                   showAttendance={canManageMeetings}
-                  onPressDetail={() => onNavigateDetail(meeting.id, isLeader)}
+                  onPressDetail={() => onNavigateDetail(meeting.id, isDelegatedOfficer)}
                   onPressPdf={() => handlePdfView(meeting)}
                   onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
                   footerRight={footerRight}

@@ -466,7 +466,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           signedAt: item.checked_in_at ?? item.signed_at ?? null,
           selfieUrl: item.selfie_url ?? null,
           signatureUrl: item.signature_url ?? null,
-          canViewBiometrics: item.can_view_biometrics !== false,
+          canViewBiometrics: item.can_view_biometrics === true,
           hasSelfie: Boolean(item.has_selfie ?? item.selfie_url),
           hasSignature: Boolean(item.has_signature ?? item.signature_url),
         }));
@@ -942,7 +942,8 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
             status: record.status,
             selfieUrl: record.selfieUrl ?? null,
             signatureUrl: record.signatureUrl ?? null,
-            canViewBiometrics: record.canViewBiometrics !== false,
+            canViewBiometrics:
+              record.status !== 'belum_hadir' && record.canViewBiometrics === true,
             hasSelfie: Boolean(record.hasSelfie ?? record.selfieUrl),
             hasSignature: Boolean(record.hasSignature ?? record.signatureUrl),
             verificationToken: record.verificationToken,
@@ -1035,8 +1036,11 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     | {
         id?: number | string;
         checked_in_at?: string;
-        selfie_url?: string;
-        signature_url?: string;
+        selfie_url?: string | null;
+        signature_url?: string | null;
+        can_view_biometrics?: boolean;
+        has_selfie?: boolean;
+        has_signature?: boolean;
         verification_token?: string;
       }
     | null
@@ -1381,6 +1385,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                         status: 'tercatat',
                         selfieUrl: myAtt.selfie_url ?? null,
                         signatureUrl: myAtt.signature_url ?? null,
+                        canViewBiometrics: myAtt.can_view_biometrics !== false,
+                        hasSelfie: Boolean(myAtt.has_selfie ?? myAtt.selfie_url),
+                        hasSignature: Boolean(myAtt.has_signature ?? myAtt.signature_url),
                         verificationToken: myAtt.verification_token,
                       });
                     }
@@ -1515,8 +1522,13 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
               </View>
             ) : (
               filteredList.map((p, idx) => {
-                const canInspectEvidence = Boolean(p.id);
-                const canViewBiometrics = p.canViewBiometrics !== false;
+                const isAttended = p.status !== 'belum_hadir';
+                const hasSelfieMedia = Boolean(p.hasSelfie || p.selfieUrl);
+                const hasAnyMedia = Boolean(
+                  hasSelfieMedia || p.hasSignature || p.signatureUrl,
+                );
+                const canInspectEvidence = isAttended && Boolean(p.id) && hasAnyMedia;
+                const canViewBiometrics = p.canViewBiometrics === true;
                 const initials = (p.name || 'AS')
                   .trim()
                   .split(/\s+/)
@@ -1535,9 +1547,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                   >
                     <View style={styles.attendeeCompactLeft}>
                       <View style={styles.attendeeAvatarCircle}>
-                        {canInspectEvidence && !canViewBiometrics ? (
+                        {isAttended && hasSelfieMedia && !canViewBiometrics ? (
                           <BiometricPrivacyPlaceholder variant="avatar" />
-                        ) : canInspectEvidence ? (
+                        ) : isAttended && Boolean(p.id) && hasSelfieMedia && canViewBiometrics ? (
                           <AuthMediaThumbnail
                             attendanceId={p.id!}
                             rawUrl={p.selfieUrl}

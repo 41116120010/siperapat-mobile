@@ -9,11 +9,11 @@ import { useMeetingStore } from './useMeetingStore';
 
 const authRepo = new AuthRepositoryImpl();
 
-function resetAllSessionData(): void {
-  void clearAllAuthMediaCaches();
+async function resetAllSessionData(): Promise<void> {
   useMeetingStore.getState().reset();
   useEmployeeStore.getState().reset();
   useAttendanceStore.getState().reset();
+  await clearAllAuthMediaCaches();
 }
 
 interface AuthState {
@@ -70,6 +70,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await authRepo.loginWithNIP(nip, password, remember);
+      await resetAllSessionData();
       set({ user, isLoading: false });
       return true;
     } catch (err: unknown) {
@@ -85,6 +86,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await authRepo.loginWithBiometrics();
+      await resetAllSessionData();
       set({ user, isLoading: false });
       return true;
     } catch (err: unknown) {
@@ -100,7 +102,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try { await authRepo.logout(); }
     finally {
-      resetAllSessionData();
+      await resetAllSessionData();
       set({ user: null, isLoading: false, error: null });
     }
   },

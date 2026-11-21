@@ -43,6 +43,7 @@ import { PageTransitionOverlay } from '../components/transitions/PageTransitionO
 import { triggerPageTransition, useTransitionStore } from '../store/useTransitionStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useMeetingStore } from '../store/useMeetingStore';
 
 export const rootNavigationRef = createNavigationContainerRef<RootStackParamList>();
 
@@ -165,10 +166,10 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
               triggerPageTransition();
               rootStackNav.navigate('Presensi', { meetingId: id });
             }}
-            onNavigateDetail={(id, isLeader) => {
+            onNavigateDetail={(id, canMonitor) => {
               triggerPageTransition();
               rootStackNav.navigate(
-                user?.role !== 'staff' || isLeader ? 'Monitoring' : 'AgendaDetail',
+                user?.role !== 'staff' || canMonitor ? 'Monitoring' : 'AgendaDetail',
                 { meetingId: id },
               );
             }}
@@ -453,7 +454,22 @@ export const AppNavigator: React.FC = () => {
             onDone={() => navigation.navigate('MainTabs')}
             onViewAgendaDetail={(meetingId) => {
               if (meetingId) {
-                navigation.navigate(role === 'staff' ? 'AgendaDetail' : 'Monitoring', { meetingId });
+                const targetMeeting = useMeetingStore
+                  .getState()
+                  .meetings.find((m) => String(m.id) === String(meetingId));
+                const isDelegatedOfficer = Boolean(
+                  user?.id &&
+                    targetMeeting &&
+                    ((targetMeeting.leaderId &&
+                      String(targetMeeting.leaderId) === String(user.id)) ||
+                      (targetMeeting.notulisId &&
+                        String(targetMeeting.notulisId) === String(user.id)) ||
+                      targetMeeting.permissions?.can_manage_minutes),
+                );
+                navigation.navigate(
+                  role !== 'staff' || isDelegatedOfficer ? 'Monitoring' : 'AgendaDetail',
+                  { meetingId },
+                );
               } else {
                 navigation.navigate('MainTabs');
               }
