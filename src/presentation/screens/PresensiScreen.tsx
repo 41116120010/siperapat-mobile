@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Clock,
   FileText,
+  Lock,
   MapPin,
   UserCheck,
 } from 'lucide-react-native';
@@ -80,6 +81,11 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
       : meeting?.venue || 'Daring / Ruang Virtual');
   const organizerName = rawAgenda?.creator?.name ?? 'Penyelenggara Rapat';
   const meetingTypeLabel = (rawAgenda?.tipe_rapat ?? meeting?.type ?? 'offline').toUpperCase();
+  const isIneligible = Boolean(portal && !portal.isEligible);
+  const ineligibilityMessage =
+    portal?.statusNote?.trim() ||
+    'Anda tidak termasuk dalam daftar peserta yang diwajibkan mengisi presensi pada agenda rapat ini.';
+  const isSessionInactive = Boolean(portal && portal.isEligible && (!portal.isOngoing || portal.hasAttended));
 
   const handleSubmit = async () => {
     if (!portal?.isOngoing || !portal.isEligible || portal.hasAttended) {
@@ -181,11 +187,52 @@ export const PresensiScreen: React.FC<PresensiScreenProps> = ({
           ) : null}
         </View>
 
-        {/* Step 1: Live Selfie with Oval Guide */}
-        <FaceOvalOverlay onCapture={setSelfieUri} />
+        {isIneligible ? (
+          <View style={styles.ineligibleBanner}>
+            <AlertCircle size={20} color={colors.onErrorContainer} strokeWidth={2} />
+            <View style={styles.ineligibleTextWrap}>
+              <Text style={styles.ineligibleTitle}>Akses Presensi Dibatasi</Text>
+              <Text style={styles.ineligibleDesc}>{ineligibilityMessage}</Text>
+            </View>
+          </View>
+        ) : isSessionInactive && portal?.statusNote ? (
+          <View style={styles.ineligibleBanner}>
+            <AlertCircle size={20} color={colors.onErrorContainer} strokeWidth={2} />
+            <View style={styles.ineligibleTextWrap}>
+              <Text style={styles.ineligibleTitle}>Status Sesi Presensi</Text>
+              <Text style={styles.ineligibleDesc}>{portal.statusNote}</Text>
+            </View>
+          </View>
+        ) : null}
 
-        {/* Step 2: Digital Signature Canvas */}
-        <DigitalSignaturePad onSignatureChange={setSignatureSvg} />
+        {isIneligible ? (
+          <View style={styles.lockedFormCard}>
+            <View style={styles.lockedFormIconWrap}>
+              <Lock size={22} color={colors.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.lockedFormTitle}>
+              Formulir Kamera & Tanda Tangan Dikunci
+            </Text>
+            <Text style={styles.lockedFormDesc}>
+              {ineligibilityMessage}
+            </Text>
+            <Button
+              title="Kembali"
+              onPress={onBack}
+              variant="outline"
+              size="md"
+              fullWidth
+            />
+          </View>
+        ) : (
+          <>
+            {/* Step 1: Live Selfie with Oval Guide */}
+            <FaceOvalOverlay onCapture={setSelfieUri} />
+
+            {/* Step 2: Digital Signature Canvas */}
+            <DigitalSignaturePad onSignatureChange={setSignatureSvg} />
+          </>
+        )}
 
         {/* Step 3: Identity Metadata & Attendance Statement (aligned with Web create.blade.php) */}
         <View style={styles.metadataCard}>
@@ -491,6 +538,64 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginBottom: spacing.md,
+  },
+  ineligibleBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.errorContainer,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+    padding: spacing.md,
+    borderRadius: rounded.lg,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  ineligibleTextWrap: {
+    flex: 1,
+    gap: 3,
+  },
+  ineligibleTitle: {
+    ...typography.labelLg,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onErrorContainer,
+  },
+  ineligibleDesc: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.onErrorContainer,
+    lineHeight: 18,
+  },
+  lockedFormCard: {
+    ...cardSurface,
+    padding: spacing.lg,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  lockedFormIconWrap: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockedFormTitle: {
+    ...typography.headlineSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.onSurface,
+    textAlign: 'center',
+  },
+  lockedFormDesc: {
+    ...typography.bodySm,
+    fontFamily: fontFamilies.sansRegular,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: spacing.xs,
   },
   guideCard: {
     ...cardSurface,

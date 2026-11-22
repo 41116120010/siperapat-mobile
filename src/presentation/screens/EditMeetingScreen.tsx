@@ -1216,9 +1216,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                 </Text>
                 <View style={styles.candidateBulkActions}>
                   <Pressable
-                    onPress={() =>
-                      setSelectedUserIds(filteredCandidates.map((c) => Number(c.id)))
-                    }
+                    onPress={() => {
+                      const filteredIds = filteredCandidates
+                        .map((c) => Number(c.id))
+                        .filter((id) => Number.isFinite(id));
+                      setSelectedUserIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+                    }}
                     style={styles.candidateBulkBtn}
                   >
                     <Text style={styles.candidateBulkText}>Pilih Semua</Text>
@@ -1262,6 +1265,7 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                   {paginatedCandidates.map((candidate) => {
                     const candidateId = Number(candidate.id);
                     const isChecked = selectedUserIds.includes(candidateId);
+                    const isSelf = Boolean(user?.id) && candidateId === Number(user?.id);
                     return (
                       <Pressable
                         key={candidate.id}
@@ -1272,9 +1276,16 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
                         ]}
                       >
                         <View style={styles.candidateInfo}>
-                          <AutoScrollText style={styles.candidateName}>
-                            {candidate.name}
-                          </AutoScrollText>
+                          <View style={styles.candidateNameRow}>
+                            <AutoScrollText style={styles.candidateName} containerStyle={styles.flexOne}>
+                              {candidate.name}
+                            </AutoScrollText>
+                            {isSelf ? (
+                              <View style={styles.selfBadge}>
+                                <Text style={styles.selfBadgeText}>Anda</Text>
+                              </View>
+                            ) : null}
+                          </View>
                           <AutoScrollText style={styles.candidateMeta}>
                             {candidate.nip || '-'} • {candidate.unit || 'LLDIKTI X'}
                           </AutoScrollText>
@@ -2375,6 +2386,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
   },
   candidateInfo: { flex: 1, minWidth: 0, gap: 2 },
+  candidateNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  flexOne: { flex: 1 },
+  selfBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: rounded.full,
+    paddingHorizontal: spacing.xs + 4,
+    paddingVertical: 2,
+  },
+  selfBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    color: colors.onPrimary,
+  },
   candidateName: {
     ...typography.labelMd,
     fontFamily: fontFamilies.sansSemiBold,

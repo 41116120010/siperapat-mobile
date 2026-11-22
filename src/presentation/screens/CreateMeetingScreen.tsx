@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -212,7 +212,11 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
     !isAdministrator && user?.unitId ? [user.unitId] : []
   );
   const [unitPage, setUnitPage] = useState(1);
-  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const creatorNumericId = Number(user?.id);
+  const hasTouchedSelectedUsersRef = useRef(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>(() =>
+    Number.isFinite(creatorNumericId) && creatorNumericId > 0 ? [creatorNumericId] : [],
+  );
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userPage, setUserPage] = useState(1);
   const [suratEdaranType, setSuratEdaranType] = useState<'upload' | 'digital'>('upload');
@@ -221,6 +225,12 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [submittingStatus, setSubmittingStatus] = useState<'draft' | 'scheduled' | null>(null);
 
   const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
+
+  useEffect(() => {
+    if (!hasTouchedSelectedUsersRef.current && Number.isFinite(creatorNumericId) && creatorNumericId > 0) {
+      setSelectedUserIds((prev) => (prev.length === 0 ? [creatorNumericId] : prev));
+    }
+  }, [creatorNumericId]);
 
   useEffect(() => {
     if (!isAdministrator) {
@@ -301,6 +311,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   };
 
   const toggleUserCandidate = (candidateId: number) => {
+    hasTouchedSelectedUsersRef.current = true;
     setSelectedUserIds((prev) =>
       prev.includes(candidateId) ? prev.filter((id) => id !== candidateId) : [...prev, candidateId],
     );
@@ -974,18 +985,24 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 </Text>
                 <View style={styles.selectionQuickActions}>
                   <Pressable
-                    onPress={() =>
-                      setSelectedUserIds(
-                        filteredCandidates
-                          .map((u) => Number(u.id))
-                          .filter((id) => Number.isFinite(id))
-                      )
-                    }
+                    onPress={() => {
+                      hasTouchedSelectedUsersRef.current = true;
+                      const filteredIds = filteredCandidates
+                        .map((u) => Number(u.id))
+                        .filter((id) => Number.isFinite(id));
+                      setSelectedUserIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+                    }}
                     style={styles.quickLinkBtn}
                   >
                     <Text style={styles.quickLinkText}>Pilih Semua</Text>
                   </Pressable>
-                  <Pressable onPress={() => setSelectedUserIds([])} style={styles.quickLinkBtn}>
+                  <Pressable
+                    onPress={() => {
+                      hasTouchedSelectedUsersRef.current = true;
+                      setSelectedUserIds([]);
+                    }}
+                    style={styles.quickLinkBtn}
+                  >
                     <Text style={styles.quickLinkMutedText}>Hapus Semua</Text>
                   </Pressable>
                 </View>
@@ -1029,6 +1046,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                     {paginatedCandidates.map((candidate) => {
                       const numericId = Number(candidate.id);
                       const isChecked = selectedUserIds.includes(numericId);
+                      const isSelf = Number.isFinite(creatorNumericId) && numericId === creatorNumericId;
                       return (
                         <Pressable
                           key={candidate.id}
@@ -1044,9 +1062,16 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                             <Square size={18} color={colors.textMuted} strokeWidth={2} />
                           )}
                           <View style={styles.candidateInfo}>
-                            <AutoScrollText style={styles.candidateName}>
-                              {candidate.name}
-                            </AutoScrollText>
+                            <View style={styles.candidateNameRow}>
+                              <AutoScrollText style={styles.candidateName} containerStyle={styles.flexOne}>
+                                {candidate.name}
+                              </AutoScrollText>
+                              {isSelf ? (
+                                <View style={styles.selfBadge}>
+                                  <Text style={styles.selfBadgeText}>Anda</Text>
+                                </View>
+                              ) : null}
+                            </View>
                             <AutoScrollText style={styles.candidateSub}>
                               {candidate.nip ? `NIP. ${candidate.nip}` : 'NIP tidak tersedia'}
                               {candidate.unit ? ` • ${candidate.unit}` : ''}
@@ -1919,6 +1944,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
   },
   candidateInfo: { flex: 1, minWidth: 0 },
+  candidateNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+  },
+  flexOne: { flex: 1 },
+  selfBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: rounded.full,
+    paddingHorizontal: spacing.xs + 4,
+    paddingVertical: 2,
+  },
+  selfBadgeText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    fontSize: 10,
+    color: colors.onPrimary,
+  },
   candidateName: {
     ...typography.labelMd,
     fontFamily: fontFamilies.sansSemiBold,

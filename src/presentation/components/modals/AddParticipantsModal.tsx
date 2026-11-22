@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   Modal,
@@ -46,6 +46,7 @@ export const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const wasVisibleRef = useRef(false);
 
   const alreadyInvitedIds = useMemo(() => {
     const set = new Set<string>();
@@ -54,18 +55,48 @@ export const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
         set.add(String(u.id));
       }
     });
+    if (meeting?.leaderId != null) {
+      set.add(String(meeting.leaderId));
+    }
+    if (meeting?.notulisId != null) {
+      set.add(String(meeting.notulisId));
+    }
+    const isSelectedUnitsMode =
+      meeting?.targetType === 'selected_units' ||
+      (!meeting?.isAllUnits && meeting?.targetType !== 'selected_users');
+    if (isSelectedUnitsMode && (meeting?.unitIds?.length ?? 0) > 0) {
+      const unitSet = new Set(meeting!.unitIds);
+      userCandidates.forEach((candidate) => {
+        if (candidate.unitId != null && unitSet.has(candidate.unitId)) {
+          set.add(String(candidate.id));
+        }
+      });
+    }
     return set;
-  }, [meeting?.invitedUsers]);
+  }, [
+    meeting?.invitedUsers,
+    meeting?.leaderId,
+    meeting?.notulisId,
+    meeting?.targetType,
+    meeting?.isAllUnits,
+    meeting?.unitIds,
+    userCandidates,
+  ]);
 
   useEffect(() => {
-    if (!visible || !meeting?.id) return;
-    setSearchQuery('');
-    setSelectedIds([]);
-    void fetchUserCandidates({ agendaId: meeting.id });
-  }, [visible, meeting?.id, fetchUserCandidates]);
+    if (!visible || !meeting?.id) {
+      wasVisibleRef.current = false;
+      return;
+    }
 
-  useEffect(() => {
-    if (!visible || !meeting?.id) return;
+    if (!wasVisibleRef.current) {
+      wasVisibleRef.current = true;
+      setSearchQuery('');
+      setSelectedIds([]);
+      void fetchUserCandidates({ agendaId: meeting.id });
+      return;
+    }
+
     const trimmed = searchQuery.trim();
     const timer = setTimeout(() => {
       void fetchUserCandidates({

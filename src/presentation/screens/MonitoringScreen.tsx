@@ -108,6 +108,7 @@ import { useFeedbackStore } from '../store/useFeedbackStore';
 import { useMeetingStore } from '../store/useMeetingStore';
 import { triggerPageTransition } from '../store/useTransitionStore';
 import {
+  canAttendMeeting,
   canDeleteMeeting,
   canEditMeeting,
   canManageMinutes,
@@ -686,24 +687,22 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     if (!meetingId || !meeting || isSavingRoles) return;
     setIsSavingRoles(true);
     try {
-      const dto = {
-        ...meetingToUpdateDto(meeting),
+      await agendaApi.updateRoles(meetingId, {
         pimpinan_id: pendingLeaderId ? Number(pendingLeaderId) : null,
         notulis_id: pendingNotulisId ? Number(pendingNotulisId) : null,
-      };
-      const updated = await updateMeeting(meetingId, dto);
-      if (!updated) {
-        useFeedbackStore.getState().showToast({
-          type: 'error',
-          message: useMeetingStore.getState().error || 'Gagal memperbarui peran rapat.',
-        });
-        return;
-      }
-      setMeeting(updated as MeetingWithDocs);
+        allow_schedule_overlap: true,
+      });
       setIsRolesModalVisible(false);
+      await loadAgendaDetail();
       useFeedbackStore.getState().showToast({
         type: 'success',
         message: 'Penugasan Pimpinan dan Notulis rapat berhasil disimpan.',
+      });
+    } catch (cause) {
+      useFeedbackStore.getState().showToast({
+        type: 'error',
+        message:
+          cause instanceof Error ? cause.message : 'Gagal memperbarui peran rapat.',
       });
     } finally {
       setIsSavingRoles(false);
@@ -1414,7 +1413,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                   <Check size={14} color={colors.onPrimary} strokeWidth={2} />
                   <Text style={styles.heroBtnWhiteText}>Anda Sudah Hadir</Text>
                 </Pressable>
-              ) : rawStatus === 'ongoing' && meeting && onNavigatePresensi ? (
+              ) : canAttendMeeting(meeting, rawAgenda?.is_eligible) &&
+                meeting &&
+                onNavigatePresensi ? (
                 <Pressable
                   onPress={() => onNavigatePresensi(meeting.id)}
                   style={({ pressed }) => [styles.heroBtnGreen, pressed && styles.pressed]}
@@ -1423,6 +1424,13 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                   <FileCheck2 size={14} color={colors.onPrimary} strokeWidth={2} />
                   <Text style={styles.heroBtnWhiteText}>Isi Presensi Saya</Text>
                 </Pressable>
+              ) : rawStatus === 'ongoing' && !hasAttended ? (
+                <View style={styles.heroIneligiblePill}>
+                  <Info size={13} color={colors.onPrimaryContainer} strokeWidth={2} />
+                  <Text style={styles.heroIneligibleText}>
+                    Penyelenggara (Bukan Peserta Wajib)
+                  </Text>
+                </View>
               ) : null}
             </View>
 
@@ -2915,6 +2923,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  heroIneligiblePill: {
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: rounded.lg,
+    backgroundColor: colors.primaryContainer,
+    borderWidth: 1,
+    borderColor: colors.toastBorder,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroIneligibleText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansMedium,
+    color: colors.onPrimaryContainer,
   },
   heroBtnRed: {
     minHeight: MIN_TOUCH_TARGET,

@@ -28,7 +28,7 @@ export interface IMeetingRepository {
 }
 
 export interface IAttendanceRepository {
-  getAttendancePortal(agendaId: string): Promise<{ agenda: Meeting; rawAgenda: ApiAgendaDto; isOngoing: boolean; isEligible: boolean; hasAttended: boolean; attendance: Attendance | null }>;
+  getAttendancePortal(agendaId: string): Promise<{ agenda: Meeting; rawAgenda: ApiAgendaDto; isOngoing: boolean; isEligible: boolean; hasAttended: boolean; statusNote?: string | null; attendance: Attendance | null }>;
   submitAttendance(agendaId: string, payload: { selfie_data?: string; signature_data?: string }): Promise<Attendance>;
   getAttendanceHistory(page?: number, perPage?: number, filters?: { search?: string; period?: string; tipeRapat?: string }): Promise<{ records: Attendance[]; currentPage: number; lastPage: number; total: number; summary: ApiAttendanceHistorySummary }>;
   getAgendaAttendances(agendaId: string, page?: number, perPage?: number, filters?: { status?: 'attended' | 'unattended'; search?: string }): Promise<{ records: Attendance[]; currentPage: number; lastPage: number; total: number; summary: ApiAgendaAttendanceSummary }>;

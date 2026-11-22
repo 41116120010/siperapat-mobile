@@ -175,3 +175,24 @@ export function canViewAdminMonitoring(user: ASN | null, meeting: Meeting | null
 
   return false;
 }
+
+/**
+ * Checks whether the current user is eligible and able to attend an ongoing meeting.
+ * Prioritizes API `permissions.can_attend` when boolean; otherwise falls back to
+ * ongoing status, unattended state, and `isEligibleFlag !== false`.
+ */
+export function canAttendMeeting(
+  meeting?: Meeting | null,
+  isEligibleFlag?: boolean | null,
+): boolean {
+  if (!meeting) return false;
+  const isOngoing = meeting.rawStatus === 'ongoing' || meeting.status === 'ongoing';
+  const hasAttended = Boolean(meeting.hasAttended || meeting.myAttendanceId);
+  if (!isOngoing || hasAttended) return false;
+
+  if (typeof meeting.permissions?.can_attend === 'boolean') {
+    return meeting.permissions.can_attend;
+  }
+
+  return isEligibleFlag !== false;
+}

@@ -43,6 +43,7 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
     isOngoing: boolean;
     isEligible: boolean;
     hasAttended: boolean;
+    statusNote: string | null;
     attendance: Attendance | null;
   }> {
     const response = await attendanceApi.portal(agendaId);
@@ -54,6 +55,7 @@ export class AttendanceRepositoryImpl implements IAttendanceRepository {
       isOngoing: value.is_ongoing,
       isEligible: value.is_eligible,
       hasAttended: value.has_attended,
+      statusNote: value.status_note ?? null,
       attendance: value.my_attendance ? toAttendance(value.my_attendance) : null,
     };
   }

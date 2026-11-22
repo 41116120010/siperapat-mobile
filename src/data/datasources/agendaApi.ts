@@ -165,6 +165,18 @@ export const agendaApi = {
         ? { status, allow_schedule_overlap: allowScheduleOverlap }
         : { status },
     ),
+  updateRoles: (
+    id: string | number,
+    payload: {
+      pimpinan_id?: number | null;
+      notulis_id?: number | null;
+      allow_schedule_overlap?: boolean;
+    },
+  ) =>
+    apiClient.patch<ApiEnvelope<ApiAgendaDto>>(
+      `/agendas/${encodeURIComponent(id)}/roles`,
+      payload,
+    ),
   addParticipants: (id: string | number, userIds: number[]) =>
     apiClient.post<ApiEnvelope<ApiAgendaDto>>(
       `/agendas/${encodeURIComponent(id)}/participants`,

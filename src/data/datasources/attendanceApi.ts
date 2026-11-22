@@ -7,7 +7,7 @@ function query(values: Record<string, string | number | undefined>) {
   return params.toString();
 }
 
-export interface AttendancePortalDto { agenda: ApiAgendaDto; is_ongoing: boolean; is_eligible: boolean; has_attended: boolean; my_attendance: ApiAttendanceDto | null }
+export interface AttendancePortalDto { agenda: ApiAgendaDto; is_ongoing: boolean; is_eligible: boolean; has_attended: boolean; status_note?: string | null; my_attendance: ApiAttendanceDto | null }
 export const attendanceApi = {
   portal: (agendaId: string) => apiClient.get<ApiEnvelope<AttendancePortalDto>>(`/agendas/${encodeURIComponent(agendaId)}/attendance-portal`),
   myHistory: (page = 1, perPage = 10, filters: { search?: string; period?: string; startDate?: string; endDate?: string; tipeRapat?: string } = {}) =>

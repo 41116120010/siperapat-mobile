@@ -67,7 +67,7 @@ import { EvidenceViewerModal } from '../components/modals/EvidenceViewerModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
-import { canManageMinutes, canManageParticipants } from '../utils/permissionUtils';
+import { canAttendMeeting, canManageMinutes, canManageParticipants } from '../utils/permissionUtils';
 import {
   appendNoteToHtml,
   applyFormatMarker,
@@ -506,6 +506,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
   const docs = meeting?.documentations ?? [];
   const myAttendance = (rawAgenda?.my_attendance ?? null) as RawAttendanceRecord | null;
   const hasAttended = Boolean(meeting?.hasAttended || rawAgenda?.has_attended || myAttendance);
+  const isEligibleToAttend = canAttendMeeting(meeting, rawAgenda?.is_eligible);
   const creator = rawAgenda?.creator as
     | { name?: string; unit?: { kode_unit?: string | null } | null }
     | undefined;
@@ -692,7 +693,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                         <Text style={styles.heroBackBtnText}>Bukti Presensi</Text>
                       </Pressable>
                     </>
-                  ) : (
+                  ) : isEligibleToAttend ? (
                     <Pressable
                       onPress={handleStartAttendance}
                       style={({ pressed }) => [styles.heroGreenBtn, pressed && styles.pressed]}
@@ -702,6 +703,11 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                       <CheckSquare size={15} color={colors.onPrimary} strokeWidth={2} />
                       <Text style={styles.heroGreenBtnText}>Isi Presensi Sekarang</Text>
                     </Pressable>
+                  ) : (
+                    <View style={styles.heroBackBtn}>
+                      <Info size={14} color={colors.onPrimaryContainer} strokeWidth={2} />
+                      <Text style={styles.heroBackBtnText}>Bukan Peserta Wajib</Text>
+                    </View>
                   )
                 ) : null}
               </View>
@@ -971,7 +977,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                     <Text style={styles.fullSecondaryBtnText}>Lihat Bukti Presensi Digital</Text>
                   </Pressable>
                 </View>
-              ) : isOngoing ? (
+              ) : isOngoing && isEligibleToAttend ? (
                 <View style={styles.myAttendedWrap}>
                   <View style={styles.myPendingAmberCard}>
                     <Text style={styles.myPendingTitle}>Sesi Presensi Sedang Dibuka</Text>
@@ -989,6 +995,12 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
                     <CheckSquare size={15} color={colors.onPrimary} strokeWidth={2} />
                     <Text style={styles.fullEmeraldBtnText}>Isi Presensi Sekarang</Text>
                   </Pressable>
+                </View>
+              ) : isOngoing ? (
+                <View style={styles.myClosedCard}>
+                  <Text style={styles.myClosedDesc}>
+                    Anda tidak termasuk dalam daftar peserta yang diwajibkan mengisi presensi pada agenda ini.
+                  </Text>
                 </View>
               ) : (
                 <View style={styles.myClosedCard}>

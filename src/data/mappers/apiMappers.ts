@@ -34,6 +34,7 @@ export function toUserOption(user: ApiUserDto): UserOption {
     role: user.role?.value ?? undefined,
     roleLabel: user.role?.label ?? undefined,
     unit: user.unit?.nama_unit ?? undefined,
+    unitId: user.unit_id ?? user.unit?.id ?? null,
   };
 }
 
@@ -101,7 +102,10 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
           ...agenda.permissions,
           can_view_admin:
             agenda.permissions.can_view_admin ?? agenda.permissions.can_export,
-          can_manage_participants: Boolean(agenda.permissions.can_manage_participants),
+          can_manage_participants:
+            typeof agenda.permissions.can_manage_participants === 'boolean'
+              ? agenda.permissions.can_manage_participants
+              : undefined,
         }
       : null,
     baNumber: agenda.nomor_ba ?? null,

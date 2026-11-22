@@ -33,7 +33,7 @@ import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { Meeting } from '../../domain/entities/types';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
-import { canViewAdminMonitoring } from '../utils/permissionUtils';
+import { canAttendMeeting, canViewAdminMonitoring } from '../utils/permissionUtils';
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
@@ -270,6 +270,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             {meetings.map((meeting) => {
               const isOngoing = meeting.status === 'ongoing';
               const hasAttended = Boolean(meeting.hasAttended || meeting.myAttendanceId);
+              const canAttend = canAttendMeeting(meeting);
 
               const footerRight = isOngoing ? (
                 hasAttended ? (
@@ -292,7 +293,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       </Pressable>
                     ) : null}
                   </View>
-                ) : (
+                ) : canAttend ? (
                   <Pressable
                     onPress={() => onNavigatePresensi(meeting.id)}
                     style={({ pressed }) => [
@@ -305,6 +306,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     <CheckSquare size={14} strokeWidth={2} color={colors.onPrimary} />
                     <Text style={styles.presensiNowText}>Presensi Sekarang</Text>
                   </Pressable>
+                ) : (
+                  <Text style={styles.presensiClosedText}>Bukan peserta wajib hadir</Text>
                 )
               ) : (
                 <Text style={styles.presensiClosedText}>Presensi belum dibuka</Text>

@@ -96,6 +96,7 @@ export interface UserOption {
   role?: string;
   roleLabel?: string;
   unit?: string;
+  unitId?: number | null;
 }
 
 export interface Attendance {
