@@ -140,3 +140,38 @@ export function canManageParticipants(meeting?: Meeting | null, user?: ASN | nul
 
   return false;
 }
+
+/**
+ * Checks whether the current user can open admin/monitoring views (and list attendees).
+ * Mirrors backend AgendaPolicy::view (prioritizing API `permissions.can_view_admin` / `can_export`).
+ */
+export function canViewAdminMonitoring(user: ASN | null, meeting: Meeting | null): boolean {
+  if (!user || !meeting) return false;
+  if (typeof meeting.permissions?.can_view_admin === 'boolean') {
+    return meeting.permissions.can_view_admin;
+  }
+  if (typeof meeting.permissions?.can_export === 'boolean') {
+    return meeting.permissions.can_export;
+  }
+
+  if (isAdministratorRole(user)) return true;
+
+  const userId = String(user.id);
+  if (
+    (meeting.creatorId != null && String(meeting.creatorId) === userId) ||
+    (meeting.leaderId != null && String(meeting.leaderId) === userId) ||
+    (meeting.notulisId != null && String(meeting.notulisId) === userId)
+  ) {
+    return true;
+  }
+
+  if (isAdminUnitRole(user) && user.unitId != null) {
+    return (
+      meeting.creatorUnitId === user.unitId ||
+      Boolean(meeting.isAllUnits) ||
+      Boolean(meeting.unitIds?.includes(user.unitId))
+    );
+  }
+
+  return false;
+}

@@ -99,6 +99,8 @@ export function toMeeting(agenda: ApiAgendaDto): Meeting {
     permissions: agenda.permissions
       ? {
           ...agenda.permissions,
+          can_view_admin:
+            agenda.permissions.can_view_admin ?? agenda.permissions.can_export,
           can_manage_participants: Boolean(agenda.permissions.can_manage_participants),
         }
       : null,

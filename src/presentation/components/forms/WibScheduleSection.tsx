@@ -156,7 +156,7 @@ export const WibScheduleSection: React.FC<WibScheduleSectionProps> = ({
   isUntilFinished,
   onToggleUntilFinished,
   endDateIso,
-  allowOverlap = false,
+  allowOverlap = true,
   onToggleOverlap,
 }) => {
   const preview = useMemo(() => {

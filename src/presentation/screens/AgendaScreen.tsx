@@ -46,9 +46,10 @@ import { ApiAgendaStatusCounts } from '../../data/datasources/apiTypes';
 import { Meeting } from '../../domain/entities/types';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
+import { canViewAdminMonitoring } from '../utils/permissionUtils';
 
 interface AgendaScreenProps {
-  onNavigateDetail: (meetingId: string) => void;
+  onNavigateDetail: (meetingId: string, canMonitor?: boolean) => void;
   onNavigateCreate: () => void;
 }
 
@@ -474,6 +475,8 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
           roleBadge = 'Pimpinan Rapat';
         } else if (currentUserId && item.notulisId === currentUserId) {
           roleBadge = 'Notulis Rapat';
+        } else if (item.targetType === 'selected_users') {
+          roleBadge = 'Peserta Undangan';
         } else {
           roleBadge = 'Unit Partisipan';
         }
@@ -484,6 +487,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
       const canManageMinutes = meta?.permissions?.can_manage_minutes ?? canCreateAgenda;
       const canManageStatus = meta?.permissions?.can_manage_status ?? canCreateAgenda;
       const canDelete = (meta?.permissions?.can_delete ?? isAdministrator) && attendanceTotal === 0;
+      const canMonitor = canViewAdminMonitoring(user, item);
       const isBusy = actionLoadingId === item.id;
 
       const footerRight =
@@ -491,7 +495,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
           <View style={styles.cardActionsRow}>
             {canManageMinutes ? (
               <Pressable
-                onPress={() => onNavigateDetail(item.id)}
+                onPress={() => onNavigateDetail(item.id, canMonitor)}
                 style={({ pressed }) => [
                   styles.cardActionMinutesBtn,
                   pressed && styles.filterTabPressed,
@@ -580,7 +584,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
       return (
         <MeetingCard
           meeting={item}
-          onPressDetail={() => onNavigateDetail(item.id)}
+          onPressDetail={() => onNavigateDetail(item.id, canMonitor)}
           onPressPdf={() => handlePdfView(item)}
           onPressJoinLink={() => handleJoinLink(item.zoomUrl)}
           statusLabel={meta?.status?.label}
@@ -603,6 +607,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
       handleStatusTransition,
       isAdministrator,
       onNavigateDetail,
+      user,
       user?.id,
       user?.unitId,
       userRole,

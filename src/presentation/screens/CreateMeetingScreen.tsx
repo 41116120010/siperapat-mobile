@@ -196,7 +196,7 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
   const [isUntilFinished, setIsUntilFinished] = useState(false);
-  const [allowScheduleOverlap, setAllowScheduleOverlap] = useState(false);
+  const [allowScheduleOverlap, setAllowScheduleOverlap] = useState(true);
   const [venue, setVenue] = useState('Pilih ruang rapat');
   const [venueId, setVenueId] = useState('');
   const [customClassification, setCustomClassification] = useState('');
@@ -767,9 +767,6 @@ export const CreateMeetingScreen: React.FC<CreateMeetingScreenProps> = ({
                 <View style={styles.virtualHeaderLeft}>
                   <Video size={16} color={colors.primary} strokeWidth={2} />
                   <Text style={styles.virtualTitle}>Tautan Daring (Zoom / GMeet)</Text>
-                </View>
-                <View style={styles.virtualBadge}>
-                  <Text style={styles.virtualBadgeText}>Video Conference</Text>
                 </View>
               </View>
 
@@ -1594,19 +1591,6 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     fontFamily: fontFamilies.sansBold,
     color: colors.onSurface,
-  },
-  virtualBadge: {
-    backgroundColor: colors.infoBg,
-    borderWidth: 1,
-    borderColor: colors.infoBorder,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: rounded.sm,
-  },
-  virtualBadgeText: {
-    ...typography.labelSm,
-    fontFamily: fontFamilies.sansSemiBold,
-    color: colors.infoText,
   },
   virtualInput: {
     minHeight: MIN_TOUCH_TARGET,

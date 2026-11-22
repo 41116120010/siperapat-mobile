@@ -33,10 +33,11 @@ import { useMeetingStore } from '../store/useMeetingStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { Meeting } from '../../domain/entities/types';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
+import { canViewAdminMonitoring } from '../utils/permissionUtils';
 
 interface DashboardScreenProps {
   onNavigatePresensi: (meetingId: string) => void;
-  onNavigateDetail: (meetingId: string, isLeader?: boolean) => void;
+  onNavigateDetail: (meetingId: string, canMonitor?: boolean) => void;
   onNavigateAgenda?: () => void;
   onNavigateRiwayat?: () => void;
   onNavigateCreate?: () => void;
@@ -309,19 +310,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 <Text style={styles.presensiClosedText}>Presensi belum dibuka</Text>
               );
 
-              const isDelegatedOfficer = Boolean(
-                user?.id &&
-                  ((meeting.leaderId && String(meeting.leaderId) === String(user.id)) ||
-                    (meeting.notulisId && String(meeting.notulisId) === String(user.id)) ||
-                    meeting.permissions?.can_manage_minutes),
-              );
+              const canMonitor = canViewAdminMonitoring(user, meeting);
 
               return (
                 <MeetingCard
                   key={meeting.id}
                   meeting={meeting}
-                  showAttendance={canManageMeetings}
-                  onPressDetail={() => onNavigateDetail(meeting.id, isDelegatedOfficer)}
+                  showAttendance={canMonitor}
+                  onPressDetail={() => onNavigateDetail(meeting.id, canMonitor)}
                   onPressPdf={() => handlePdfView(meeting)}
                   onPressJoinLink={() => handleJoinLink(meeting.zoomUrl)}
                   footerRight={footerRight}

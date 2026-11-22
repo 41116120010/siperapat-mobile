@@ -27,6 +27,7 @@ export type MeetingStatus = 'draft' | 'ongoing' | 'upcoming' | 'completed' | 'ca
 export type MeetingType = 'hybrid' | 'offline' | 'online';
 
 export interface MeetingPermissions {
+  can_view_admin?: boolean;
   can_update: boolean;
   can_delete: boolean;
   can_manage_status: boolean;

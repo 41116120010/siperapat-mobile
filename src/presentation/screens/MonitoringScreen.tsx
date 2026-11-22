@@ -26,6 +26,7 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  ChevronRight,
   Clock,
   CloudUpload,
   Download,
@@ -112,11 +113,13 @@ import {
   canManageMinutes,
   canManageParticipants,
   canManageSuratEdaran,
+  canViewAdminMonitoring,
 } from '../utils/permissionUtils';
 
 export interface MonitoringScreenProps {
   meetingId?: string;
   onBack?: () => void;
+  onFallbackAgendaDetail?: (meetingId: string) => void;
   onNavigateEdit?: (meetingId: string) => void;
   onNavigatePresensi?: (meetingId: string) => void;
   onNavigateReceipt?: (meetingId: string, attendanceId?: string) => void;
@@ -271,6 +274,7 @@ function formatTipeLabel(type?: Meeting['type']): string {
 
 export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   onBack,
+  onFallbackAgendaDetail,
   meetingId,
   onNavigateEdit,
   onNavigatePresensi,
@@ -439,6 +443,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           unit: u.unit?.nama_unit ?? u.unit?.kode_unit ?? '',
         }));
       }
+      if (!canViewAdminMonitoring(user, mapped)) {
+        if (onFallbackAgendaDetail) {
+          onFallbackAgendaDetail(meetingId);
+          return;
+        }
+      }
       setRawAgenda(raw);
       setMeeting(mapped);
       setAgendaError(null);
@@ -456,22 +466,26 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         setSeConfig(null);
       }
 
-      try {
-        const attRes = await attendanceApi.agendaAttendances(meetingId, 1, 50, { status: 'attended' });
-        const rows = (attRes.data ?? []).map((item: any) => ({
-          id: String(item.id),
-          userId: item.user?.id !== undefined ? String(item.user.id) : undefined,
-          name: item.user?.name ?? '',
-          nip: item.user?.nip ?? '',
-          signedAt: item.checked_in_at ?? item.signed_at ?? null,
-          selfieUrl: item.selfie_url ?? null,
-          signatureUrl: item.signature_url ?? null,
-          canViewBiometrics: item.can_view_biometrics === true,
-          hasSelfie: Boolean(item.has_selfie ?? item.selfie_url),
-          hasSignature: Boolean(item.has_signature ?? item.signature_url),
-        }));
-        setSignerAttendances(rows);
-      } catch {
+      if (canViewAdminMonitoring(user, mapped)) {
+        try {
+          const attRes = await attendanceApi.agendaAttendances(meetingId, 1, 50, { status: 'attended' });
+          const rows = (attRes.data ?? []).map((item: any) => ({
+            id: String(item.id),
+            userId: item.user?.id !== undefined ? String(item.user.id) : undefined,
+            name: item.user?.name ?? '',
+            nip: item.user?.nip ?? '',
+            signedAt: item.checked_in_at ?? item.signed_at ?? null,
+            selfieUrl: item.selfie_url ?? null,
+            signatureUrl: item.signature_url ?? null,
+            canViewBiometrics: item.can_view_biometrics === true,
+            hasSelfie: Boolean(item.has_selfie ?? item.selfie_url),
+            hasSignature: Boolean(item.has_signature ?? item.signature_url),
+          }));
+          setSignerAttendances(rows);
+        } catch {
+          setSignerAttendances([]);
+        }
+      } else {
         setSignerAttendances([]);
       }
     } catch (requestError: unknown) {
@@ -481,7 +495,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         requestError instanceof Error ? requestError.message : 'Gagal memuat detail agenda.',
       );
     }
-  }, [meetingId]);
+  }, [meetingId, onFallbackAgendaDetail, user]);
 
   useEffect(() => {
     void loadAgendaDetail();
@@ -601,7 +615,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   };
 
   useEffect(() => {
-    if (!meetingId || activeTab === 'minutes') return;
+    if (!meetingId || activeTab === 'minutes' || !meeting || !canViewAdminMonitoring(user, meeting)) {
+      return;
+    }
     const timer = setTimeout(() => {
       void fetchAgendaAttendances(meetingId, attendancePage, false, {
         status: activeTab === 'unverified' ? 'unattended' : 'attended',
@@ -609,7 +625,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
       });
     }, 250);
     return () => clearTimeout(timer);
-  }, [meetingId, activeTab, searchQuery, attendancePage, fetchAgendaAttendances]);
+  }, [meetingId, activeTab, searchQuery, attendancePage, fetchAgendaAttendances, meeting, user]);
 
   const handlePageChange = (page: number) => {
     if (!meetingId || page === attendancePage || isLoading) return;
@@ -2346,6 +2362,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 <AutoScrollText style={styles.roleSelectorText}>
                   {selectedLeaderLabel}
                 </AutoScrollText>
+                <View style={styles.actionPill}>
+                  <Text style={styles.actionPillText}>Ganti</Text>
+                  <ChevronRight size={15} color={colors.primary} strokeWidth={2} />
+                </View>
               </Pressable>
 
               <Text style={[styles.roleFieldLabel, styles.roleFieldGap]}>
@@ -2360,6 +2380,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
                 <AutoScrollText style={styles.roleSelectorText}>
                   {selectedNotulisLabel}
                 </AutoScrollText>
+                <View style={styles.actionPill}>
+                  <Text style={styles.actionPillText}>Ganti</Text>
+                  <ChevronRight size={15} color={colors.primary} strokeWidth={2} />
+                </View>
               </Pressable>
             </View>
 
@@ -3935,6 +3959,22 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.onSurface,
     includeFontPadding: false,
+  },
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: rounded.full,
+    backgroundColor: colors.surfaceCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  actionPillText: {
+    ...typography.labelSm,
+    fontFamily: fontFamilies.sansBold,
+    color: colors.primary,
   },
   rolesModalFooter: {
     paddingHorizontal: 16,

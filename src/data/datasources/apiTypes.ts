@@ -109,6 +109,7 @@ export interface ApiAgendaDto {
   invited_users?: ApiUserDto[];
   report_config?: ApiReportConfig;
   permissions?: {
+    can_view_admin?: boolean;
     can_update: boolean;
     can_delete: boolean;
     can_manage_status: boolean;

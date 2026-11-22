@@ -44,6 +44,7 @@ import { triggerPageTransition, useTransitionStore } from '../store/useTransitio
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { canViewAdminMonitoring } from '../utils/permissionUtils';
 
 export const rootNavigationRef = createNavigationContainerRef<RootStackParamList>();
 
@@ -147,7 +148,6 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
   const isAdministrator = user?.role === 'administrator';
   const canManageEmployees = isAdministrator || user?.role === 'admin';
   const canManageMeetings = isAdministrator || user?.role === 'admin';
-  const detailRoute = user?.role === 'staff' ? 'AgendaDetail' : 'Monitoring';
   useEffect(() => {
     if (!user) rootStackNav.replace('Login');
   }, [user, rootStackNav]);
@@ -169,7 +169,7 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
             onNavigateDetail={(id, canMonitor) => {
               triggerPageTransition();
               rootStackNav.navigate(
-                user?.role !== 'staff' || canMonitor ? 'Monitoring' : 'AgendaDetail',
+                canMonitor ? 'Monitoring' : 'AgendaDetail',
                 { meetingId: id },
               );
             }}
@@ -214,9 +214,11 @@ export const MainTabNavigator: React.FC<{ navigation: any }> = ({ navigation: ro
         <Tab.Screen name="Agenda">
           {() => (
             <AgendaScreen
-              onNavigateDetail={(id) => {
+              onNavigateDetail={(id, canMonitor) => {
                 triggerPageTransition();
-                rootStackNav.navigate(detailRoute, { meetingId: id });
+                rootStackNav.navigate(canMonitor ? 'Monitoring' : 'AgendaDetail', {
+                  meetingId: id,
+                });
               }}
               onNavigateCreate={() => {
                 triggerPageTransition();
@@ -457,19 +459,14 @@ export const AppNavigator: React.FC = () => {
                 const targetMeeting = useMeetingStore
                   .getState()
                   .meetings.find((m) => String(m.id) === String(meetingId));
-                const isDelegatedOfficer = Boolean(
-                  user?.id &&
-                    targetMeeting &&
-                    ((targetMeeting.leaderId &&
-                      String(targetMeeting.leaderId) === String(user.id)) ||
-                      (targetMeeting.notulisId &&
-                        String(targetMeeting.notulisId) === String(user.id)) ||
-                      targetMeeting.permissions?.can_manage_minutes),
-                );
-                navigation.navigate(
-                  role !== 'staff' || isDelegatedOfficer ? 'Monitoring' : 'AgendaDetail',
-                  { meetingId },
-                );
+                const targetRoute = targetMeeting
+                  ? canViewAdminMonitoring(user, targetMeeting)
+                    ? 'Monitoring'
+                    : 'AgendaDetail'
+                  : role === 'staff'
+                    ? 'AgendaDetail'
+                    : 'Monitoring';
+                navigation.navigate(targetRoute, { meetingId });
               } else {
                 navigation.navigate('MainTabs');
               }
@@ -492,6 +489,9 @@ export const AppNavigator: React.FC = () => {
           <MonitoringScreen
             meetingId={route.params.meetingId}
             onBack={() => safeGoBack(navigation, 'MainTabs')}
+            onFallbackAgendaDetail={(id) => {
+              navigation.replace('AgendaDetail', { meetingId: id });
+            }}
             onNavigateEdit={(id) => {
               triggerPageTransition();
               navigation.navigate('EditMeeting', { meetingId: id });
