@@ -82,6 +82,7 @@ import {
 import { useAuthStore } from '../store/useAuthStore';
 import { useFeedbackStore } from '../store/useFeedbackStore';
 import { useMeetingStore } from '../store/useMeetingStore';
+import { canEditMeeting } from '../utils/permissionUtils';
 
 type AgendaStatusValue = 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
 
@@ -253,6 +254,12 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
       void fetchAgendaFormOptions();
       const { meeting: agenda, raw } = await getMeetingDetailWithDto(meetingId);
       if (agenda) {
+        if (!canEditMeeting(user, agenda)) {
+          setInitError(
+            'Akses ditolak. Hanya Administrator, penyelenggara, atau Pimpinan Rapat yang dapat mengubah agenda ini.',
+          );
+          return;
+        }
         setMeetingCode(agenda.code);
         setTitle(agenda.title);
 
@@ -552,6 +559,9 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (isInitializing || Boolean(initError)) {
+      return;
+    }
     if (!title.trim()) {
       useFeedbackStore.getState().showToast({
         type: 'warning',

@@ -111,6 +111,7 @@ import {
   canAttendMeeting,
   canDeleteMeeting,
   canEditMeeting,
+  canManageMeetingStatus,
   canManageMinutes,
   canManageParticipants,
   canManageSuratEdaran,
@@ -335,6 +336,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
 
   const userCanDelete = useMemo(() => canDeleteMeeting(user, meeting), [user, meeting]);
   const userCanEdit = useMemo(() => canEditMeeting(user, meeting), [user, meeting]);
+  const userCanManageStatus = useMemo(
+    () => canManageMeetingStatus(user, meeting),
+    [user, meeting],
+  );
   const userCanManageMinutes = useMemo(() => canManageMinutes(user, meeting), [user, meeting]);
   const userCanManageSuratEdaran = useMemo(
     () => canManageSuratEdaran(user, meeting),
@@ -1004,11 +1009,11 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
 
   const canUpdate = Boolean(
     rawAgenda?.permissions?.can_update ??
-      userCanEdit ??
-      (isAdministrator || (isAdminUnit && (isHostUnit || isCreator))),
+      (meeting ? userCanEdit : isAdministrator || (isAdminUnit && (isHostUnit || isCreator))),
   );
   const canManageStatus = Boolean(
-    rawAgenda?.permissions?.can_manage_status ?? (canUpdate || isAppointedLeader),
+    rawAgenda?.permissions?.can_manage_status ??
+      (meeting ? userCanManageStatus : canUpdate),
   );
   const canManageCircular = Boolean(
     rawAgenda?.permissions?.can_manage_circular ?? userCanManageSuratEdaran ?? canUpdate,

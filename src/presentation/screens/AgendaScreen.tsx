@@ -46,7 +46,11 @@ import { ApiAgendaStatusCounts } from '../../data/datasources/apiTypes';
 import { Meeting } from '../../domain/entities/types';
 import { AgendaOption, AgendaOptionModal } from '../components/modals/AgendaOptionModal';
 import { SuratEdaranViewerModal } from '../components/modals/SuratEdaranViewerModal';
-import { canViewAdminMonitoring } from '../utils/permissionUtils';
+import {
+  canManageMeetingStatus,
+  canManageMinutes,
+  canViewAdminMonitoring,
+} from '../utils/permissionUtils';
 
 interface AgendaScreenProps {
   onNavigateDetail: (meetingId: string, canMonitor?: boolean) => void;
@@ -484,16 +488,18 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
 
       const rawStatus = meta?.status?.value ?? item.status;
       const attendanceTotal = meta?.attendances_count ?? item.totalAttended ?? 0;
-      const canManageMinutes = meta?.permissions?.can_manage_minutes ?? canCreateAgenda;
-      const canManageStatus = meta?.permissions?.can_manage_status ?? canCreateAgenda;
+      const canManageMinutesFlag =
+        meta?.permissions?.can_manage_minutes ?? canManageMinutes(user, item);
+      const canManageStatus =
+        meta?.permissions?.can_manage_status ?? canManageMeetingStatus(user, item);
       const canDelete = (meta?.permissions?.can_delete ?? isAdministrator) && attendanceTotal === 0;
       const canMonitor = canViewAdminMonitoring(user, item);
       const isBusy = actionLoadingId === item.id;
 
       const footerRight =
-        canManageMinutes || canManageStatus || canDelete ? (
+        canManageMinutesFlag || canManageStatus || canDelete ? (
           <View style={styles.cardActionsRow}>
-            {canManageMinutes ? (
+            {canManageMinutesFlag ? (
               <Pressable
                 onPress={() => onNavigateDetail(item.id, canMonitor)}
                 style={({ pressed }) => [

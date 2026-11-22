@@ -67,7 +67,36 @@ export function canEditMeeting(user: ASN | null, meeting: Meeting | null): boole
   if (isAdminUnitRole(user)) {
     if (meeting.creatorId && String(meeting.creatorId) === String(user.id)) return true;
     if (user.unitId && meeting.creatorUnitId && meeting.creatorUnitId === user.unitId) return true;
-    if (isAppointedDuringSession(user, meeting)) return true;
+    const isOngoing = meeting.rawStatus === 'ongoing' || meeting.status === 'ongoing';
+    if (isOngoing && meeting.leaderId != null && String(meeting.leaderId) === String(user.id)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether the current user is authorized to manage a meeting's status
+ * (publish, start, complete, reopen, cancel).
+ * Mirrors backend AgendaPolicy::manageStatus (Administrator, organizing Admin Unit,
+ * or appointed Pimpinan Rapat while ongoing — excludes Notulis).
+ */
+export function canManageMeetingStatus(user: ASN | null, meeting: Meeting | null): boolean {
+  if (!user || !meeting) return false;
+  if (typeof meeting.permissions?.can_manage_status === 'boolean') {
+    return meeting.permissions.can_manage_status;
+  }
+
+  if (isAdministratorRole(user)) return true;
+
+  if (isAdminUnitRole(user)) {
+    if (meeting.creatorId != null && String(meeting.creatorId) === String(user.id)) return true;
+    if (user.unitId != null && meeting.creatorUnitId === user.unitId) return true;
+    const isOngoing = meeting.rawStatus === 'ongoing' || meeting.status === 'ongoing';
+    if (isOngoing && meeting.leaderId != null && String(meeting.leaderId) === String(user.id)) {
+      return true;
+    }
   }
 
   return false;
