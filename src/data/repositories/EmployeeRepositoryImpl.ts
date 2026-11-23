@@ -98,10 +98,8 @@ export class EmployeeRepositoryImpl implements IEmployeeRepository {
     const role = employee.role ?? current.role;
     let unitId = employee.unitId ?? current.unitId;
     if (employee.unit && employee.unit !== current.unit && unitId === current.unitId) {
-      const page = await userApi.units(1);
-      const allUnits = [...page.data];
-      for (let next = 2; next <= page.meta.last_page; next += 1) allUnits.push(...(await userApi.units(next)).data);
-      const selected = allUnits.find((unit) => unit.nama_unit === employee.unit);
+      const unitsResponse = await userApi.units(1, undefined, 100, { all: true });
+      const selected = (unitsResponse.data ?? []).find((unit) => unit.nama_unit === employee.unit);
       if (!selected) throw new Error('Unit yang dipilih tidak ditemukan pada daftar unit API.');
       unitId = selected.id;
     }

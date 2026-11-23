@@ -18,7 +18,15 @@ export function toAsn(user: ApiUserDto): ASN {
       onTimeRateLabel: user.attendance_stats.on_time_rate_label,
       periodLabel: user.attendance_stats.period_label,
     } : undefined,
-    security: user.security,
+    security: user.security
+      ? {
+          last_password_changed_at: user.security.last_password_changed_at ?? null,
+          last_password_changed_label: user.security.last_password_changed_label ?? null,
+          last_login_at: user.security.last_login_at ?? user.security.last_api_login_at ?? null,
+          last_login_label:
+            user.security.last_login_label ?? user.security.last_api_login_label ?? null,
+        }
+      : undefined,
   };
 }
 

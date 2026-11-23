@@ -2,7 +2,7 @@ import { File } from 'expo-file-system';
 import { ApiBinaryResponse, ApiError, apiClient } from './apiClient';
 import { ApiAgendaDto, ApiAgendaPage, ApiDashboardDto, ApiEnvelope } from './apiTypes';
 import { userApi } from './userApi';
-import { requireApiBaseUrl } from '../../core/config/apiConfig';
+import { requireApiBaseUrl, UPLOAD_TIMEOUT_MS } from '../../core/config/apiConfig';
 
 export type AgendaFilters = {
   status?: 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
@@ -195,6 +195,7 @@ export const agendaApi = {
       data.captions?.forEach((caption) => form.append('captions[]', caption));
       return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/notulen`, form, {
         headers: { 'X-HTTP-Method-Override': 'PUT' },
+        timeoutMs: UPLOAD_TIMEOUT_MS,
       });
     }
     return apiClient.put<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/notulen`, data);
@@ -220,7 +221,11 @@ export const agendaApi = {
     try {
       const form = new FormData();
       form.append('surat_edaran', createFormDataFilePart(normalizedFile) as unknown as Blob);
-      return await apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}/surat-edaran`, form);
+      return await apiClient.post<ApiEnvelope<ApiAgendaDto>>(
+        `/agendas/${encodeURIComponent(id)}/surat-edaran`,
+        form,
+        { timeoutMs: UPLOAD_TIMEOUT_MS },
+      );
     } catch (error) {
       // If standalone route is not available (e.g. 404 on live server), fallback to canonical PUT update
       const detailRes = await agendaApi.detail(String(id));
@@ -253,7 +258,9 @@ export const agendaApi = {
     const form = new FormData();
     appendAgendaFormFields(form, data);
     form.append('surat_edaran', createFormDataFilePart(suratEdaran) as unknown as Blob);
-    return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', form);
+    return apiClient.post<ApiEnvelope<ApiAgendaDto>>('/agendas', form, {
+      timeoutMs: UPLOAD_TIMEOUT_MS,
+    });
   },
   update: (id: string | number, data: UpdateAgendaDto, suratEdaran?: UploadFileRef) => {
     if (!suratEdaran) return apiClient.put<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`, data);
@@ -263,6 +270,7 @@ export const agendaApi = {
     form.append('surat_edaran', createFormDataFilePart(suratEdaran) as unknown as Blob);
     return apiClient.post<ApiEnvelope<ApiAgendaDto>>(`/agendas/${encodeURIComponent(id)}`, form, {
       headers: { 'X-HTTP-Method-Override': 'PUT' },
+      timeoutMs: UPLOAD_TIMEOUT_MS,
     });
   },
   delete: (id: string | number) => apiClient.delete<ApiEnvelope<never>>(`/agendas/${encodeURIComponent(id)}`),

@@ -129,7 +129,11 @@ class ApiClient {
     if (options.responseType === 'binary') return {
       blob: await response.blob(), filename: downloadFilename(response), contentType: response.headers.get('Content-Type'),
     } as T;
-    return await response.json() as T;
+    try {
+      return await response.json() as T;
+    } catch {
+      throw new ApiError('http', 'Respons server tidak berformat JSON valid.', response.status);
+    }
   }
   get<T>(path: string, options?: Omit<ApiRequestOptions, 'method' | 'body'>) { return this.request<T>(path, { ...options, method: 'GET' }); }
   post<T>(path: string, body?: unknown, options?: Omit<ApiRequestOptions, 'method' | 'body'>) { return this.request<T>(path, { ...options, method: 'POST', body }); }

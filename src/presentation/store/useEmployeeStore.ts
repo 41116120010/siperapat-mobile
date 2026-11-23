@@ -16,6 +16,8 @@ import {
 import { useAuthStore } from './useAuthStore';
 
 const employeeRepo = new EmployeeRepositoryImpl();
+let employeesRequestSeq = 0;
+let unitsRequestSeq = 0;
 
 function toValidationErrors(error: unknown): Record<string, string[]> | null {
   if (error instanceof ApiError) return error.errors ?? null;
@@ -118,9 +120,11 @@ const INITIAL_EMPLOYEE_STATE = {
 export const useEmployeeStore = create<EmployeeState>((set) => ({
   ...INITIAL_EMPLOYEE_STATE,
   fetchEmployees: async (page = 1, filters = {}, append = false) => {
+    const requestSeq = ++employeesRequestSeq;
     set({ employeesLoading: true, employeesError: null });
     try {
       const result = await userApi.users(page, filters);
+      if (requestSeq !== employeesRequestSeq) return;
       const mapped = result.data.map(toEmployee);
       set((state) => ({
         employees: append ? [...state.employees, ...mapped] : mapped,
@@ -130,15 +134,20 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
         userSummary: result.summary ?? state.userSummary,
       }));
     } catch (error) {
+      if (requestSeq !== employeesRequestSeq) return;
       set({ employeesError: error instanceof Error ? error.message : 'Gagal memuat direktori pegawai.' });
     } finally {
-      set({ employeesLoading: false });
+      if (requestSeq === employeesRequestSeq) {
+        set({ employeesLoading: false });
+      }
     }
   },
   fetchUnits: async (page = 1, append = false, filters = {}) => {
+    const requestSeq = ++unitsRequestSeq;
     set({ unitsLoading: true, unitsError: null });
     try {
       const result = await userApi.units(page, filters.search, 10, { status: filters.status });
+      if (requestSeq !== unitsRequestSeq) return;
       set((state) => ({
         units: append ? [...state.units, ...result.data] : result.data,
         unitsCurrentPage: result.meta.current_page,
@@ -147,9 +156,12 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
         unitSummary: result.summary ?? state.unitSummary,
       }));
     } catch (error) {
+      if (requestSeq !== unitsRequestSeq) return;
       set({ unitsError: error instanceof Error ? error.message : 'Gagal memuat unit kerja.' });
     } finally {
-      set({ unitsLoading: false });
+      if (requestSeq === unitsRequestSeq) {
+        set({ unitsLoading: false });
+      }
     }
   },
   fetchAllUnits: async (options = {}) => {
@@ -429,6 +441,10 @@ export const useEmployeeStore = create<EmployeeState>((set) => ({
       set({ isLoading: false });
     }
   },
-  reset: () => set(INITIAL_EMPLOYEE_STATE),
+  reset: () => {
+    employeesRequestSeq += 1;
+    unitsRequestSeq += 1;
+    set(INITIAL_EMPLOYEE_STATE);
+  },
   clearError: () => set({ error: null, validationErrors: null }),
 }));

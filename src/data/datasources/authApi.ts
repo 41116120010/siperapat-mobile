@@ -11,5 +11,10 @@ export const authApi = {
     apiClient.put<ApiEnvelope<ApiPasswordChangeDto>>('/profile/password', payload),
   updateProfile: (payload: { phone?: string; name?: string; email?: string }) =>
     apiClient.put<ApiEnvelope<ApiUserDto>>('/profile', payload),
-  forgotPassword: (identity: string) => apiClient.post<ApiEnvelope<ApiForgotPasswordDto>>('/auth/forgot-password', { identity }),
+  forgotPassword: (identity: string) =>
+    apiClient.post<ApiEnvelope<ApiForgotPasswordDto | null>>(
+      '/auth/forgot-password',
+      { identity },
+      { authenticated: false },
+    ),
 };

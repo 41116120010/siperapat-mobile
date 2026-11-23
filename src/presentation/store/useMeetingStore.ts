@@ -7,6 +7,7 @@ import { MeetingRepositoryImpl } from '../../data/repositories/MeetingRepository
 
 const repository = new MeetingRepositoryImpl();
 let candidatesInFlightKey: string | null = null;
+let meetingsRequestSeq = 0;
 type FilterTab = 'all' | 'ongoing' | 'upcoming' | 'completed';
 export type AgendaStatusFilter = 'all' | 'draft' | 'scheduled' | 'ongoing' | 'completed' | 'cancelled';
 export type AgendaUnitFilter = 'all' | 'all_units' | number;
@@ -101,6 +102,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     const searchQuery = extraFilters?.search !== undefined ? extraFilters.search : get().searchQuery;
     const unitFilter = extraFilters?.unitId !== undefined ? extraFilters.unitId : get().unitFilter;
     if (append && (get().isLoadingMore || page > get().lastPage)) return;
+    const requestSeq = ++meetingsRequestSeq;
     if (page === 1) set({ typeFilter, statusFilter, searchQuery, unitFilter });
     set(append ? { isLoadingMore: true, error: null } : { isLoading: true, error: null });
     try {
@@ -110,6 +112,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         search: searchQuery.trim() || undefined,
         unitId: unitFilter === 'all' ? undefined : unitFilter,
       });
+      if (requestSeq !== meetingsRequestSeq) return;
       const mapped = response.data.map(toMeeting);
       const nextMeta: Record<string, ApiAgendaDto> = append ? { ...get().agendaMetaById } : {};
       response.data.forEach((dto) => {
@@ -123,8 +126,14 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         statusCounts: response.summary?.status_counts ?? state.statusCounts,
         agendaMetaById: nextMeta,
       }));
-    } catch (error) { set({ error: message(error, 'Gagal memuat daftar agenda.') }); }
-    finally { set(append ? { isLoadingMore: false } : { isLoading: false }); }
+    } catch (error) {
+      if (requestSeq !== meetingsRequestSeq) return;
+      set({ error: message(error, 'Gagal memuat daftar agenda.') });
+    } finally {
+      if (requestSeq === meetingsRequestSeq) {
+        set(append ? { isLoadingMore: false } : { isLoading: false });
+      }
+    }
   },
 
   getMeetingById: async (id) => {
@@ -283,6 +292,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
 
   reset: () => {
     candidatesInFlightKey = null;
+    meetingsRequestSeq += 1;
     set(INITIAL_MEETING_STATE);
   },
 

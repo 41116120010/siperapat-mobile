@@ -20,7 +20,12 @@ export interface ASN {
   biometricEnabled: boolean;
   createdAt?: string | null;
   attendanceStats?: { totalAgendas?: number; totalAttended?: number; attendanceRateLabel?: string; onTimeRateLabel?: string; periodLabel?: string };
-  security?: { last_password_changed_at?: string | null; last_password_changed_label?: string | null };
+  security?: {
+    last_password_changed_at?: string | null;
+    last_password_changed_label?: string | null;
+    last_login_at?: string | null;
+    last_login_label?: string | null;
+  };
 }
 
 export type MeetingStatus = 'draft' | 'ongoing' | 'upcoming' | 'completed' | 'cancelled';

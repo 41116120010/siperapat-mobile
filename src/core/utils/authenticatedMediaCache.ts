@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { requireApiBaseUrl } from '../config/apiConfig';
+import { DOWNLOAD_TIMEOUT_MS, requireApiBaseUrl } from '../config/apiConfig';
 import { authTokenStore } from '../../data/datasources/authTokenStore';
 
 export interface AuthMediaCacheOptions {
@@ -16,7 +16,42 @@ const MEDIA_CACHE_PREFIXES = [
   'rep_detail_',
   'edaran_',
   'authmedia_',
+  'SIPERAPAT_',
+  'tmp_export_',
 ];
+
+export async function downloadFileWithTimeout(
+  url: string,
+  destUri: string,
+  headers: Record<string, string>,
+  timeoutMs = DOWNLOAD_TIMEOUT_MS,
+): Promise<FileSystem.FileSystemDownloadResult> {
+  const resumable = FileSystem.createDownloadResumable(url, destUri, { headers });
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        void resumable.cancelAsync().catch(() => {});
+        reject(new Error('Unduhan berkas dari server melewati batas waktu.'));
+      }, timeoutMs);
+    });
+
+    const result = await Promise.race([resumable.downloadAsync(), timeoutPromise]);
+    if (!result) {
+      throw new Error(
+        timedOut
+          ? 'Unduhan berkas dari server melewati batas waktu.'
+          : 'Unduhan berkas dibatalkan atau gagal.',
+      );
+    }
+    return result;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 const inFlightDownloads = new Map<string, Promise<string | null>>();
 
@@ -93,12 +128,15 @@ export async function resolveAuthenticatedMediaFile(
       }
 
       const token = await authTokenStore.get();
-      const result = await FileSystem.downloadAsync(resolvedUrl, tempUri, {
-        headers: {
+      const result = await downloadFileWithTimeout(
+        resolvedUrl,
+        tempUri,
+        {
           Accept: '*/*',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      });
+        DOWNLOAD_TIMEOUT_MS,
+      );
 
       if (result.status < 200 || result.status >= 300) {
         const shouldLogout =

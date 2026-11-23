@@ -62,8 +62,10 @@ export class AuthRepositoryImpl implements IAuthRepository {
     if (!response.success) throw new Error(response.message || 'Permintaan pemulihan kata sandi gagal.');
     return {
       success: response.success,
-      message: response.message,
-      maskedEmail: response.data?.masked_email,
+      message:
+        response.message ||
+        'Apabila identitas tersebut terdaftar dan memiliki email kedinasan aktif, tautan pemulihan kata sandi telah dikirimkan.',
+      maskedEmail: response.data?.masked_email ?? undefined,
     };
   }
 }

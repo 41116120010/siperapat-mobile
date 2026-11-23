@@ -16,7 +16,14 @@ export interface ApiUnitDto { id: number; nama_unit: string; kode_unit: string; 
 export interface ApiUserDto {
   id: number; name: string; nip: string | null; username: string; email: string | null; phone: string | null;
   jabatan?: string | null; pangkat_golongan?: string | null; avatar_url: string | null; role: { value: string; label: string }; is_active: boolean; unit_id: number | null; unit?: ApiUnitDto | null;
-  security?: { last_password_changed_at?: string | null; last_password_changed_label?: string | null; last_api_login_at?: string | null; last_api_login_label?: string | null };
+  security?: {
+    last_password_changed_at?: string | null;
+    last_password_changed_label?: string | null;
+    last_login_at?: string | null;
+    last_login_label?: string | null;
+    last_api_login_at?: string | null;
+    last_api_login_label?: string | null;
+  };
   attendance_stats?: { total_agendas?: number; total_agendas_label?: string; completed_agendas?: number; total_attended?: number; attendance_rate?: number; attendance_rate_label?: string; on_time_count?: number; on_time_rate?: number; on_time_rate_label?: string; period_label?: string };
   created_at?: string | null; updated_at?: string | null;
 }
@@ -144,7 +151,7 @@ export interface ApiAttendanceReceiptDto {
   validation: { status: 'tercatat'; status_label: string; metode_verifikasi: string; ip_address: string | null; user_agent: string | null; signed_at: string | null };
 }
 export interface ApiForgotPasswordDto {
-  masked_email: string;
+  masked_email?: string | null;
 }
 export interface ApiAttendanceHistorySummary {
   total_attended: number;

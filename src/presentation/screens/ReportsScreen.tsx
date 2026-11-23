@@ -146,6 +146,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const { allUnits, fetchAllUnits } = useEmployeeStore();
   const exportRepoRef = useRef(new AgendaExportRepository());
   const scrollViewRef = useRef<ScrollViewInstance | null>(null);
+  const loadSeqRef = useRef(0);
 
   const [draftStartDate, setDraftStartDate] = useState('');
   const [draftEndDate, setDraftEndDate] = useState('');
@@ -257,6 +258,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
   const loadReports = useCallback(
     async (page: number, mode: 'initial' | 'refresh' | 'list') => {
+      const requestSeq = ++loadSeqRef.current;
       if (mode === 'initial') setIsInitialLoading(true);
       else if (mode === 'refresh') setIsRefreshing(true);
       else setIsListLoading(true);
@@ -272,6 +274,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           }),
         ]);
 
+        if (requestSeq !== loadSeqRef.current) return;
+
         setSummary(summaryRes.data);
         setUnitPage(1);
         setMemberPage(1);
@@ -285,15 +289,18 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           },
         );
       } catch (err) {
+        if (requestSeq !== loadSeqRef.current) return;
         setErrorMessage(
           err instanceof Error
             ? err.message
             : 'Gagal memuat data laporan dan rekapitulasi.',
         );
       } finally {
-        setIsInitialLoading(false);
-        setIsRefreshing(false);
-        setIsListLoading(false);
+        if (requestSeq === loadSeqRef.current) {
+          setIsInitialLoading(false);
+          setIsRefreshing(false);
+          setIsListLoading(false);
+        }
       }
     },
     [activeApiFilters],

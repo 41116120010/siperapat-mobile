@@ -14,9 +14,7 @@
       "bundleIdentifier": "id.go.lldikti10.siperapat",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "SIPERAPAT memerlukan akses kamera untuk verifikasi swafoto presensi kehadiran rapat kedinasan ASN.",
-        "NSLocationWhenInUseUsageDescription": "SIPERAPAT memerlukan akses lokasi untuk verifikasi radius geofencing presensi di lokasi rapat kedinasan LLDIKTI X.",
-        "NSFaceIDUsageDescription": "SIPERAPAT menggunakan autentikasi biometrik untuk login cepat dan aman."
+        "NSCameraUsageDescription": "SIPERAPAT memerlukan akses kamera untuk verifikasi swafoto presensi kehadiran rapat kedinasan ASN."
       }
     },
     "android": {
@@ -29,11 +27,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
-        "CAMERA",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "CAMERA"
       ],
       "allowBackup": false,
       "predictiveBackGestureEnabled": false

@@ -1,5 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { UPLOAD_TIMEOUT_MS } from '../../core/config/apiConfig';
+import { downloadFileWithTimeout } from '../../core/utils/authenticatedMediaCache';
 import { getJakartaDateKey } from '../../core/utils/dateFormatter';
 import { authTokenStore } from '../datasources/authTokenStore';
 import {
@@ -113,67 +115,77 @@ export class AgendaExportRepository {
       FALLBACK_EXTENSIONS[options.format]
     }`;
 
-    const result = await FileSystem.downloadAsync(url, tempUri, {
-      headers: {
-        Accept: '*/*',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
+    let movedToFinal = false;
+    try {
+      const result = await downloadFileWithTimeout(
+        url,
+        tempUri,
+        {
+          Accept: '*/*',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        UPLOAD_TIMEOUT_MS,
+      );
 
-    if (result.status < 200 || result.status >= 300) {
-      const { message, code } = await parseErrorResponse(result.uri, result.status);
-      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
-      if (result.status === 401 || (result.status === 403 && code === 'ACCOUNT_INACTIVE')) {
-        await authTokenStore.handleUnauthorized();
+      if (result.status < 200 || result.status >= 300) {
+        const { message, code } = await parseErrorResponse(result.uri, result.status);
+        if (result.status === 401 || (result.status === 403 && code === 'ACCOUNT_INACTIVE')) {
+          await authTokenStore.handleUnauthorized();
+        }
+        throw new Error(message);
       }
-      throw new Error(message);
+
+      const headerFilename = parseFilenameFromDisposition(
+        getHeaderIgnoreCase(result.headers, 'content-disposition'),
+      );
+      const rawContentType = getHeaderIgnoreCase(result.headers, 'content-type');
+      const mimeType = normalizeMimeType(rawContentType, FALLBACK_MIMES[options.format]);
+
+      let finalName = (headerFilename || options.fallbackFilename).replace(
+        /[\\/:*?"<>|\u0000-\u001f]/g,
+        '_',
+      );
+      if (mimeType === 'text/html' && finalName.toLowerCase().endsWith('.pdf')) {
+        finalName = `${finalName.slice(0, -4)}.html`;
+      }
+      if (
+        options.format === 'word' &&
+        (mimeType.includes('ms-word') || mimeType === 'application/msword') &&
+        finalName.toLowerCase().endsWith('.docx')
+      ) {
+        finalName = `${finalName.slice(0, -5)}.doc`;
+      }
+
+      const finalUri = `${directory}${finalName}`;
+      if (finalUri !== result.uri) {
+        await FileSystem.deleteAsync(finalUri, { idempotent: true }).catch(() => {});
+        await FileSystem.moveAsync({ from: result.uri, to: finalUri });
+        movedToFinal = true;
+      }
+
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Fitur berbagi file tidak tersedia pada perangkat ini.');
+      }
+
+      const uti =
+        mimeType === 'text/html'
+          ? 'public.html'
+          : mimeType.includes('ms-word') || mimeType === 'application/msword'
+            ? 'com.microsoft.word.doc'
+            : IOS_UTIS[options.format];
+
+      await Sharing.shareAsync(finalUri, {
+        mimeType: mimeType === 'text/html' ? 'text/html' : mimeType,
+        UTI: uti,
+        dialogTitle: options.dialogTitle,
+      });
+
+      return finalName;
+    } finally {
+      if (!movedToFinal) {
+        await FileSystem.deleteAsync(tempUri, { idempotent: true }).catch(() => {});
+      }
     }
-
-    const headerFilename = parseFilenameFromDisposition(
-      getHeaderIgnoreCase(result.headers, 'content-disposition'),
-    );
-    const rawContentType = getHeaderIgnoreCase(result.headers, 'content-type');
-    const mimeType = normalizeMimeType(rawContentType, FALLBACK_MIMES[options.format]);
-
-    let finalName = (headerFilename || options.fallbackFilename).replace(
-      /[\\/:*?"<>|\u0000-\u001f]/g,
-      '_',
-    );
-    if (mimeType === 'text/html' && finalName.toLowerCase().endsWith('.pdf')) {
-      finalName = `${finalName.slice(0, -4)}.html`;
-    }
-    if (
-      options.format === 'word' &&
-      (mimeType.includes('ms-word') || mimeType === 'application/msword') &&
-      finalName.toLowerCase().endsWith('.docx')
-    ) {
-      finalName = `${finalName.slice(0, -5)}.doc`;
-    }
-
-    const finalUri = `${directory}${finalName}`;
-    if (finalUri !== result.uri) {
-      await FileSystem.deleteAsync(finalUri, { idempotent: true }).catch(() => {});
-      await FileSystem.moveAsync({ from: result.uri, to: finalUri });
-    }
-
-    if (!(await Sharing.isAvailableAsync())) {
-      throw new Error('Fitur berbagi file tidak tersedia pada perangkat ini.');
-    }
-
-    const uti =
-      mimeType === 'text/html'
-        ? 'public.html'
-        : mimeType.includes('ms-word') || mimeType === 'application/msword'
-          ? 'com.microsoft.word.doc'
-          : IOS_UTIS[options.format];
-
-    await Sharing.shareAsync(finalUri, {
-      mimeType: mimeType === 'text/html' ? 'text/html' : mimeType,
-      UTI: uti,
-      dialogTitle: options.dialogTitle,
-    });
-
-    return finalName;
   }
 
   async downloadAndShare(agendaId: string, format: AgendaExportFormat): Promise<string> {

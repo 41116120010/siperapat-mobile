@@ -46,6 +46,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   const [identifier, setIdentifier] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedTarget, setSubmittedTarget] = useState('');
+  const [submittedMessage, setSubmittedMessage] = useState('');
   const [cooldown, setCooldown] = useState(60);
   const { forgotPassword, isLoading: authLoading, error: authError, clearError } = useAuthStore();
 
@@ -89,11 +90,13 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
     try {
       const result = await forgotPassword(identifier.trim());
       if (result.success) {
-        setSubmittedTarget(identifier.trim());
+        setSubmittedTarget(result.maskedEmail?.trim() || identifier.trim());
+        setSubmittedMessage(
+          result.message ||
+            'Apabila identitas tersebut terdaftar dan memiliki email kedinasan aktif, tautan pemulihan kata sandi telah dikirimkan.',
+        );
         setIsSubmitted(true);
         setCooldown(60);
-      } else {
-        // Error is already set in auth store, no need to show additional error
       }
     } catch (error) {
       // Error is already set in auth store, no need to show additional error
@@ -290,10 +293,10 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
                 <MailCheck size={36} color={colors.success} strokeWidth={2} />
               </View>
 
-              <Text style={styles.successTitle}>Periksa Email Kedinasan</Text>
+              <Text style={styles.successTitle}>Permintaan Pemulihan Diterima</Text>
               <Text style={styles.successDesc}>
-                Instruksi dan tautan pemulihan kata sandi telah dikirimkan ke email yang
-                terkait dengan:
+                {submittedMessage ||
+                  'Apabila identitas tersebut terdaftar dan memiliki email kedinasan aktif, tautan pemulihan kata sandi telah dikirimkan.'}
               </Text>
 
               {/* Target Masking Card */}
