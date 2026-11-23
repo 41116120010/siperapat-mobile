@@ -500,27 +500,30 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
     if (!downloadUrl || isDownloadingEdaran) return;
 
     setIsDownloadingEdaran(true);
+    let tempCacheUri: string | null = null;
     try {
       const res = await agendaApi.downloadSuratEdaran(downloadUrl);
       const base64 = await blobToBase64(res.blob);
       const isImg = existingAttachmentMeta?.is_image ?? false;
       const ext = existingAttachmentMeta?.extension || (isImg ? 'jpg' : 'pdf');
       const safeCode = (meetingCode || `agenda-${meetingId}`).replace(/[^a-zA-Z0-9._-]/g, '_');
-      const fileName = res.filename || `Surat-Edaran_${safeCode}.${ext}`;
+      const rawName = res.filename || `Surat-Edaran_${safeCode}.${ext}`;
+      const safeName = rawName.replace(/[\\/:*?"<>|\u0000-\u001f\s]/g, '_');
       const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
       if (!baseDir) {
         throw new Error('Direktori penyimpanan lokal tidak tersedia.');
       }
-      const localUri = `${baseDir}${fileName}`;
+      const localUri = `${baseDir}edaran_${safeName}`;
       await FileSystem.writeAsStringAsync(localUri, base64, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
+        tempCacheUri = localUri;
         await Sharing.shareAsync(localUri, {
           mimeType: res.contentType || (isImg ? 'image/jpeg' : 'application/pdf'),
-          dialogTitle: `Unduh ${fileName}`,
+          dialogTitle: `Unduh ${safeName}`,
           UTI: isImg ? 'public.image' : 'com.adobe.pdf',
         });
       } else {
@@ -535,6 +538,9 @@ export const EditMeetingScreen: React.FC<EditMeetingScreenProps> = ({
         message: err instanceof Error ? err.message : 'Gagal mengunduh berkas surat edaran.',
       });
     } finally {
+      if (tempCacheUri) {
+        await FileSystem.deleteAsync(tempCacheUri, { idempotent: true }).catch(() => {});
+      }
       setIsDownloadingEdaran(false);
     }
   };

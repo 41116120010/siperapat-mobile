@@ -15,8 +15,11 @@ const MEDIA_CACHE_PREFIXES = [
   'selfie_detail_',
   'rep_detail_',
   'edaran_',
+  'surat-edaran_',
+  'doc_',
+  'share_',
   'authmedia_',
-  'SIPERAPAT_',
+  'siperapat_',
   'tmp_export_',
 ];
 
@@ -180,9 +183,10 @@ export async function clearAllAuthMediaCaches(): Promise<void> {
 
   try {
     const entries = await FileSystem.readDirectoryAsync(cacheDir);
-    const targets = entries.filter((name) =>
-      MEDIA_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix)),
-    );
+    const targets = entries.filter((name) => {
+      const lower = name.toLowerCase();
+      return MEDIA_CACHE_PREFIXES.some((prefix) => lower.startsWith(prefix));
+    });
     await Promise.all(
       targets.map((name) =>
         FileSystem.deleteAsync(`${cacheDir}${name}`, { idempotent: true }).catch(() => {}),

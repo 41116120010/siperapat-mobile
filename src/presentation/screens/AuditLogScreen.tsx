@@ -618,7 +618,7 @@ export const AuditLogScreen: React.FC<AuditLogScreenProps> = ({ onBack }) => {
                       {/* 6. IP & Perangkat */}
                       <View style={[styles.tdCell, styles.colIp]}>
                         <View style={styles.ipPill}>
-                          <Text style={styles.ipText}>{log.ip_address || '127.0.0.1'}</Text>
+                          <Text style={styles.ipText}>{log.ip_address || '-'}</Text>
                         </View>
                         <Text style={styles.uaText} numberOfLines={2}>
                           {log.user_agent || '-'}

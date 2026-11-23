@@ -1159,7 +1159,7 @@ export const ReportDetailScreen: React.FC<ReportDetailScreenProps> = ({
                                 {att.signed_at ? formatWaktuWIB(att.signed_at) : '-'}
                               </Text>
                               <AutoScrollText style={styles.attIpMono}>
-                                IP: {att.ip_address || '127.0.0.1'}
+                                IP: {att.ip_address || '-'}
                               </AutoScrollText>
                             </View>
 

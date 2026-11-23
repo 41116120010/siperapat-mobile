@@ -157,7 +157,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearError: () => set({ error: null }),
 }));
 
-authTokenStore.setUnauthorizedHandler(() => {
-  resetAllSessionData();
+authTokenStore.setUnauthorizedHandler(async () => {
   useAuthStore.setState({ user: null, isLoading: false, error: 'Sesi berakhir. Silakan masuk kembali.' });
+  await resetAllSessionData();
 });

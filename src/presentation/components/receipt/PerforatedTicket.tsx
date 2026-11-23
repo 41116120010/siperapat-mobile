@@ -311,7 +311,7 @@ export const PerforatedTicket: React.FC<PerforatedTicketProps> = ({
               <Text style={styles.networkFieldLabel}>Alamat IP:</Text>
               <View style={styles.networkIpPill}>
                 <Text style={styles.networkIpText}>
-                  {attendance.ipAddress || '127.0.0.1'}
+                  {attendance.ipAddress || '-'}
                 </Text>
               </View>
             </View>

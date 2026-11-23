@@ -226,6 +226,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
 
   const handleShareEvidence = async () => {
     if (!localImageUri) return;
+    let tempSharePath: string | null = null;
     try {
       setIsSharing(true);
       let targetShareUri = localImageUri;
@@ -240,6 +241,7 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
           await FileSystem.writeAsStringAsync(tempPath, base64Data, {
             encoding: FileSystem.EncodingType.Base64,
           });
+          tempSharePath = tempPath;
           targetShareUri = tempPath;
         }
       }
@@ -261,6 +263,9 @@ export const EvidenceViewerModal: React.FC<EvidenceViewerModalProps> = ({
         message: err instanceof Error ? err.message : 'Gagal membagikan bukti kehadiran.',
       });
     } finally {
+      if (tempSharePath) {
+        await FileSystem.deleteAsync(tempSharePath, { idempotent: true }).catch(() => {});
+      }
       setIsSharing(false);
     }
   };

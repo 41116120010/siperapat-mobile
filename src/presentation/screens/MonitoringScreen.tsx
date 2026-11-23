@@ -554,6 +554,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
     if (!streamPath) return;
 
     setIsDownloadingEdaran(true);
+    let tempCacheUri: string | null = null;
     try {
       const response = await agendaApi.downloadSuratEdaran(streamPath);
       const directory = FileSystem.cacheDirectory;
@@ -563,11 +564,12 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         (rawAgenda?.surat_edaran?.is_image ? 'jpg' : 'pdf');
       const fallbackName = `Surat-Edaran_${meeting?.code || meetingId || 'Agenda'}.${ext}`;
       const safeName = (response.filename || fallbackName).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
-      const destUri = `${directory}${safeName}`;
+      const destUri = `${directory}edaran_${safeName}`;
       const base64 = await blobToBase64(response.blob);
       await FileSystem.writeAsStringAsync(destUri, base64, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      tempCacheUri = destUri;
       if (!(await Sharing.isAvailableAsync())) {
         throw new Error('Fitur berbagi berkas tidak tersedia pada perangkat ini.');
       }
@@ -581,6 +583,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         message: err instanceof Error ? err.message : 'Gagal mengunduh surat edaran.',
       });
     } finally {
+      if (tempCacheUri) {
+        await FileSystem.deleteAsync(tempCacheUri, { idempotent: true }).catch(() => {});
+      }
       setIsDownloadingEdaran(false);
     }
   };
@@ -588,6 +593,7 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
   const handleDownloadDocumentation = async (doc: DocumentationItem) => {
     const fileUrl = doc.file_url ?? doc.url;
     if (!fileUrl) return;
+    let tempDocUri: string | null = null;
     try {
       const ext = resolveDocExtension(fileUrl);
       if (ext !== 'img') {
@@ -602,9 +608,9 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
           : 'jpg';
       const cacheDir = FileSystem.cacheDirectory ?? '';
       const dest = `${cacheDir}doc_${doc.id}_${Date.now()}.${imageExt}`;
+      tempDocUri = dest;
       const res = await FileSystem.downloadAsync(fileUrl, dest);
       if (res.status < 200 || res.status >= 300) {
-        await FileSystem.deleteAsync(dest, { idempotent: true }).catch(() => {});
         throw new Error(`HTTP ${res.status}`);
       }
       if (await Sharing.isAvailableAsync()) {
@@ -617,6 +623,10 @@ export const MonitoringScreen: React.FC<MonitoringScreenProps> = ({
         type: 'error',
         message: 'Tidak dapat mengunduh berkas dokumentasi.',
       });
+    } finally {
+      if (tempDocUri) {
+        await FileSystem.deleteAsync(tempDocUri, { idempotent: true }).catch(() => {});
+      }
     }
   };
 

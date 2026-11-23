@@ -347,6 +347,7 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
     if (!streamPath) return;
 
     setIsDownloadingEdaran(true);
+    let tempCacheUri: string | null = null;
     try {
       const response = await agendaApi.downloadSuratEdaran(streamPath);
       const directory = FileSystem.cacheDirectory;
@@ -356,11 +357,12 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
         (rawAgenda?.surat_edaran?.is_image ? 'jpg' : 'pdf');
       const fallbackName = `Surat-Edaran_${meeting?.code || meetingId}.${ext}`;
       const safeName = (response.filename || fallbackName).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
-      const destUri = `${directory}${safeName}`;
+      const destUri = `${directory}edaran_${safeName}`;
       const base64 = await blobToBase64(response.blob);
       await FileSystem.writeAsStringAsync(destUri, base64, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      tempCacheUri = destUri;
       if (!(await Sharing.isAvailableAsync())) {
         throw new Error('Fitur berbagi berkas tidak tersedia pada perangkat ini.');
       }
@@ -374,6 +376,9 @@ export const AgendaDetailScreen: React.FC<AgendaDetailScreenProps> = ({
         message: cause instanceof Error ? cause.message : 'Gagal mengunduh surat edaran.',
       });
     } finally {
+      if (tempCacheUri) {
+        await FileSystem.deleteAsync(tempCacheUri, { idempotent: true }).catch(() => {});
+      }
       setIsDownloadingEdaran(false);
     }
   };

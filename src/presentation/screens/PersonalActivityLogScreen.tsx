@@ -566,7 +566,7 @@ export const PersonalActivityLogScreen: React.FC<PersonalActivityLogScreenProps>
                       <View style={[styles.tdCell, styles.colIp]}>
                         <View style={styles.ipPill}>
                           <Text style={styles.ipText}>
-                            IP: {log.ip_address || '127.0.0.1'}
+                            IP: {log.ip_address || '-'}
                           </Text>
                         </View>
                         <Text style={styles.uaText} numberOfLines={2}>

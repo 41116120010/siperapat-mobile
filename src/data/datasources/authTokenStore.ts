@@ -3,13 +3,13 @@ import * as SecureStore from 'expo-secure-store';
 
 const TOKEN_KEY = 'siperapat.sanctum-token';
 let memoryToken: string | null = null;
-let unauthorizedHandler: (() => void) | undefined;
+let unauthorizedHandler: (() => void | Promise<void>) | undefined;
 
 export const authTokenStore = {
-  setUnauthorizedHandler(handler: () => void) { unauthorizedHandler = handler; },
+  setUnauthorizedHandler(handler: () => void | Promise<void>) { unauthorizedHandler = handler; },
   async handleUnauthorized(): Promise<void> {
     await this.clear();
-    unauthorizedHandler?.();
+    await unauthorizedHandler?.();
   },
   async get(): Promise<string | null> {
     if (memoryToken) return memoryToken;
